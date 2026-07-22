@@ -1,0 +1,1841 @@
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+
+// ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
+const HBLUE   = "#235C9C";   // header (blu principale, scurito)
+const PANEL_A = "#5A93C8";   // pannello meteo top
+const PANEL_B = "#4585C1";   // pannello meteo bottom
+const NAV     = "#235C9C";   // barra inferiore = stesso colore dell'header (HBLUE)
+const NAVACT  = "#FFC61E";   // voce menu attiva (giallo dorato)
+const GREYP   = "#FFFFFF";   // fondo frame meteo + radar (bianco)
+const ACCENT  = "#FFC61E";   // giallo dorato (radar + attivo), uguale al menu
+const BODY    = "#EAF1F8";   // sfondo azzurrino chiaro
+const CARD    = "#FFFFFF";
+const TXT      = "#1E3A5F";   // testo scuro
+const TXT2     = "#7592AE";   // testo secondario
+const LINE      = "#E1E9F2";
+const WHITE     = "#FFFFFF";
+const RED       = "#EF4444";
+const STAR      = "#F2B01E";
+
+// ─── ICONE METEO (linea bianca) ───────────────────────────────────────────────
+const WIcon = ({ name, size = 30, color = WHITE, sw = 2 }) => {
+  const p = { stroke: color, strokeWidth: sw, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+  const sun = (
+    <>
+      <circle cx="12" cy="12" r="4.2" {...p} />
+      {[...Array(8)].map((_, i) => {
+        const a = (Math.PI / 4) * i, r1 = 7, r2 = 9.6;
+        return <line key={i} x1={12 + r1 * Math.cos(a)} y1={12 + r1 * Math.sin(a)} x2={12 + r2 * Math.cos(a)} y2={12 + r2 * Math.sin(a)} {...p} />;
+      })}
+    </>
+  );
+  const paths = {
+    sun,
+    thermo: <><path d="M14 14.8V4a2 2 0 10-4 0v10.8a4.5 4.5 0 104 0z" {...p} /><line x1="12" y1="9" x2="12" y2="15" {...p} /></>,
+    drop: <><path d="M9 3.5C6.5 7 5 9.5 5 12a4 4 0 008 0c0-2.5-1.5-5-4-8.5z" {...p} transform="translate(-1,1) scale(0.85)" /><path d="M16 9c-1.4 2-2.2 3.4-2.2 4.8a2.3 2.3 0 004.6 0c0-1.4-.8-2.8-2.4-4.8z" {...p} /></>,
+    compass: <><circle cx="12" cy="12" r="9.2" {...p} /><polygon points="12,5.5 14.8,13 12,11.4 9.2,13" fill={color} stroke="none" /></>,
+    chat: <><path d="M21 11.5a8 8 0 01-11.6 7.1L4 20l1.4-5.4A8 8 0 1121 11.5z" {...p} /></>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
+};
+
+// ─── ICONE NAV / UI ───────────────────────────────────────────────────────────
+const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
+  const p = { stroke: color, strokeWidth: sw, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+  const hexPts = (cx, cy, r) => [...Array(6)].map((_, i) => { const a = Math.PI / 180 * (60 * i - 90); return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`; }).join(" ");
+  const paths = {
+    vicini: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
+    preferiti: <><polygon points={hexPts(12, 12, 9)} {...p} />{[...Array(6)].map((_, i) => { const a = Math.PI / 180 * (60 * i - 90); return <line key={i} x1={12 + 5 * Math.cos(a)} y1={12 + 5 * Math.sin(a)} x2={12 + 9 * Math.cos(a)} y2={12 + 9 * Math.sin(a)} {...p} />; })}<polygon points={hexPts(12, 12, 4)} fill={color} stroke="none" /></>,
+    feed: <><rect x="3" y="4" width="18" height="5" rx="1.5" {...p} /><rect x="3" y="12" width="18" height="8" rx="1.5" {...p} /></>,
+    eventi: <><rect x="5" y="3" width="14" height="18" rx="2" {...p} /><line x1="8.5" y1="8" x2="15.5" y2="8" {...p} /><line x1="8.5" y1="12" x2="15.5" y2="12" {...p} /><line x1="8.5" y1="16" x2="13" y2="16" {...p} /></>,
+    contatti: <><circle cx="9" cy="8" r="3.2" {...p} /><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5" {...p} /><circle cx="17" cy="7.5" r="2.5" {...p} /><path d="M16 14.6c2.6.2 4.5 2.1 4.5 4.9" {...p} /></>,
+    camera: <><rect x="2" y="7" width="20" height="14" rx="3" {...p} /><circle cx="12" cy="14" r="3.4" {...p} /><path d="M8 7V5a1 1 0 011-1h6a1 1 0 011 1v2" {...p} /></>,
+    plus: <><line x1="12" y1="5" x2="12" y2="19" {...p} /><line x1="5" y1="12" x2="19" y2="12" {...p} /></>,
+    back: <><path d="M15 18l-6-6 6-6" {...p} /></>,
+    check: <><polyline points="20 6 9 17 4 12" {...p} /></>,
+    star: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" stroke={color} strokeWidth={sw} fill="none" />,
+    starFill: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" fill={STAR} stroke="none" />,
+    send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
+    flip: <><path d="M1 4v6h6M23 20v-6h-6" {...p} /><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15" {...p} /></>,
+    capture: <><circle cx="12" cy="12" r="8" {...p} /><circle cx="12" cy="12" r="3" fill={color} stroke="none" /></>,
+    pin: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
+    eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" {...p} /><circle cx="12" cy="12" r="3.2" {...p} /></>,
+    locate: <><circle cx="12" cy="12" r="3" {...p} /><circle cx="12" cy="12" r="8" {...p} /><line x1="12" y1="1" x2="12" y2="4" {...p} /><line x1="12" y1="20" x2="12" y2="23" {...p} /><line x1="1" y1="12" x2="4" y2="12" {...p} /><line x1="20" y1="12" x2="23" y2="12" {...p} /></>,
+    logout: <><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" {...p} /></>,
+    comment: <><path d="M21 11.5a8 8 0 01-11.6 7.1L4 20l1.4-5.4A8 8 0 1121 11.5z" {...p} /></>,
+    heart: <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" {...p} />,
+    heartFill: <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#EF4D6A" stroke="none" />,
+    search: <><circle cx="11" cy="11" r="7" {...p} /><line x1="16.5" y1="16.5" x2="21" y2="21" {...p} /></>,
+    close: <><line x1="6" y1="6" x2="18" y2="18" {...p} /><line x1="18" y1="6" x2="6" y2="18" {...p} /></>,
+    groups: <><circle cx="8" cy="8" r="3.3" {...p} /><path d="M2.5 20c0-3.3 2.6-5.6 5.5-5.6 1.5 0 2.9.6 3.9 1.6" {...p} /><line x1="18" y1="5" x2="18" y2="11" {...p} /><line x1="15" y1="8" x2="21" y2="8" {...p} /></>,
+    bell: <><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" {...p} /><path d="M13.7 21a2 2 0 01-3.4 0" {...p} /></>,
+    chevron: <><path d="M9 6l6 6-6 6" {...p} /></>,
+    flag: <><line x1="5" y1="21" x2="5" y2="4" {...p} /><path d="M5 4.5h12l-2.3 3.5L17 11.5H5z" {...p} /></>,
+    beecast: <><path d="M12 3.2l6.2 3.6v7.2L12 17.6l-6.2-3.6V6.8z" {...p} /><line x1="12" y1="17.6" x2="12" y2="21" {...p} /><line x1="5.8" y1="6.8" x2="3" y2="5.2" {...p} /><line x1="18.2" y1="6.8" x2="21" y2="5.2" {...p} /></>,
+    clock: <><circle cx="12" cy="12" r="9" {...p} /><polyline points="12,7 12,12 16,14" {...p} /></>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
+};
+
+// ─── LOGO ───────────────────────────────────────────────────────────────────
+function BeeweatLogo({ size = 150 }) {
+  const cx = 100, cy = 100;
+  const sat = [[100, 38], [154, 69], [154, 131], [100, 162], [46, 131], [46, 69]];
+  const hex = (cx, cy, r) => { let d = ""; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 90); d += (i ? "L" : "M") + (cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1); } return d + "Z"; };
+  return (
+    <svg width={size} height={size} viewBox="0 0 200 200" style={{ display: "block", filter: `drop-shadow(0 10px 24px ${HBLUE}55)` }}>
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#3B7DD8" /><stop offset="100%" stopColor="#1B4E96" /></linearGradient>
+        <linearGradient id="honey" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FFE08A" /><stop offset="100%" stopColor="#F2A63C" /></linearGradient>
+        <radialGradient id="sun" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#FFE9A8" stopOpacity="0.9" /><stop offset="100%" stopColor="#FFE9A8" stopOpacity="0" /></radialGradient>
+      </defs>
+      <rect x="4" y="4" width="192" height="192" rx="44" fill="url(#bg)" />
+      <circle cx={cx} cy={cy} r="70" fill="url(#sun)" />
+      {sat.map((s, i) => <line key={i} x1={cx} y1={cy} x2={s[0]} y2={s[1]} stroke="#7FC6F0" strokeWidth="3.5" strokeLinecap="round" />)}
+      {sat.map((s, i) => <path key={"h" + i} d={hex(s[0], s[1], 13)} fill="url(#honey)" />)}
+      <path d={hex(cx, cy, 39)} fill="url(#honey)" />
+      <path d={hex(cx, cy, 39)} fill="none" stroke="#fff" strokeOpacity="0.35" strokeWidth="2" />
+    </svg>
+  );
+}
+const FacebookIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff"><path d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0022 12z" /></svg>;
+const GoogleIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z" /><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" /></svg>;
+const MailIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" /></svg>;
+const AppleIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff"><path d="M16.36 12.78c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.71-3.19-1.73-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.71.71 2.88.69 1.19-.02 1.94-1.08 2.67-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.53zM14.13 6.13c.61-.74 1.02-1.77.91-2.79-.88.04-1.94.59-2.57 1.32-.56.65-1.06 1.7-.93 2.7.98.08 1.98-.5 2.59-1.23z" /></svg>;
+
+// ─── AVATAR (emoji o immagine) ────────────────────────────────────────────────
+function UserAvatar({ src, size = 44, ring = true }) {
+  const isImg = typeof src === "string" && (src.startsWith("data:") || src.startsWith("http"));
+  const common = { width: size, height: size, borderRadius: "50%", flexShrink: 0, border: ring ? `2px solid ${LINE}` : "none" };
+  if (isImg) return <img src={src} alt="" style={{ ...common, objectFit: "cover", display: "block" }} />;
+  return <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#DCEBF7,#fff)" }}>{src || <NavIcon name="contatti" size={size * 0.55} color={HBLUE} />}</div>;
+}
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+const CITY = "Sorrento";
+const WEATHER = { condition: "☀️ Sereno", temp: "24°", hi: "26°", lo: "19°", humidity: "73%", wind: "NNW" };
+const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
+
+const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
+const AVA_M = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop";
+// ── INTERRUTTORE PROVE: metti false in produzione per disattivare la foto demo ──
+const TEST_MODE = true;
+const CAPRI_PHOTO = "data:image/jpeg;base64,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";
+// foto demo solo per le prove quando la fotocamera non è accessibile
+const DEMO_PHOTOS = [
+  CAPRI_PHOTO,
+  "https://images.unsplash.com/photo-1601297183305-6df142704ea2?w=700&h=560&fit=crop",
+  "https://images.unsplash.com/photo-1500740516770-92bd004b996e?w=700&h=560&fit=crop",
+  "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=700&h=560&fit=crop",
+  "https://images.unsplash.com/photo-1419833173245-f59e1b93f9ee?w=700&h=560&fit=crop",
+];
+
+const INITIAL_POSTS = [
+  { id: 1, user: "Umberto Nats", ava: AVA_W, time: "15:35", city: "Capri", dist: 2, bearing: 40, cond: "☀️ Sereno", stars: 73, starred: false, comments: 350, views: 285, shares: 12, img: CAPRI_PHOTO, caption: "Tramonto spettacolare sul golfo di Capri 🌅 cielo rosa e mare calmo, una serata perfetta!" },
+  { id: 2, user: "Sofia Greco", ava: AVA_M, time: "14:10", city: "Capri", dist: 6, bearing: 150, cond: "⛅ Poco nuvoloso", stars: 41, starred: false, comments: 96, views: 130, shares: 3, img: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=700&h=560&fit=crop", caption: "Cielo che cambia velocemente sul golfo, nuvole in arrivo da sud-ovest 🌤️" },
+  { id: 3, user: "Luca Marino", ava: AVA_M, time: "12:48", city: "Massa Lubrense", dist: 9, bearing: 250, cond: "🌧️ Pioggia", stars: 18, starred: true, comments: 24, views: 62, shares: 1, img: "https://images.unsplash.com/photo-1428592953211-077101b2021b?w=700&h=560&fit=crop", caption: "Pioggia leggera ma costante qui sulla costa ☔" },
+];
+
+const PEOPLE = [
+  { id: 11, name: "Umberto Nats", ava: AVA_W, city: "Capri" },
+  { id: 12, name: "Sofia Greco", ava: AVA_M, city: "Napoli" },
+  { id: 13, name: "Luca Marino", ava: AVA_M, city: "Salerno" },
+  { id: 14, name: "Elena Vitale", ava: AVA_W, city: "Amalfi" },
+];
+
+const INITIAL_EVENTS = [
+  { id: 21, type: "⛈️", title: "Forte temporale in arrivo", place: "Napoli", dist: 14, time: "30 min fa", user: "Luca Marino", sev: "Alta", lat: 40.8518, lng: 14.2681 },
+  { id: 22, type: "🌊", title: "Mareggiata sulla costa", place: "Amalfi", dist: 22, time: "1 h fa", user: "Elena Vitale", sev: "Media", lat: 40.6340, lng: 14.6027 },
+  { id: 23, type: "🌬️", title: "Raffiche di vento intense", place: "Sorrento", dist: 3, time: "2 h fa", user: "Umberto Nats", sev: "Bassa", lat: 40.6263, lng: 14.3757 },
+  { id: 24, type: "🎉", title: "Festa sul lungomare", place: "Capri", dist: 5, time: "20 min fa", user: "Elena Vitale", sev: "Bassa", lat: 40.6310, lng: 14.4920, cat: "🎉 Party" },
+];
+const BASE_COORDS = { lat: 40.6263, lng: 14.3757 };
+
+const EVENT_TYPES = ["— Nessun evento —", "⛈️ Temporale", "🌊 Mareggiata", "🌬️ Vento forte", "🌨️ Neve", "🔥 Caldo estremo", "🌫️ Nebbia fitta", "⚠️ Attenzione", "🚨 Incidente", "🚑 Soccorso"];
+const EVENT_CATEGORIES = ["— Nessuna categoria —", "🎉 Party", "🪩 Disco dance", "🎀 Inaugurazione", "🎶 Concerto", "🍸 Aperitivo", "🎭 Spettacolo", "🎪 Festa / Sagra", "🏟️ Evento sportivo", "🍽️ Cena / Food"];
+// luoghi vicini mostrati in Contatti (chat pubbliche + eventi per luogo)
+const NEARBY_PLACES = [
+  { id: 1, name: "Sorrento", dist: 0.2, chats: 194, events: 0 },
+  { id: 2, name: "Priora", dist: 1.4, chats: 330, events: 5 },
+  { id: 3, name: "Massa Lubrense", dist: 1.9, chats: 800, events: 100 },
+  { id: 4, name: "Pontone", dist: 2, chats: 50, events: 55 },
+  { id: 5, name: "Montecorbo", dist: 2.3, chats: 250, events: 32 },
+  { id: 6, name: "Cepano", dist: 2.6, chats: 100, events: 10 },
+  { id: 7, name: "Arorella", dist: 2.8, chats: 330, events: 25 },
+];
+
+// ─── STYLES ─────────────────────────────────────────────────────────────────
+const G = `
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { background: ${BODY}; color: ${TXT}; font-family: 'Sora', sans-serif; overflow: hidden; height: 100vh; height: 100dvh; -webkit-font-smoothing: antialiased; }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${TXT2}66; border-radius: 4px; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
+  @keyframes pop { 0%{transform:scale(1)} 45%{transform:scale(1.55) rotate(-8deg)} 100%{transform:scale(1)} }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes ping { 0%{transform:scale(.6);opacity:.8} 80%,100%{transform:scale(2.4);opacity:0} }
+  @keyframes drop { 0%{transform:translateY(-40px);opacity:0} 60%{transform:translateY(4px);opacity:1} 100%{transform:translateY(0)} }
+  .fade-up { animation: fadeUp .35s ease both; }
+  .star-pop { animation: pop .35s cubic-bezier(.36,.07,.19,.97) both; }
+  input, textarea, select { font-family: 'Sora', sans-serif; }
+  input::placeholder, textarea::placeholder { color: ${TXT2}; }
+  input[type=range] { -webkit-appearance:none; appearance:none; height:5px; border-radius:5px; outline:none; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
+  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
+`;
+
+// ─── INFORMATIVA PRIVACY ──────────────────────────────────────────────────────
+const PRIVACY = [
+  { h: "1. Titolare del trattamento", p: "Il Titolare del trattamento dei dati è Beeweat (di seguito \"l'App\"). Per qualsiasi richiesta relativa ai tuoi dati personali puoi scrivere all'indirizzo privacy@beeweat.app. La presente informativa è resa ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 (GDPR)." },
+  { h: "2. Dati personali raccolti", p: "Raccogliamo: (a) dati di registrazione (nome, città, email, password cifrata); (b) immagine del profilo (emoji o foto da te caricata); (c) dati di geolocalizzazione, se autorizzi l'accesso, per mostrarti il meteo e i contenuti vicino a te; (d) fotografie scattate in tempo reale tramite la fotocamera e da te pubblicate; (e) contenuti generati (post, didascalie, messaggi in chat, segnalazioni di eventi, like/stelle); (f) dati tecnici e di utilizzo (modello dispositivo, sistema operativo, log di accesso)." },
+  { h: "3. Finalità del trattamento", p: "I dati sono trattati per: erogare il servizio e gestire il tuo account; mostrare meteo, post ed eventi nel raggio selezionato; consentire chat e interazioni tra utenti; garantire sicurezza, prevenzione abusi e moderazione; adempiere a obblighi di legge. Le foto sono acquisite esclusivamente in tempo reale dalla fotocamera e non dall'archivio del dispositivo." },
+  { h: "4. Base giuridica", p: "Il trattamento si fonda su: l'esecuzione del contratto (fornitura del servizio, art. 6.1.b GDPR); il tuo consenso per geolocalizzazione e fotocamera (art. 6.1.a), revocabile in qualsiasi momento dalle impostazioni del dispositivo; il legittimo interesse alla sicurezza della piattaforma (art. 6.1.f); eventuali obblighi legali (art. 6.1.c)." },
+  { h: "5. Geolocalizzazione e fotocamera", p: "L'accesso alla posizione e alla fotocamera è facoltativo e richiede un tuo consenso esplicito tramite il sistema operativo. Puoi negarlo o revocarlo in ogni momento; alcune funzioni (radar, pubblicazione di post, segnalazione eventi con posizione) potrebbero risultare limitate. La posizione precisa è usata solo quando attivi le relative funzioni." },
+  { h: "6. Conservazione dei dati", p: "I dati dell'account sono conservati finché mantieni attivo il profilo. I post e le relative foto seguono un ciclo di vita a tempo: visibilità pubblica fino a 24 ore, archivio personale fino a 30 giorni, quindi eliminazione definitiva (fino a 90 giorni per contenuti legati a eventi estremi o in verifica a seguito di segnalazione). Dalle foto possono essere derivati dati meteorologici aggregati e anonimi (condizione osservata, zona, orario), privi di riferimenti personali, conservati per migliorare le previsioni collaborative. Se elimini un post o l'account, la rimozione dei dati personali è immediata, salvo obblighi di conservazione di legge e tempi tecnici di rotazione dei backup." },
+  { h: "7. Comunicazione e condivisione", p: "I contenuti che pubblichi (post, foto, eventi, profilo) sono visibili agli altri utenti secondo le impostazioni di visibilità. I dati possono essere trattati da fornitori di servizi (hosting, infrastruttura cloud, servizi mappe e meteo) nominati responsabili del trattamento. Non vendiamo i tuoi dati personali a terzi e non mostriamo pubblicità di inserzionisti all'interno dei contenuti." },
+  { h: "8. Trasferimento dati extra-UE", p: "Qualora i dati siano trasferiti fuori dallo Spazio Economico Europeo, ciò avverrà solo verso Paesi con decisione di adeguatezza oppure adottando garanzie adeguate (es. Clausole Contrattuali Standard della Commissione Europea)." },
+  { h: "9. I tuoi diritti", p: "In qualità di interessato hai diritto di: accesso ai dati (art. 15); rettifica (art. 16); cancellazione/oblio (art. 17); limitazione (art. 18); portabilità (art. 20); opposizione (art. 21); revoca del consenso in qualsiasi momento. Hai inoltre diritto di proporre reclamo all'Autorità Garante per la protezione dei dati personali. Per esercitare i diritti scrivi a privacy@beeweat.app." },
+  { h: "10. Minori", p: "Il servizio non è destinato a minori di 14 anni (o all'età minima prevista dalla normativa locale). Per i minori è richiesto il consenso di chi esercita la responsabilità genitoriale. Non raccogliamo consapevolmente dati di minori al di sotto di tale età." },
+  { h: "11. Sicurezza", p: "Adottiamo misure tecniche e organizzative adeguate (cifratura delle credenziali, controlli di accesso, trasmissione protetta) per proteggere i dati da accessi non autorizzati, perdita o divulgazione." },
+  { h: "12. Modifiche", p: "La presente informativa può essere aggiornata. In caso di modifiche sostanziali ti informeremo tramite l'App. L'uso continuato del servizio dopo l'aggiornamento implica presa visione della versione vigente." },
+  { h: "13. Contatti", p: "Per domande o richieste sulla privacy: privacy@beeweat.app. Ultimo aggiornamento: maggio 2026." },
+];
+
+// ─── TERMINI DI SERVIZIO ──────────────────────────────────────────────────────
+const TERMS = [
+  { h: "1. Accettazione dei Termini", p: "Utilizzando Beeweat accetti integralmente i presenti Termini di Servizio. Se non li accetti, ti invitiamo a non utilizzare l'App. I Termini costituiscono un accordo vincolante tra te e Beeweat." },
+  { h: "2. Descrizione del servizio", p: "Beeweat è una piattaforma social di meteo collaborativo che consente di pubblicare osservazioni meteo in tempo reale, visualizzare contenuti nelle vicinanze tramite il radar, interagire con altri utenti tramite chat, like e segnalazioni di eventi." },
+  { h: "3. Account e registrazione", p: "Per usare le funzioni complete devi registrarti fornendo dati veritieri e mantenere riservate le credenziali. Sei responsabile delle attività svolte tramite il tuo account. Devi avere almeno 14 anni (o l'età minima prevista localmente) per registrarti." },
+  { h: "4. Regole di condotta", p: "Ti impegni a non pubblicare contenuti illeciti, offensivi, diffamatori, osceni, violenti, discriminatori o che violino diritti altrui; a non molestare altri utenti; a non diffondere spam, informazioni false o fuorvianti; a non tentare accessi non autorizzati o compromettere la sicurezza della piattaforma." },
+  { h: "5. Contenuti degli utenti", p: "Resti titolare dei contenuti che pubblichi (foto, post, messaggi). Concedi a Beeweat una licenza non esclusiva, gratuita e limitata a ospitare, mostrare e distribuire tali contenuti all'interno del servizio. Sei l'unico responsabile di ciò che pubblichi e garantisci di averne i diritti. I post seguono un ciclo di vita a tempo: restano visibili sul radar per 6 ore e nel feed pubblico per 24 ore dalla pubblicazione; successivamente sono visibili solo nel tuo profilo per 30 giorni, dopodiché la foto e il post vengono eliminati definitivamente insieme alla relativa chat pubblica. Le stelle ricevute e i contatori restano acquisiti nella tua reputazione. Puoi eliminare un tuo post in qualsiasi momento, con rimozione immediata. I contenuti oggetto di segnalazione possono essere conservati oltre tali termini fino alla conclusione della verifica; i contenuti collegati a eventi meteo estremi possono essere conservati fino a 90 giorni per finalità di documentazione." },
+  { h: "6. Fotocamera e posizione", p: "Le foto possono essere acquisite esclusivamente in tempo reale tramite la fotocamera: non è consentito il caricamento dalla galleria per i post. L'uso di fotocamera e geolocalizzazione richiede il tuo consenso ed è soggetto ai permessi del sistema operativo." },
+  { h: "7. Eventi e segnalazioni", p: "Le segnalazioni di eventi (temporali, mareggiate, attenzione, incidenti, soccorso, ecc.) sono generate dagli utenti a titolo informativo e collaborativo. NON costituiscono allerta ufficiale. In caso di pericolo o emergenza reale contatta sempre i numeri di emergenza (112) e le autorità competenti." },
+  { h: "8. Dati meteo", p: "Le informazioni meteo derivano da una media di fonti pubbliche e sono fornite a scopo indicativo, senza garanzia di esattezza, completezza o tempestività. Non fare affidamento esclusivo su tali dati per decisioni critiche." },
+  { h: "9. Proprietà intellettuale", p: "Il marchio Beeweat, il logo, il software e gli elementi grafici sono di proprietà del Titolare o dei rispettivi licenzianti e sono protetti dalle leggi vigenti. Non è consentito copiarli o utilizzarli senza autorizzazione." },
+  { h: "10. Sospensione e cessazione", p: "Possiamo sospendere o chiudere account che violino i presenti Termini o la legge. Puoi cancellare il tuo account in qualsiasi momento; la cessazione comporta la rimozione dei contenuti secondo quanto previsto nell'Informativa sulla Privacy." },
+  { h: "11. Esclusione di garanzie", p: "Il servizio è fornito \"così com'è\" e \"come disponibile\", senza garanzie di funzionamento ininterrotto o privo di errori. Beeweat non garantisce l'accuratezza dei contenuti generati dagli utenti." },
+  { h: "12. Limitazione di responsabilità", p: "Nei limiti consentiti dalla legge, Beeweat non è responsabile per danni indiretti, incidentali o consequenziali derivanti dall'uso o dall'impossibilità di usare il servizio, né per condotte o contenuti di terzi/altri utenti." },
+  { h: "13. Modifiche ai Termini", p: "Possiamo aggiornare i presenti Termini. In caso di modifiche rilevanti ti informeremo tramite l'App. L'uso continuato dopo l'aggiornamento implica accettazione della versione vigente." },
+  { h: "14. Legge applicabile e foro", p: "I presenti Termini sono regolati dalla legge italiana. Per i consumatori resta competente il foro del luogo di residenza o domicilio; per gli altri casi è competente il foro indicato dal Titolare nel rispetto delle norme inderogabili." },
+  { h: "15. Contatti", p: "Per domande sui Termini di Servizio: legal@beeweat.app. Ultimo aggiornamento: maggio 2026." },
+];
+
+function LegalDoc({ title, intro, sections, onClose, onAccept }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 80, display: "flex", flexDirection: "column" }}>
+      <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>
+        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>{title}</span>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 8px" }}>
+        {intro && <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>{intro}</div>}
+        {sections.map((s, i) => (
+          <div key={i} style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: HBLUE, marginBottom: 5 }}>{s.h}</div>
+            <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.55 }}>{s.p}</div>
+          </div>
+        ))}
+      </div>
+      {onAccept && (
+        <div style={{ padding: "12px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom,0px))", borderTop: `1px solid ${LINE}`, flexShrink: 0 }}>
+          <button onClick={onAccept} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Ho letto e accetto</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AUTH ───────────────────────────────────────────────────────────────────
+function AuthScreen({ onLogin, sb }) {
+  const [view, setView] = useState("welcome");
+  const [mode, setMode] = useState("register");
+  const [form, setForm] = useState({ name: "", city: "", email: "", password: "" });
+  const [accepted, setAccepted] = useState(false);
+  const [legal, setLegal] = useState(null); // null | "privacy" | "terms"
+  const [warn, setWarn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [authErr, setAuthErr] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [recoverEmail, setRecoverEmail] = useState("");
+  const [recoverSent, setRecoverSent] = useState(false);
+  const inp = (ph, k, type = "text") => <input type={type} placeholder={ph} value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />;
+  const social = prov => { if (!accepted) { setWarn(true); return; } onLogin({ name: prov === "fb" ? "Utente Facebook" : prov === "apple" ? "Utente Apple" : "Utente Google", city: CITY }); };
+  const handleEmail = async () => {
+    if (mode === "register" && !accepted) { setWarn(true); return; }
+    if (!form.email || !form.password) return;
+    setAuthErr(null); setInfo(null);
+    // Se Supabase è configurato → autenticazione reale; altrimenti demo locale
+    if (sb?.isConfigured) {
+      setBusy(true);
+      try {
+        if (mode === "register") {
+          await sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || CITY });
+          setInfo("Registrazione inviata! Controlla la tua email e conferma il link, poi accedi.");
+          setMode("login");
+        } else {
+          await sb.loginEmail({ email: form.email, password: form.password });
+          let prof = null; try { prof = await sb.getCurrentProfile(); } catch (_) {}
+          onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
+        }
+      } catch (e) {
+        const m = String(e?.message || e);
+        setAuthErr(m.includes("Invalid login") ? "Email o password errati." : m.includes("confirm") ? "Devi prima confermare l'email: controlla la posta." : m.includes("already registered") ? "Email già registrata: prova ad accedere." : "Errore: " + m);
+      } finally { setBusy(false); }
+    } else {
+      onLogin({ name: form.name || "Utente Bee", city: form.city || CITY });
+    }
+  };
+
+  if (view === "welcome") return (
+    <div style={{ height: "100%", width: "100%", background: "linear-gradient(180deg,#FAFCFE 0%,#EAF4FB 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 28px", position: "relative", overflow: "hidden" }}>
+      {/* motivo a nido d'ape soffuso */}
+      <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, opacity: 0.06, pointerEvents: "none" }} aria-hidden="true">
+        <defs><pattern id="comb" width="56" height="48" patternUnits="userSpaceOnUse" patternTransform="scale(1)">
+          <path d="M14 0 L42 0 L56 24 L42 48 L14 48 L0 24 Z" fill="none" stroke={HBLUE} strokeWidth="2" />
+        </pattern></defs>
+        <rect width="100%" height="100%" fill="url(#comb)" />
+      </svg>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 60, position: "relative" }}>
+        <div style={{ display: "inline-block", animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={150} /></div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 42, letterSpacing: ".04em", color: "#2A7DC4", marginTop: 14 }}>BEEWEAT</div>
+        <div style={{ fontSize: 14, color: "#6E8BA6", marginTop: 4, fontWeight: 500, letterSpacing: ".01em" }}>Le api del tempo · il meteo in tempo reale</div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15.5, color: HBLUE, marginTop: 10, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
+      </div>
+      <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
+        <button onClick={() => social("apple")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#000", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><AppleIcon /> Accedi con Apple</button>
+        <button onClick={() => social("fb")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#3B5998", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><FacebookIcon /> Entra con Facebook</button>
+        <button onClick={() => social("g")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: `1.5px solid #E2E8F0`, cursor: "pointer", background: "#fff", color: "#5F6368", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><GoogleIcon /> Entra con Google</button>
+        <button onClick={() => { setView("email"); setMode("register"); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#E07B43", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><MailIcon /> Entra usando la tua Email</button>
+        <div style={{ fontSize: 11.5, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
+      </div>
+      {legal === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Beeweat tiene alla tua privacy. Di seguito trovi l'informativa completa sul trattamento dei dati personali ai sensi del Regolamento (UE) 2016/679 (GDPR)." sections={PRIVACY} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
+      {legal === "terms" && <LegalDoc title="Termini di Servizio" intro="Leggi i termini che regolano l'uso di Beeweat." sections={TERMS} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
+    </div>
+  );
+
+  // ── RECUPERO PASSWORD ──
+  if (view === "recover") return (
+    <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
+      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={20} color={HBLUE} /></button>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
+      <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
+        {!recoverSent ? (
+          <>
+            <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 6 }}>Reimposta la password</div>
+            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Inserisci l'email del tuo account: ti invieremo un link sicuro per reimpostare la password.</div>
+            <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none", marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
+            <button onClick={() => { if (recoverEmail.trim()) setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div></div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: TXT, textAlign: "center", marginBottom: 8 }}>Controlla la tua email</div>
+            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.55, textAlign: "center" }}>Se <b>{recoverEmail}</b> è associata a un account Beeweat, riceverai un'email con un <b>link sicuro</b> per reimpostare la password.<br /><br />Il link è valido per <b>30 minuti</b>, è utilizzabile una sola volta e funziona solo dal dispositivo da cui lo apri. Controlla anche lo spam.</div>
+            <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ width: "100%", marginTop: 18, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Torna all'accesso</button>
+          </>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: TXT2, textAlign: "center", marginTop: 14, maxWidth: 300, lineHeight: 1.5 }}>Per la tua sicurezza non comunichiamo se un'email è registrata o meno.</div>
+    </div>
+  );
+
+  return (
+    <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
+      <button onClick={() => setView("welcome")} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={20} color={HBLUE} /></button>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
+      <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
+        <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: 9, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Sora',sans-serif", background: mode === m ? "#fff" : "transparent", color: mode === m ? HBLUE : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {mode === "register" && <>{inp("Il tuo nome", "name")}{inp("La tua città", "city")}</>}
+          {inp("Email", "email", "email")}{inp("Password", "password", "password")}
+          {mode === "register" && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 2 }}>
+              <button onClick={() => { setAccepted(a => !a); setWarn(false); }} style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, border: `2px solid ${warn && !accepted ? RED : accepted ? HBLUE : LINE}`, background: accepted ? HBLUE : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{accepted && <NavIcon name="check" size={14} color="#fff" sw={3} />}</button>
+              <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.45 }}>
+                Ho letto e accetto i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.
+              </div>
+            </div>
+          )}
+          {warn && mode === "register" && !accepted && <div style={{ fontSize: 12, color: RED }}>Per registrarti devi accettare i Termini di Servizio e l'informativa sulla privacy.</div>}
+          {mode === "login" && <div style={{ textAlign: "right", marginTop: -4 }}><span onClick={() => { setRecoverEmail(form.email); setRecoverSent(false); setView("recover"); }} style={{ fontSize: 12.5, color: HBLUE, fontWeight: 600, cursor: "pointer" }}>Password dimenticata?</span></div>}
+          {authErr && <div style={{ color: RED, fontSize: 12.5, fontWeight: 600 }}>{authErr}</div>}
+          {info && <div style={{ color: "#3BA776", fontSize: 12.5, fontWeight: 600 }}>{info}</div>}
+          <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "ENTER"}</button>
+          {mode === "register" && <div style={{ fontSize: 11, color: TXT2, textAlign: "center", lineHeight: 1.4 }}>Servizio non destinato a minori di 14 anni.</div>}
+        </div>
+      </div>
+      {legal === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Beeweat tiene alla tua privacy. Di seguito trovi l'informativa completa sul trattamento dei dati personali ai sensi del Regolamento (UE) 2016/679 (GDPR)." sections={PRIVACY} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
+      {legal === "terms" && <LegalDoc title="Termini di Servizio" intro="Leggi i termini che regolano l'uso di Beeweat." sections={TERMS} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
+    </div>
+  );
+}
+
+// ─── HEADER ─────────────────────────────────────────────────────────────────
+function Header({ title, left, right }) {
+  return (
+    <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56, flexShrink: 0 }}>
+      <div style={{ minWidth: 72, display: "flex", justifyContent: "flex-start" }}>{left}</div>
+      <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 21, letterSpacing: ".02em", flex: 1, textAlign: "center", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{title}</div>
+      <div style={{ minWidth: 72, display: "flex", justifyContent: "flex-end" }}>{right}</div>
+    </div>
+  );
+}
+
+// ─── WEATHER PANEL ────────────────────────────────────────────────────────────
+function WeatherPanel({ commentCount }) {
+  const M = ({ icon, children }) => <div style={{ display: "flex", alignItems: "center", gap: 5 }}><WIcon name={icon} size={21} color={HBLUE} sw={1.7} /><span style={{ fontSize: 13.5, fontWeight: 500 }}>{children}</span></div>;
+  return (
+    <div style={{ background: GREYP, color: HBLUE, padding: "7px 20px 8px", flexShrink: 0, borderBottom: `1px solid ${LINE}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif", lineHeight: 1.05 }}>{new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5 }}><span>{commentCount}</span><WIcon name="chat" size={14} color={HBLUE} sw={1.8} /></div>
+        </div>
+        <WIcon name="sun" size={32} color={HBLUE} sw={1.7} />
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.1 }}>{WEATHER.condition.replace(/^[^ ]+ /, "")}</div>
+          <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{WEATHER.temp}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <M icon="thermo">{WEATHER.hi}/{WEATHER.lo}</M>
+        <M icon="drop">{WEATHER.humidity}</M>
+        <M icon="compass">{WEATHER.wind}</M>
+      </div>
+    </div>
+  );
+}
+
+// ─── RADAR SLIDER ─────────────────────────────────────────────────────────────
+function RadarBar({ km, setKm }) {
+  const pct = ((km - 1) / 49) * 100;
+  return (
+    <div style={{ background: GREYP, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderTop: `1px solid ${LINE}` }}>
+      <NavIcon name="locate" size={26} color={HBLUE} sw={1.8} />
+      <input type="range" min={1} max={50} value={km} onChange={e => setKm(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE}26 ${pct}%, ${HBLUE}26 100%)` }} />
+      <span style={{ color: HBLUE, fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk',sans-serif", minWidth: 92, textAlign: "right" }}>Raggio: {km} Km</span>
+    </div>
+  );
+}
+
+// ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
+function BottomNav({ tab, setTab }) {
+  const tabs = [
+    { id: "vicini", icon: "vicini", label: "Vicini" },
+    { id: "beecast", icon: "beecast", label: "BeeCast" },
+    { id: "feed", icon: "feed", label: "Feed" },
+    { id: "eventi", icon: "eventi", label: "Eventi" },
+    { id: "contatti", icon: "contatti", label: "Contatti" },
+  ];
+  return (
+    <div style={{ display: "flex", background: NAV, minHeight: 64, paddingBottom: "env(safe-area-inset-bottom, 0px)", flexShrink: 0 }}>
+      {tabs.map(t => {
+        const a = tab === t.id;
+        return (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer" }}>
+            <NavIcon name={t.icon} size={24} color={a ? NAVACT : "#fff"} sw={a ? 2.1 : 1.8} />
+            <span style={{ fontSize: 10.5, fontWeight: 500, color: a ? NAVACT : "#fff" }}>{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── SEGNALAZIONE CONTENUTO ───────────────────────────────────────────────────
+const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo", "Altro"];
+function ReportModal({ post, onSubmit, onClose }) {
+  const [reason, setReason] = useState(null);
+  const [sent, setSent] = useState(false);
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
+        {!sent ? (
+          <>
+            <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Segnala il contenuto</div>
+            <div style={{ fontSize: 13, color: TXT2, marginBottom: 14 }}>Perché vuoi segnalare il post di {post.user}?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {REPORT_REASONS.map(r => (
+                <button key={r} onClick={() => setReason(r)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${reason === r ? HBLUE : LINE}`, background: reason === r ? HBLUE + "0E" : "#fff", cursor: "pointer", textAlign: "left", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif", fontWeight: 500 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${reason === r ? HBLUE : LINE}`, background: reason === r ? HBLUE : "#fff", flexShrink: 0 }} />{r}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => { if (reason) { onSubmit(post, reason); setSent(true); } }} disabled={!reason} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: reason ? 1 : .5 }}>Invia segnalazione</button>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "10px 0 4px" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 6 }}>Segnalazione inviata</div>
+            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.</div>
+            <button onClick={onClose} style={{ width: "100%", padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Chiudi</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── POST CARD ────────────────────────────────────────────────────────────────
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported }) {
+  const [anim, setAnim] = useState(false);
+  const emoji = post.cond.split(" ")[0];
+  const like = e => { e.stopPropagation(); setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
+  const Stat = ({ icon, count, color, onClick, active }) => (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: onClick ? "pointer" : "default", padding: 0 }}>
+      <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 18, color: TXT }}>{count}</span>
+      <span className={active ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={icon} size={22} color={color} sw={1.9} /></span>
+    </button>
+  );
+  return (
+    <div className="fade-up" style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: `0 2px 10px ${HBLUE}0D` }}>
+      {/* HEADER */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+        <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 500, fontSize: 21, color: HBLUE, lineHeight: 1.15, cursor: onOpenUser && !post.mine ? "pointer" : "default", display: "inline-block" }}>{post.user}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: HBLUE, fontSize: 15, flexWrap: "wrap" }}>
+            <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}</span>
+            <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
+            {post.dir && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><WIcon name="compass" size={16} color={HBLUE} sw={2} /><span>{post.dir.label}</span></span>}
+            {onFollow && !post.mine && (
+              <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ marginLeft: 4, fontSize: 12, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "3px 12px", borderRadius: 20, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Segui ✓" : "+ Segui"}</button>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
+          {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="flag" size={18} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
+        </div>
+      </div>
+
+      {/* PHOTO (a tutta larghezza) */}
+      <div style={{ position: "relative", width: "100%", aspectRatio: "3 / 2", borderRadius: 4, overflow: "hidden", background: "#dfe8f1" }}>
+        <img src={post.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {reported && <div style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 5, background: "rgba(30,40,60,.78)", color: "#fff", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "5px 11px" }}><NavIcon name="search" size={12} color="#fff" sw={2} /> In revisione</div>}
+      </div>
+
+      {/* CONTATORI: chat · like (cuore) · visualizzazioni */}
+      <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", padding: "12px 4px 8px" }}>
+        <Stat icon="comment" count={post.comments} color={HBLUE} onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} />
+        <Stat icon={post.starred ? "heartFill" : "heart"} count={post.stars} color={post.starred ? "#EF4D6A" : HBLUE} onClick={like} active={anim} />
+        <Stat icon="eye" count={post.views} color={HBLUE} />
+      </div>
+
+      {/* DIDASCALIA troncata */}
+      {post.caption && <div style={{ fontSize: 14, color: TXT2, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{post.caption}</div>}
+    </div>
+  );
+}
+
+// ─── FEED ─────────────────────────────────────────────────────────────────────
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported }) {
+  const visible = posts.filter(p => p.dist <= km);
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
+      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
+      {visible.length === 0
+        ? <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} />)}
+    </div>
+  );
+}
+
+// ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
+function BeeCastScreen({ km }) {
+  const [alertOn, setAlertOn] = useState(false);
+  const [toast, setToast] = useState(false);
+  // dati simulati: nel backend arriveranno dall'algoritmo di nowcasting
+  const NOW = { text: "Nuvole in aumento tra ~3h", conf: "Affidabilità media", photos: 18, why: "18 foto della community a nord-ovest mostrano cielo in copertura, in movimento verso di te a ~25 km/h. La previsione del modello è stata corretta di conseguenza." };
+  // allerta di prossimità simulata (modulo 6.2 dell'algoritmo)
+  const ALERT = { icon: "🌧️", title: "Pioggia in arrivo tra ~20 min", dir: "da ovest", photos: 12, speed: 25, conf: "alta" };
+  const armAlert = () => {
+    setAlertOn(true); setToast(true);
+    setTimeout(() => setToast(false), 4200);
+  };
+  const SEA = { state: "Poco mosso", trend: "in aumento verso mosso in serata", photos: 7, wave: "0,5–1 m", scale: 2 };
+  const WaveIcon = () => {
+    const p = { stroke: HBLUE, strokeWidth: 1.7, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+    return (
+      <svg width="30" height="30" viewBox="0 0 24 24" style={{ display: "block" }}>
+        <path d="M2 9c1.6 0 1.6-1.6 3.2-1.6S6.8 9 8.4 9 10 7.4 11.6 7.4 13.2 9 14.8 9s1.6-1.6 3.2-1.6S19.6 9 22 9" {...p} />
+        <path d="M2 14c1.6 0 1.6-1.6 3.2-1.6S6.8 14 8.4 14 10 12.4 11.6 12.4 13.2 14 14.8 14s1.6-1.6 3.2-1.6S19.6 14 22 14" {...p} />
+        <path d="M2 19c1.6 0 1.6-1.6 3.2-1.6S6.8 19 8.4 19 10 17.4 11.6 17.4 13.2 19 14.8 19s1.6-1.6 3.2-1.6S19.6 19 22 19" {...p} />
+      </svg>
+    );
+  };
+  // effemeridi simulate (nel backend: calcolate da lat/lon e data, es. libreria SunCalc)
+  const SkyIcon = ({ kind }) => {
+    const p = { stroke: HBLUE, strokeWidth: 1.6, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+    if (kind === "sunrise" || kind === "sunset")
+      return (
+        <svg width="30" height="30" viewBox="0 0 24 24" style={{ display: "block", margin: "0 auto" }}>
+          <path d="M6 15a6 6 0 0112 0" {...p} />
+          <line x1="2" y1="19" x2="22" y2="19" {...p} />
+          {[[12, 4.5, 12, 7.5], [4.8, 8.2, 6.6, 9.6], [19.2, 8.2, 17.4, 9.6]].map((l, i) => <line key={i} x1={l[0]} y1={l[1]} x2={l[2]} y2={l[3]} {...p} />)}
+          {kind === "sunrise"
+            ? <polyline points="9.5,12 12,9.5 14.5,12" {...p} />
+            : <polyline points="9.5,10 12,12.5 14.5,10" {...p} />}
+        </svg>
+      );
+    // luna (sorgere/calare): mezzaluna + freccia su/giù
+    return (
+      <svg width="30" height="30" viewBox="0 0 24 24" style={{ display: "block", margin: "0 auto" }}>
+        <path d="M15.5 14.5A6 6 0 018.2 5.6a6.5 6.5 0 107.3 8.9z" {...p} />
+        {kind === "moonrise"
+          ? <polyline points="18.5,10 20.5,7.5 22.5,10" {...p} />
+          : <polyline points="18.5,7.5 20.5,10 22.5,7.5" {...p} />}
+      </svg>
+    );
+  };
+  const SKY = [
+    { kind: "sunrise", label: "Alba", time: "05:42" },
+    { kind: "sunset", label: "Tramonto", time: "20:31" },
+    { kind: "moonrise", label: "Sorgere luna", time: "22:07" },
+    { kind: "moonset", label: "Calare luna", time: "08:54" },
+  ];
+  const HOURS = [
+    { h: "Ora", e: "☀️", t: 24 }, { h: "+1h", e: "☀️", t: 24 }, { h: "+2h", e: "🌤️", t: 23 },
+    { h: "+3h", e: "⛅", t: 22 }, { h: "+4h", e: "⛅", t: 22 }, { h: "+5h", e: "☁️", t: 21 },
+    { h: "+6h", e: "☁️", t: 21 }, { h: "+8h", e: "🌧️", t: 19 }, { h: "+10h", e: "🌧️", t: 18 }, { h: "+12h", e: "⛅", t: 18 },
+  ];
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
+      {/* riquadro principale */}
+      <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", boxShadow: `0 4px 16px ${HBLUE}26` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <NavIcon name="beecast" size={20} color="#fff" sw={2} />
+          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>BeeCast</span>
+          <span style={{ marginLeft: "auto", fontSize: 11, background: "rgba(255,255,255,.2)", borderRadius: 12, padding: "3px 10px", fontWeight: 600 }}>{NOW.conf}</span>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{NOW.text}</div>
+        <div style={{ fontSize: 12, opacity: .92, marginTop: 6, lineHeight: 1.5 }}>{NOW.why}</div>
+      </div>
+
+      {/* allerta di prossimità (dalle foto della community) */}
+      <div style={{ marginTop: 12, background: "#fff", borderRadius: 14, border: `1.5px solid ${ACCENT}`, boxShadow: `0 2px 10px ${HBLUE}0D`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 14px", background: ACCENT + "1F" }}>
+          <span style={{ fontSize: 26, lineHeight: 1 }}>{ALERT.icon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: "#8A5A12" }}>{ALERT.title}</div>
+            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{ALERT.dir} · {ALERT.photos} foto lo confermano · affidabilità {ALERT.conf}</div>
+          </div>
+        </div>
+        <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, fontSize: 11.5, color: TXT2, lineHeight: 1.4 }}>Fenomeno osservato in avvicinamento a ~{ALERT.speed} km/h. Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
+          <button onClick={armAlert} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: "none", background: alertOn ? "#3BA776" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+            <NavIcon name={alertOn ? "check" : "bell"} size={15} color="#fff" sw={2} />{alertOn ? "Allerte attive" : "Avvisami"}
+          </button>
+        </div>
+      </div>
+
+      {/* toast: simulazione notifica push in arrivo */}
+      {toast && (
+        <div className="fade-up" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 96, zIndex: 90, width: "min(360px, 90%)", background: "#1E2A3A", color: "#fff", borderRadius: 14, padding: "12px 14px", boxShadow: "0 8px 26px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 11 }}>
+          <span style={{ fontSize: 22 }}>{ALERT.icon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700 }}>Beeweat · Allerta meteo</div>
+            <div style={{ fontSize: 12, opacity: .9, marginTop: 1 }}>{ALERT.title} {ALERT.dir} — {ALERT.photos} foto lo confermano</div>
+          </div>
+        </div>
+      )}
+
+      {/* prossime 12 ore */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "12px 6px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex", overflowX: "auto", gap: 2 }}>
+        {HOURS.map((x, i) => (
+          <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
+            <div style={{ fontSize: 11, color: TXT2, fontWeight: 600 }}>{x.h}</div>
+            <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: TXT, fontFamily: "'Space Grotesk',sans-serif" }}>{x.t}°</div>
+          </div>
+        ))}
+      </div>
+
+      {/* sole e luna */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Sole e luna</div>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "12px 8px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex" }}>
+        {SKY.map((s, i) => (
+          <div key={i} style={{ flex: 1, textAlign: "center", borderRight: i < SKY.length - 1 ? `1px solid ${LINE}` : "none" }}>
+            <SkyIcon kind={s.kind} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif", marginTop: 3 }}>{s.time}</div>
+            <div style={{ fontSize: 10.5, color: TXT2, marginTop: 1 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* stato del mare */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Stato del mare</div>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: `0 2px 10px ${HBLUE}0D` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <WaveIcon />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: TXT }}>{SEA.state}</div>
+            <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>Onda {SEA.wave} · {SEA.trend}</div>
+          </div>
+          <div style={{ textAlign: "right", fontSize: 11, color: TXT2 }}>{SEA.photos} foto<br />della costa</div>
+        </div>
+        {/* scala Douglas semplificata */}
+        <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
+          {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
+            <div key={s} style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ height: 6, borderRadius: 4, background: i <= SEA.scale - 1 ? HBLUE : LINE }} />
+              <div style={{ fontSize: 8.5, color: i === SEA.scale - 1 ? HBLUE : TXT2, fontWeight: i === SEA.scale - 1 ? 700 : 500, marginTop: 3 }}>{s}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* come funziona */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
+        BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({NOW.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
+        <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── VICINI (mappa radar) ───────────────────────────────────────────────────
+function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, following, onFollow }) {
+  const [sel, setSel] = useState(null);
+  const [vb, setVb] = useState({ x: 0, y: 0, w: 320, h: 320 });
+  const svgRef = useRef(null);
+  const selRef = useRef(null);
+  const vbRef = useRef(vb); vbRef.current = vb;
+  const gest = useRef(null);
+  const MINW = 90, MAXW = 320, PAN_THRESHOLD = 8;
+  const zoomed = Math.round(vb.w) !== 320;
+
+  useEffect(() => { if (sel) selRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [sel]);
+
+  useEffect(() => {
+    const el = svgRef.current; if (!el) return;
+    const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const toSvg = (cx, cy, base) => { const r = el.getBoundingClientRect(); return { x: base.x + (cx - r.left) / r.width * base.w, y: base.y + (cy - r.top) / r.height * base.h }; };
+    const clampW = w => Math.min(MAXW, Math.max(MINW, w));
+    const onStart = e => {
+      if (e.touches.length === 2) {
+        const m = { cx: (e.touches[0].clientX + e.touches[1].clientX) / 2, cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+        gest.current = { mode: "pinch", startVB: { ...vbRef.current }, startDist: dist(e.touches), mid: toSvg(m.cx, m.cy, vbRef.current) };
+      } else if (e.touches.length === 1 && Math.round(vbRef.current.w) !== 320) {
+        // pan possibile solo se già zoomato; parte solo dopo una soglia di movimento
+        gest.current = { mode: "pan", startVB: { ...vbRef.current }, sx: e.touches[0].clientX, sy: e.touches[0].clientY, active: false };
+      } else {
+        gest.current = null; // vista intera: lascia passare il tap sui cerchi
+      }
+    };
+    const onMove = e => {
+      const g = gest.current; if (!g) return;
+      const r = el.getBoundingClientRect();
+      if (g.mode === "pinch" && e.touches.length === 2) {
+        e.preventDefault();
+        const s = dist(e.touches) / g.startDist;
+        const newW = clampW(g.startVB.w / s), k = newW / g.startVB.w;
+        setVb({ x: g.mid.x - (g.mid.x - g.startVB.x) * k, y: g.mid.y - (g.mid.y - g.startVB.y) * k, w: newW, h: newW });
+      } else if (g.mode === "pan" && e.touches.length === 1) {
+        const ddx = e.touches[0].clientX - g.sx, ddy = e.touches[0].clientY - g.sy;
+        if (!g.active && Math.hypot(ddx, ddy) < PAN_THRESHOLD) return; // sotto soglia: non è un trascinamento → consenti il tap
+        g.active = true;
+        e.preventDefault();
+        const dx = ddx / r.width * g.startVB.w, dy = ddy / r.height * g.startVB.h;
+        setVb({ x: g.startVB.x - dx, y: g.startVB.y - dy, w: g.startVB.w, h: g.startVB.h });
+      }
+    };
+    const onEnd = e => { gest.current = (e.touches.length === 1 && Math.round(vbRef.current.w) !== 320) ? { mode: "pan", startVB: { ...vbRef.current }, sx: e.touches[0].clientX, sy: e.touches[0].clientY, active: false } : null; };
+    const onWheel = e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), b = vbRef.current;
+      const M = { x: b.x + (e.clientX - r.left) / r.width * b.w, y: b.y + (e.clientY - r.top) / r.height * b.h };
+      const newW = clampW(b.w * (e.deltaY < 0 ? 0.9 : 1.1)), k = newW / b.w;
+      setVb({ x: M.x - (M.x - b.x) * k, y: M.y - (M.y - b.y) * k, w: newW, h: newW });
+    };
+    el.addEventListener("touchstart", onStart, { passive: false });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => { el.removeEventListener("touchstart", onStart); el.removeEventListener("touchmove", onMove); el.removeEventListener("touchend", onEnd); el.removeEventListener("wheel", onWheel); };
+  }, []);
+
+  const visible = posts.filter(p => p.dist <= km);
+  const evVisible = (events || []).filter(e => e.dist <= km);
+  const R = 150, cx = 160, cy = 160;
+  const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
+      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post · {evVisible.length} eventi entro {km} km</div>
+      <div style={{ position: "relative", background: `radial-gradient(circle at center, #DCEBF7, #C2DCF0)`, borderRadius: 18, padding: 10, border: `2px solid ${HBLUE}33`, boxShadow: `0 2px 12px ${HBLUE}18`, overflow: "hidden" }}>
+        <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", display: "block", touchAction: "none", cursor: zoomed ? "grab" : "default" }}>
+          {[0.33, 0.66, 1].map((f, i) => <circle key={i} cx={cx} cy={cy} r={R * f} fill="none" stroke={HBLUE + "33"} strokeWidth="1.5" />)}
+          <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke={HBLUE + "22"} strokeWidth="1" />
+          <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke={HBLUE + "22"} strokeWidth="1" />
+          {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 4} y={cy - R * f + 14} fill={HBLUE + "99"} fontSize="11" fontFamily="Space Grotesk">{Math.round(km * f)}km</text>)}
+          {/* user center */}
+          <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
+          <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
+          {/* posts */}
+          {visible.map(p => {
+            const a = (p.bearing - 90) * Math.PI / 180, r = (p.dist / km) * R;
+            const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+            return (
+              <g key={p.id} onClick={() => setSel(p)} style={{ cursor: "pointer" }}>
+                <circle cx={x} cy={y} r="16" fill="#fff" stroke={HBLUE} strokeWidth="2" />
+                <text x={x} y={y + 5} fontSize="15" textAnchor="middle" style={{ pointerEvents: "none" }}>{p.cond.split(" ")[0]}</text>
+              </g>
+            );
+          })}
+          {/* eventi: cerchio rosso con piccolo filo radiale sulla circonferenza */}
+          {evVisible.map(e => {
+            const a = (bearingOf(e) - 90) * Math.PI / 180, r = (e.dist / km) * R;
+            const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+            const ux = Math.cos(a), uy = Math.sin(a), rc = 12;
+            return (
+              <g key={"ev" + e.id} onClick={() => onEvent && onEvent(e)} style={{ cursor: "pointer" }}>
+                <circle cx={x} cy={y} r={rc} fill="#fff" stroke="#E5484D" strokeWidth="2.5" />
+                <line x1={x + ux * rc} y1={y + uy * rc} x2={x + ux * (rc + 8)} y2={y + uy * (rc + 8)} stroke="#E5484D" strokeWidth="2.5" strokeLinecap="round" style={{ pointerEvents: "none" }} />
+                <text x={x} y={y + 5} fontSize="13" textAnchor="middle" style={{ pointerEvents: "none" }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</text>
+              </g>
+            );
+          })}
+        </svg>
+        {zoomed && <button onClick={() => setVb({ x: 0, y: 0, w: 320, h: 320 })} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.92)", border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.12)" }}>Reimposta</button>}
+      </div>
+      {/* legenda */}
+      <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 10, fontSize: 11, color: TXT2 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Post</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #E5484D", background: "#fff", display: "inline-block" }} /> Eventi</span>
+      </div>
+      <div style={{ textAlign: "center", color: TXT2, fontSize: 11, marginTop: 6 }}>Pizzica per zoomare · trascina per spostarti</div>
+      {sel
+        ? <div ref={selRef} className="fade-up" style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+              <button onClick={() => setSel(null)} style={{ background: "none", border: "none", color: TXT2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", gap: 4 }}><NavIcon name="close" size={13} color={TXT2} sw={2.2} /> Chiudi</button>
+            </div>
+            <PostCard post={sel} onStar={() => {}} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(sel.user)} onFollow={onFollow} />
+          </div>
+        : <div style={{ textAlign: "center", color: TXT2, fontSize: 13, marginTop: 10 }}>Tocca un segnale sulla mappa: 🔵 post · 🔴 eventi</div>}
+    </div>
+  );
+}
+
+// ─── EVENTI ─────────────────────────────────────────────────────────────────
+function EventiScreen({ events, km, onOpen }) {
+  const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
+  const visible = events.filter(e => e.dist <= km || km >= 25);
+  const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
+      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi segnalati nella zona</div>
+      {visible.map(e => (
+        <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
+              {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
+              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
+          </div>
+          {/* terzo rigo: localizzazione (tocca per la mappa) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "9px 10px", background: HBLUE + "0E", borderRadius: 10 }}>
+            <NavIcon name="pin" size={16} color={HBLUE} sw={2} />
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: HBLUE }}>{e.place}</span>
+            <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600 }}>Vedi sulla mappa</span>
+            <NavIcon name="back" size={14} color={HBLUE} sw={2.4} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}` }}>
+            <UserAvatar src={e.ava || avaOf(e.user)} size={28} />
+            <span style={{ fontSize: 12, color: TXT2 }}>Segnalato da</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: HBLUE }}>{e.user}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── CONTATTI ──────────────────────────────────────────────────────────────
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav }) {
+  const [q, setQ] = useState("");
+  const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
+  const ql = q.trim().toLowerCase();
+  const list = contacts.filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
+  const places = NEARBY_PLACES.filter(p => p.dist <= km);
+  const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
+  const favList = (people || []).filter(p => favs?.includes(p.id));
+  const FavRow = ({ p }) => {
+    const on = favs.includes(p.id);
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
+        <UserAvatar src={p.ava} size={50} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
+        </div>
+        <button onClick={() => toggleFav(p.id)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
+      </div>
+    );
+  };
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
+      {/* schede: Contatti | Preferiti */}
+      <div style={{ display: "flex", gap: 22, padding: "12px 16px 0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+        {[["contatti", "Contatti"], ["preferiti", "Preferiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? HBLUE : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
+        ))}
+      </div>
+
+      {sub === "preferiti" ? (
+        <>
+          <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi preferiti ({favList.length})</div>
+          {favList.length === 0 ? <div style={{ padding: "20px 16px", color: TXT2, fontSize: 14 }}>Nessun preferito ancora — aggiungili dalla lista sotto ⭐</div> : favList.map(p => <FavRow key={p.id} p={p} />)}
+          <div style={{ padding: "18px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Tutti gli utenti</div>
+          {(people || []).map(p => <FavRow key={p.id} p={p} />)}
+        </>
+      ) : sub === "gruppi" ? (
+        <>
+          <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi gruppi ({(groups || []).length})</div>
+          {(!groups || groups.length === 0)
+            ? <div style={{ padding: "26px 16px", color: TXT2, fontSize: 14, textAlign: "center" }}>Nessun gruppo ancora.<br />Creane uno con l'icona 👥+ in alto!</div>
+            : groups.map(g => (
+              <div key={g.id} onClick={() => onOpenGroup(g)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
+                <div style={{ width: 50, height: 50, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={HBLUE} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
+                </div>
+                <NavIcon name="chevron" size={18} color={TXT2} sw={2} />
+              </div>
+            ))}
+        </>
+      ) : (
+        <>
+      {/* campo cerca contatti */}
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: BODY, borderRadius: 12, padding: "9px 12px" }}>
+          <NavIcon name="search" size={17} color={TXT2} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca tra i contatti…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
+        </div>
+      </div>
+
+      {/* luoghi vicini (chat pubbliche + eventi per luogo, in base al raggio) */}
+      {!ql && places.length > 0 && (
+        <div>
+          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Luoghi vicini</div>
+          {places.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${LINE}` }}>
+              <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, minWidth: 60, justifyContent: "flex-end" }}>
+                  <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 17 }}>{p.chats}</span><WIcon name="chat" size={19} color={HBLUE} sw={1.9} />
+                </div>
+              </button>
+              <button onClick={() => onOpenPlaceEvents(p)} style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, padding: "12px 16px 12px 10px", background: "none", border: "none", cursor: "pointer" }}>
+                <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 17 }}>{p.events}</span><NavIcon name="eventi" size={18} color={HBLUE} sw={1.8} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!ql && <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Contatti</div>}
+      {list.length === 0
+        ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
+        : list.map(c => (
+          <div key={c.id} onClick={() => onChat(c)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
+            <UserAvatar src={c.ava} size={56} />
+            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{c.city}</span></div>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={18} color="#fff" sw={2.4} /></div>
+          </div>
+        ))}
+      </>
+      )}
+    </div>
+  );
+}
+
+// ─── CREA GRUPPO ──────────────────────────────────────────────────────────────
+function CreateGroupModal({ contacts, onCreate, onClose }) {
+  const [name, setName] = useState("");
+  const [sel, setSel] = useState([]);
+  const toggle = id => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const submit = () => { if (!name.trim() || sel.length === 0) return; onCreate({ name: name.trim(), members: sel }); };
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Nuovo gruppo</div>
+        <input placeholder="Nome del gruppo" value={name} onChange={e => setName(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14 }} />
+        <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Seleziona i membri ({sel.length})</div>
+        <div style={{ flex: 1, overflowY: "auto", marginBottom: 14 }}>
+          {contacts.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Aggiungi prima dei contatti per formare un gruppo.</div> : contacts.map(c => {
+            const on = sel.includes(c.id);
+            return (
+              <div key={c.id} onClick={() => toggle(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
+                <UserAvatar src={c.ava} size={42} />
+                <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
+              </div>
+            );
+          })}
+        </div>
+        <button onClick={submit} disabled={!name.trim() || sel.length === 0} style={{ padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: (!name.trim() || sel.length === 0) ? .5 : 1 }}>Crea gruppo</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── CHAT 1-A-1 ───────────────────────────────────────────────────────────────
+function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGroup }) {
+  const [text, setText] = useState("");
+  const [manage, setManage] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  const send = () => { if (!text.trim()) return; onSend(text.trim()); setText(""); };
+  const members = group ? group.members.map(id => (contacts || []).find(c => c.id === id)).filter(Boolean) : [];
+  const toggleMember = id => {
+    const m = group.members.includes(id) ? group.members.filter(x => x !== id) : [...group.members, id];
+    onUpdateGroup(group.id, m);
+  };
+  return (
+    <>
+      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />} />
+
+      {/* banner chat pubblica */}
+      {contact.public && (
+        <div style={{ background: "#fff", borderBottom: `1px solid ${LINE}`, padding: "10px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: HBLUE + "14", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={18} color={HBLUE} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>Chat pubblica · visibile a tutti</div>
+            {contact.sub && <div style={{ fontSize: 11.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.sub}</div>}
+          </div>
+        </div>
+      )}
+
+      {/* barra membri del gruppo */}
+      {group && (
+        <div style={{ background: "#fff", borderBottom: `1px solid ${LINE}`, padding: "10px 12px", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto" }}>
+            {members.map(m => (
+              <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 46 }}>
+                <UserAvatar src={m.ava} size={36} />
+                <span style={{ fontSize: 9, color: TXT2, maxWidth: 46, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name.split(" ")[0]}</span>
+              </div>
+            ))}
+            <button onClick={() => setManage(true)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 46, background: "none", border: "none", cursor: "pointer" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE + "14", border: `1.5px dashed ${HBLUE}66`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color={HBLUE} sw={2.2} /></div>
+              <span style={{ fontSize: 9, color: HBLUE, fontWeight: 600 }}>Gestisci</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, background: BODY }}>
+        {msgs.map(m => (
+          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }}>
+            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
+            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "10px 14px", fontSize: 14, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, textAlign: "right" }}>{m.time}</div></div>
+          </div>
+        ))}
+        <div ref={ref} />
+      </div>
+      <div style={{ padding: "12px 16px", background: "#fff", borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
+        <textarea rows={1} placeholder="Scrivi un messaggio…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 14, resize: "none", outline: "none", color: TXT }} />
+        <button onClick={send} style={{ width: 46, height: 46, borderRadius: 14, background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
+      </div>
+
+      {/* gestione membri */}
+      {manage && group && (
+        <div onClick={() => setManage(false)} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+            <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Membri di “{group.name}”</div>
+            <div style={{ fontSize: 12, color: TXT2, marginBottom: 14 }}>Tocca per aggiungere o rimuovere dai contatti</div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {(contacts || []).length === 0 ? <div style={{ color: TXT2, fontSize: 14 }}>Nessun contatto disponibile.</div> : (contacts || []).map(c => {
+                const on = group.members.includes(c.id);
+                return (
+                  <div key={c.id} onClick={() => toggleMember(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
+                    <UserAvatar src={c.ava} size={42} />
+                    <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                    <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setManage(false)} style={{ marginTop: 14, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Fatto</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── CAMERA / POST ────────────────────────────────────────────────────────────
+function CameraView({ onPost, onBack }) {
+  const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
+  const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
+  const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
+  const [err, setErr] = useState(null), [facing, setFacing] = useState("environment"), [posting, setPosting] = useState(false);
+  // bussola: direzione della fotocamera (gradi 0-360, 0 = Nord)
+  const [heading, setHeading] = useState(40);      // valore demo di partenza
+  const [headingReal, setHeadingReal] = useState(false);
+  const [shotDir, setShotDir] = useState(null);    // direzione congelata allo scatto
+  const DIRS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+  const dirLabel = h => DIRS[Math.round(((h % 360) + 360) % 360 / 45) % 8];
+  useEffect(() => {
+    const onOri = e => {
+      let h = null;
+      if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;      // iOS
+      else if (typeof e.alpha === "number") h = 360 - e.alpha;                          // standard
+      if (h != null && !isNaN(h)) { setHeading(((h % 360) + 360) % 360); setHeadingReal(true); }
+    };
+    window.addEventListener("deviceorientationabsolute", onOri, true);
+    window.addEventListener("deviceorientation", onOri, true);
+    return () => { window.removeEventListener("deviceorientationabsolute", onOri, true); window.removeEventListener("deviceorientation", onOri, true); };
+  }, []);
+  const Compass = ({ h }) => (
+    <div style={{ position: "absolute", top: 12, right: 14, width: 62, textAlign: "center" }}>
+      <div style={{ width: 54, height: 54, margin: "0 auto", borderRadius: "50%", background: "rgba(0,0,0,.38)", border: "1.5px solid rgba(255,255,255,.65)", position: "relative" }}>
+        {/* rosa dei venti che ruota: il Nord segue il mondo reale */}
+        <div style={{ position: "absolute", inset: 0, transform: `rotate(${-h}deg)`, transition: "transform .25s ease-out" }}>
+          <span style={{ position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 800, color: "#FF5A5A" }}>N</span>
+          <span style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>S</span>
+          <span style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>O</span>
+          <span style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>E</span>
+        </div>
+        {/* indicatore fisso: dove punta la fotocamera */}
+        <div style={{ position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${ACCENT}` }} />
+      </div>
+      <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)", letterSpacing: ".04em" }}>{dirLabel(h)} · {Math.round(h)}°{!headingReal && <span style={{ fontWeight: 600, opacity: .8 }}> demo</span>}</div>
+    </div>
+  );
+  const start = useCallback(async () => {
+    try {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setErr({ kind: "unsupported", msg: "La fotocamera non è disponibile in questo contesto (richiede una connessione sicura HTTPS)." });
+        return;
+      }
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+      streamRef.current = s; if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); } setStreaming(true); setErr(null);
+    } catch (e) {
+      const n = e && e.name;
+      if (n === "NotAllowedError" || n === "SecurityError") setErr({ kind: "denied", msg: "Accesso alla fotocamera negato o bloccato." });
+      else if (n === "NotFoundError" || n === "OverconstrainedError") setErr({ kind: "notfound", msg: "Nessuna fotocamera disponibile su questo dispositivo." });
+      else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
+    }
+  }, [facing]);
+  useEffect(() => { start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing]);
+  const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return; c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
+  const retake = () => { setCaptured(null); start(); };
+  const publish = () => { if (!captured) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir }); }, 600); };
+  return (
+    <>
+      <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#cdd", minHeight: 280, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
+          {!captured ? <>
+            <video ref={videoRef} playsInline muted style={{ width: "100%", display: streaming ? "block" : "none", maxHeight: 360, objectFit: "cover" }} />
+            {!streaming && !err && <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: TXT2 }}>Avvio fotocamera…</div>}
+            {err && <div style={{ minHeight: 280, display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", padding: "26px 22px", textAlign: "center" }}>
+              <NavIcon name="camera" size={40} color={TXT2} />
+              <span style={{ color: RED, fontSize: 14, fontWeight: 600 }}>{err.msg}</span>
+              {err.kind === "denied" && <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.6, textAlign: "left", background: "#fff", borderRadius: 10, padding: "10px 12px", border: `1px solid ${LINE}` }}>
+                Per attivare la fotocamera:<br />
+                • tocca l'icona 🔒/📷 nella barra degli indirizzi del browser<br />
+                • imposta la Fotocamera su <b>Consenti</b><br />
+                • ricarica la pagina e premi <b>Riprova</b><br />
+                Su iPhone: Impostazioni → Safari → Fotocamera → Consenti.
+              </div>}
+              {(err.kind === "blocked" || err.kind === "unsupported") && <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.6 }}>Se stai usando un'anteprima incorporata, apri l'app in una scheda del browser dedicata: la fotocamera richiede HTTPS e il permesso del sito.</div>}
+              <button onClick={start} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: HBLUE, color: "#fff", cursor: "pointer", fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Riprova</button>
+              {TEST_MODE && <button onClick={() => { setErr(null); setCaptured(DEMO_PHOTOS[Math.floor(Math.random() * DEMO_PHOTOS.length)]); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); }} style={{ padding: "8px 16px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "transparent", color: TXT2, cursor: "pointer", fontSize: 12.5, fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Usa una foto demo (solo prova)</button>}
+            </div>}
+            {streaming && <div style={{ position: "absolute", top: 12, left: 14, display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,.35)", borderRadius: 20, padding: "4px 10px" }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: RED, animation: "blink 1s infinite" }} /><span style={{ fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: ".1em" }}>LIVE</span></div>}
+            {streaming && <Compass h={heading} />}
+          </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+        </div>
+        <div style={{ padding: "0 16px 20px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: ACCENT + "1A", border: `1px solid ${ACCENT}55`, borderRadius: 12, padding: "9px 12px", marginBottom: 14 }}>
+            <span style={{ fontSize: 16, lineHeight: 1.3 }}>🌤️</span>
+            <span style={{ fontSize: 12, color: "#9A6418", lineHeight: 1.45 }}>Inquadra il <b>cielo o il meteo</b>, non le persone: le foto con persone in primo piano non sono ammesse e verranno scartate.</span>
+          </div>
+          {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
+            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
+            {streaming && <button onClick={capture} style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55` }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
+          </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
+            <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
+              <button onClick={publish} disabled={posting} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : "Pubblica ora"}</button>
+            </div>
+          </div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── PROFILE ──────────────────────────────────────────────────────────────────
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif }) {
+  const mine = posts.filter(p => p.mine);
+  const stars = mine.reduce((s, p) => s + p.stars, 0);
+  const [editing, setEditing] = useState(false);
+  return (
+    <>
+      <Header title="Profilo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
+        <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, height: 110 }} />
+        <div style={{ padding: "0 20px", marginTop: -42 }}>
+          <button onClick={() => setEditing(true)} style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
+            <div style={{ width: 90, height: 90, borderRadius: "50%", background: "#fff", border: "3px solid #fff", boxShadow: `0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <UserAvatar src={user.avatar} size={84} ring={false} />
+            </div>
+            <div style={{ position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: "50%", background: HBLUE, border: "2.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={15} color="#fff" sw={2} /></div>
+          </button>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 24, color: TXT }}>{user.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}</div>
+        </div>
+        <div style={{ display: "flex", margin: "20px 16px", background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 12px ${HBLUE}10` }}>
+          {[{ l: "Post", v: mine.length, i: "camera" }, { l: "Stelle", v: stars, i: "starFill" }, { l: "Giorni", v: 7, i: "feed" }].map((s, i) => (
+            <div key={i} style={{ flex: 1, textAlign: "center", padding: "16px 8px", borderRight: i < 2 ? `1px solid ${LINE}` : "none" }}>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><NavIcon name={s.i} size={20} color={HBLUE} /></div>
+              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 22, color: TXT }}>{s.v}</div>
+              <div style={{ fontSize: 11, color: TXT2 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "0 16px 20px" }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
+          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} />)}
+          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, margin: "22px 0 12px" }}>Impostazioni</div>
+          <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="bell" size={19} color={HBLUE} /></div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Notifiche</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{notif?.enabled ? `Attive · entro ${notif.radiusKm} km` : "Disattivate"}</div>
+            </div>
+            <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
+          </button>
+          <button onClick={onLogout} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
+        </div>
+      </div>
+      {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
+    </>
+  );
+}
+
+// ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent }) {
+  const mine = posts.filter(p => p.user === profile.name);
+  const myEvents = (events || []).filter(e => e.user === profile.name);
+  const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
+  const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
+  return (
+    <>
+      <Header title={profile.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        <div style={{ background: "#fff", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, color: HBLUE, borderBottom: `1px solid ${LINE}` }}>
+          <UserAvatar src={profile.ava} size={56} ring />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left" }}>
+            <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 17, lineHeight: 1.15 }}>{profile.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
+              <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Segui ✓" : "+ Segui"}</button>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{mine.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>post</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{myEvents.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>eventi</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{totStars}</div><div style={{ fontSize: 10.5, color: TXT2 }}>stelle</div></div>
+          </div>
+        </div>
+        {myEvents.length > 0 && (
+          <div style={{ padding: "14px 16px 0" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Eventi pubblicati</div>
+            {myEvents.map(e => (
+              <div key={e.id} onClick={() => onOpenEvent && onOpenEvent(e)} style={{ background: "#fff", borderRadius: 14, padding: 13, marginBottom: 10, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", display: "flex", gap: 13, alignItems: "center" }}>
+                <div style={{ fontSize: 30 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{e.title}</div>
+                  <div style={{ fontSize: 12, color: TXT2, marginTop: 1 }}>📍 {e.place} · {e.time}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px", flexShrink: 0 }}>{e.sev}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ padding: 16 }}>
+          {mine.length === 0
+            ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
+            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} />)}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── ADD CONTACT MODAL ──────────────────────────────────────────────────────
+function AddContactModal({ people, contacts, onAdd, onClose }) {
+  const available = people.filter(p => !contacts.some(c => c.id === p.id));
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px", maxHeight: "70%", overflowY: "auto" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Aggiungi contatto</div>
+        {available.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Hai già aggiunto tutti gli utenti disponibili 🎉</div> : available.map(p => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: `1px solid ${LINE}` }}>
+            <img src={p.ava} style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover" }} alt="" />
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{p.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{p.city}</div></div>
+            <button onClick={() => onAdd(p)} style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color="#fff" sw={2.4} /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD EVENT MODAL ──────────────────────────────────────────────────────────
+function AddEventModal({ onAdd, onClose, user }) {
+  const [type, setType] = useState(EVENT_TYPES[0]);
+  const [cat, setCat] = useState(EVENT_CATEGORIES[0]);
+  const [title, setTitle] = useState("");
+  const [place, setPlace] = useState(user.city);
+  const [sev, setSev] = useState("Media");
+  const [coords, setCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const locate = () => {
+    setLocating(true);
+    if (!navigator.geolocation) { setCoords({ ...BASE_COORDS, approx: true }); setLocating(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { setCoords({ lat: +pos.coords.latitude.toFixed(5), lng: +pos.coords.longitude.toFixed(5) }); setLocating(false); },
+      () => { setCoords({ ...BASE_COORDS, approx: true }); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+  const submit = () => {
+    if (!title.trim()) return;
+    const c = coords || { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true };
+    const category = cat === EVENT_CATEGORIES[0] ? "" : cat;
+    const t = type === EVENT_TYPES[0] ? "" : type.split(" ")[0];
+    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category });
+  };
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Segnala un evento</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* 1° rigo: tipo */}
+          <select value={type} onChange={e => setType(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, color: type === EVENT_TYPES[0] ? TXT2 : TXT }}>{EVENT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
+          {/* 2° rigo: categoria evento */}
+          <select value={cat} onChange={e => setCat(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, color: cat === EVENT_CATEGORIES[0] ? TXT2 : TXT }}>{EVENT_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+          {/* titolo */}
+          <input placeholder="Titolo (es. Temporale violento)" value={title} onChange={e => setTitle(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
+          {/* 3° rigo: localizzazione */}
+          <div>
+            <div style={{ fontSize: 11, color: TXT2, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Localizzazione</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input placeholder="Luogo" value={place} onChange={e => setPlace(e.target.value)} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
+              <button onClick={locate} style={{ flexShrink: 0, padding: "0 14px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: coords ? HBLUE : HBLUE + "10", color: coords ? "#fff" : HBLUE, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Sora',sans-serif" }}>
+                <NavIcon name="locate" size={18} color={coords ? "#fff" : HBLUE} /> {locating ? "…" : "GPS"}
+              </button>
+            </div>
+            {coords && <div style={{ marginTop: 6, fontSize: 12, color: "#3BA776", display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="check" size={14} color="#3BA776" sw={2.4} /> Posizione {coords.approx ? "approssimativa" : "acquisita"}: {coords.lat}, {coords.lng}</div>}
+          </div>
+          {/* 4° rigo: gravità */}
+          <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(s => <button key={s} onClick={() => setSev(s)} style={{ flex: 1, padding: 10, borderRadius: 10, border: sev === s ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: sev === s ? HBLUE + "12" : "#fff", color: sev === s ? HBLUE : TXT2, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{s}</button>)}</div>
+          <button onClick={submit} style={{ padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Pubblica evento</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AVATAR EDITOR ────────────────────────────────────────────────────────────
+function AvatarEditor({ current, onPick, onClose }) {
+  const emojis = ["🌤️", "🌻", "🦋", "🌺", "⚡", "🌊", "🔥", "❄️", "🍃", "☀️", "🌈", "🌙", "⛅", "🌧️", "🐞", "🦉"];
+  const fileRef = useRef(null);
+  const upload = e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => onPick(r.result); r.readAsDataURL(f); };
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 16 }}>Icona profilo</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+          <UserAvatar src={current} size={64} />
+          <button onClick={() => fileRef.current?.click()} style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: HBLUE + "10", color: HBLUE, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>
+            <NavIcon name="camera" size={18} color={HBLUE} /> Carica un'immagine
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" onChange={upload} style={{ display: "none" }} />
+        </div>
+        <div style={{ fontSize: 12, color: TXT2, marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Oppure scegli un'emoji</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: 8 }}>
+          {emojis.map(e => (
+            <button key={e} onClick={() => onPick(e)} style={{ aspectRatio: "1", borderRadius: 12, border: current === e ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: current === e ? HBLUE + "14" : BODY, fontSize: 22, cursor: "pointer" }}>{e}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
+// ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
+function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported }) {
+  const rot = place.id % people.length;
+  const users = [...people.slice(rot), ...people.slice(0, rot)];
+  const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
+  const evCount = events.filter(e => e.place === place.name).length || place.events;
+  const placePosts = (posts || []).filter(p => p.city === place.name);
+  return (
+    <>
+      <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        {/* riepilogo luogo */}
+        <div style={{ background: "#fff", padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={24} color={HBLUE} /></div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: HBLUE, lineHeight: 1.1 }}>{place.name}</div>
+              <div style={{ fontSize: 13, color: TXT2, marginTop: 1 }}>{fmt(place.dist)} da te · {users.length} utenti collegati{placePosts.length > 0 ? ` · ${placePosts.length} foto` : ""}</div>
+            </div>
+          </div>
+          {/* azioni */}
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <button onClick={() => onChat(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><span style={{ fontSize: 14 }}>🌐</span> Chat pubblica</button>
+            <button onClick={() => onEvents(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name="eventi" size={16} color={HBLUE} /> Eventi ({evCount})</button>
+          </div>
+        </div>
+
+        {/* post pubblicati nel luogo (in tempo reale) */}
+        <div style={{ padding: "12px 16px 2px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Post da {place.name}</div>
+        <div style={{ padding: "8px 14px 0" }}>
+          {placePosts.length === 0
+            ? <div style={{ background: "#fff", borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
+            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} />)}
+        </div>
+
+        {/* utenti collegati al luogo */}
+        <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Utenti a {place.name}</div>
+        {users.map(u => (
+          <div key={u.id} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: "#fff", cursor: "pointer" }}>
+            <UserAvatar src={u.ava} size={50} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{u.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {place.name}</div>
+            </div>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3BA776", flexShrink: 0 }} title="online" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ─── EVENTI DI UN LUOGO (overlay) ─────────────────────────────────────────────
+function PlaceEventsView({ place, events, onBack, onOpen }) {
+  const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
+  const list = events.filter(e => e.place === place.name);
+  return (
+    <>
+      <Header title={`Eventi · ${place.name}`} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
+        <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{list.length} eventi a {place.name}</div>
+        {list.length === 0
+          ? <div style={{ background: "#fff", borderRadius: 14, padding: "34px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun evento attivo a {place.name} in questo momento.</div>
+          : list.map(e => (
+            <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
+                  {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
+                  <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
+              </div>
+            </div>
+          ))}
+      </div>
+    </>
+  );
+}
+
+
+function EventMapView({ event, onBack }) {
+  const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
+  const { lat, lng } = event;
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+  return (
+    <>
+      <Header title="Posizione evento" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        {/* riepilogo evento */}
+        <div style={{ background: "#fff", margin: 14, borderRadius: 14, padding: 14, display: "flex", gap: 12, alignItems: "center", boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[event.sev]}` }}>
+          <div style={{ fontSize: 32 }}>{event.type || (event.cat ? event.cat.split(" ")[0] : "📍")}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{event.title}</div>
+            {event.cat && <span style={{ display: "inline-block", marginTop: 3, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{event.cat}</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 2 }}><NavIcon name="pin" size={13} color={TXT2} /> {event.place} · {event.time}</div>
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[event.sev], background: sevColor[event.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{event.sev}</span>
+        </div>
+
+        {/* cartina schematica */}
+        <div style={{ position: "relative", margin: "0 14px", height: 320, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A` }}>
+          <svg viewBox="0 0 360 320" style={{ width: "100%", height: "100%", display: "block" }}>
+            <rect width="360" height="320" fill="#E7EFE3" />
+            {/* blocchi/isolati */}
+            {[[18, 20], [150, 18], [255, 30], [30, 130], [240, 150], [60, 235], [230, 250]].map((b, i) => <rect key={i} x={b[0]} y={b[1]} width="70" height="52" rx="6" fill="#DCE6D5" />)}
+            {/* corsi d'acqua / verde */}
+            <path d="M0 300 Q120 250 200 300 T360 290 L360 320 L0 320 Z" fill="#BFE0EA" />
+            {/* strade */}
+            <line x1="0" y1="110" x2="360" y2="125" stroke="#fff" strokeWidth="10" />
+            <line x1="0" y1="210" x2="360" y2="200" stroke="#fff" strokeWidth="8" />
+            <line x1="120" y1="0" x2="135" y2="320" stroke="#fff" strokeWidth="9" />
+            <line x1="245" y1="0" x2="230" y2="320" stroke="#fff" strokeWidth="7" />
+            {/* alone precisione */}
+            <circle cx="180" cy="160" r="40" fill={HBLUE} opacity="0.12" />
+            <circle cx="180" cy="160" r="40" fill="none" stroke={HBLUE} strokeOpacity="0.3" strokeWidth="1.5" />
+          </svg>
+          {/* pin */}
+          <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-100%)", animation: "drop .5s cubic-bezier(.2,.8,.3,1) both" }}>
+            <svg width="44" height="56" viewBox="0 0 44 56">
+              <path d="M22 2C11 2 2 11 2 22c0 14 20 32 20 32s20-18 20-32C42 11 33 2 22 2z" fill={sevColor[event.sev]} stroke="#fff" strokeWidth="2.5" />
+              <circle cx="22" cy="22" r="8" fill="#fff" />
+              <text x="22" y="28" fontSize="13" textAnchor="middle">{event.type || (event.cat ? event.cat.split(" ")[0] : "📍")}</text>
+            </svg>
+          </div>
+          {/* chip coordinate */}
+          <div style={{ position: "absolute", left: 12, bottom: 12, background: "rgba(255,255,255,.92)", borderRadius: 10, padding: "6px 10px", fontSize: 12, color: TXT, fontFamily: "'Space Grotesk',sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.12)" }}>
+            📍 {lat}, {lng}
+          </div>
+        </div>
+
+        <div style={{ padding: 14 }}>
+          <button onClick={() => window.open(mapsUrl, "_blank")} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>
+            <NavIcon name="pin" size={18} color="#fff" /> Apri in Google Maps
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── INTERRUTTORE (switch) ────────────────────────────────────────────────────
+function Toggle({ on, onChange }) {
+  return (
+    <button onClick={() => onChange(!on)} style={{ width: 46, height: 27, borderRadius: 14, border: "none", cursor: "pointer", background: on ? HBLUE : "#C9D7E6", position: "relative", transition: "background .2s", flexShrink: 0, padding: 0 }}>
+      <span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 21, height: 21, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
+    </button>
+  );
+}
+
+// ─── IMPOSTAZIONI NOTIFICHE ───────────────────────────────────────────────────
+function NotifSettingsView({ settings, onChange, onClose }) {
+  const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const set = (k, v) => onChange({ ...settings, [k]: v });
+  const enableMaster = async v => {
+    if (v && typeof Notification !== "undefined" && Notification.requestPermission) {
+      try { const r = await Notification.requestPermission(); setPerm(r); } catch { /* ignora */ }
+    }
+    set("enabled", v);
+  };
+  const Row = ({ icon, label, desc, children }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
+      {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={HBLUE} /></div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{label}</div>
+        {desc && <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{desc}</div>}
+      </div>
+      {children}
+    </div>
+  );
+  const off = !settings.enabled;
+  const permLabel = { granted: "Permesso concesso", denied: "Permesso negato dal browser", default: "Permesso non ancora richiesto", unsupported: "Non supportato in questo contesto" }[perm] || "";
+  return (
+    <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
+      <Header title="Notifiche" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ background: "#fff", marginTop: 12 }}>
+          <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
+        </div>
+
+        <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Raggio di prossimità</div>
+        <div style={{ background: "#fff", padding: "14px 16px", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: TXT, marginBottom: 8 }}><span>Avvisami entro</span><b style={{ color: HBLUE }}>{settings.radiusKm} km</b></div>
+          <input type="range" min="1" max="50" value={settings.radiusKm} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", accentColor: ACCENT }} />
+        </div>
+
+        <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Cosa notificare</div>
+        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+          <Row icon="camera" label="Nuovi post" desc="Foto meteo pubblicate vicino a te"><Toggle on={settings.posts} onChange={v => set("posts", v)} /></Row>
+          <Row icon="pin" label="Eventi" desc="Eventi e segnalazioni nella tua zona"><Toggle on={settings.eventi} onChange={v => set("eventi", v)} /></Row>
+          <Row icon="bell" label="Allerte meteo" desc="Temporali, mareggiate e avvisi importanti"><Toggle on={settings.allerte} onChange={v => set("allerte", v)} /></Row>
+          <Row icon="send" label="Messaggi" desc="Chat e messaggi di gruppo"><Toggle on={settings.messaggi} onChange={v => set("messaggi", v)} /></Row>
+        </div>
+
+        <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Orari di silenzio</div>
+        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+          <Row label="Non disturbare (22:00 – 8:00)" desc="Nessuna notifica durante la notte"><Toggle on={settings.quiet} onChange={v => set("quiet", v)} /></Row>
+        </div>
+
+        <div style={{ padding: "16px", fontSize: 12, color: TXT2, lineHeight: 1.5 }}>
+          Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche push reali funzionano solo con l'app installata dallo store; in anteprima questa è una simulazione delle impostazioni.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── RICERCA (persone, luoghi, eventi) ────────────────────────────────────────
+function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent }) {
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useEffect(() => { ref.current?.focus(); }, []);
+  const ql = q.trim().toLowerCase();
+  const match = s => s.toLowerCase().includes(ql);
+  const near = NEARBY_PLACES.filter(p => p.dist <= km).filter(p => !ql || match(p.name));
+  const nearNames = new Set(near.map(p => p.name));
+  const fp = people.filter(p => !ql || match(p.name) || match(p.city));
+  const fpl = places.filter(c => !nearNames.has(c)).filter(c => !ql || match(c));
+  const fe = events.filter(e => !ql || match(e.title) || match(e.place));
+  const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
+  const Section = ({ label, children, count }) => count === 0 ? null : (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".07em", padding: "0 16px 8px" }}>{label} ({count})</div>
+      {children}
+    </div>
+  );
+  const Row = ({ icon, ava, title, sub, onClick }) => (
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left" }}>
+      {ava ? <UserAvatar src={ava} size={40} /> : <div style={{ width: 40, height: 40, borderRadius: 12, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <span style={{ fontSize: 20 }}>{icon}</span> : icon}</div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{title}</div>
+        {sub && <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{sub}</div>}
+      </div>
+      <NavIcon name="back" size={15} color={TXT2} sw={2.2} />
+    </button>
+  );
+  const empty = ql && near.length === 0 && fp.length === 0 && fpl.length === 0 && fe.length === 0;
+  return (
+    <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
+      {/* barra di ricerca */}
+      <div style={{ background: HBLUE, padding: "12px 14px", paddingTop: "calc(12px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "#ffffff", borderRadius: 12, padding: "9px 12px" }}>
+          <NavIcon name="search" size={18} color={TXT2} />
+          <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca persone, luoghi, eventi…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", paddingTop: 14 }}>
+        {empty ? (
+          <div style={{ textAlign: "center", color: TXT2, padding: "50px 24px", fontSize: 14 }}>
+            <div style={{ marginBottom: 10 }}><NavIcon name="search" size={40} color={TXT2} sw={1.5} /></div>
+            Nessun risultato per “{q}”.
+          </div>
+        ) : (
+          <>
+            <Section label="Luoghi vicino a te" count={near.length}>
+              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.chats} chat · ${p.events} eventi`} onClick={() => onOpenNearPlace(p)} />)}
+            </Section>
+            <Section label="Persone" count={fp.length}>
+              {fp.map(p => <Row key={"p" + p.id} ava={p.ava} title={p.name} sub={"📍 " + p.city} onClick={() => onPerson(p)} />)}
+            </Section>
+            <Section label="Altri luoghi" count={fpl.length}>
+              {fpl.map(c => <Row key={"l" + c} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={c} sub="Esplora la zona sulla mappa" onClick={() => onPlace(c)} />)}
+            </Section>
+            <Section label="Eventi" count={fe.length}>
+              {fe.map(e => <Row key={"e" + e.id} icon={e.type} title={e.title} sub={"📍 " + e.place + " · " + e.time} onClick={() => onEvent(e)} />)}
+            </Section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── FRAME RESPONSIVO (scala in base a telefono/OS) ──────────────────────────
+function Frame({ children }) {
+  const [vp, setVp] = useState(() => ({
+    w: typeof window !== "undefined" ? window.innerWidth : 390,
+    h: typeof window !== "undefined" ? window.innerHeight : 780,
+  }));
+  useEffect(() => {
+    const onR = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onR);
+    window.addEventListener("orientationchange", onR);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", onR);
+    onR();
+    return () => {
+      window.removeEventListener("resize", onR);
+      window.removeEventListener("orientationchange", onR);
+      if (window.visualViewport) window.visualViewport.removeEventListener("resize", onR);
+    };
+  }, []);
+  const DESIGN_W = 390;            // larghezza di riferimento (telefono base)
+  const MAX_W = 520;               // oltre questa larghezza resta centrato (tablet/desktop)
+  const visualW = Math.min(vp.w, MAX_W);
+  const scale = visualW / DESIGN_W;          // proporzionale alla grandezza del telefono
+  const frameH = vp.h / scale;               // così, scalato, riempie esattamente l'altezza
+  const isWide = vp.w > MAX_W;
+  return (
+    <>
+      <style>{G}</style>
+      <div style={{ position: "fixed", inset: 0, background: isWide ? "#C7D9E8" : BODY, display: "flex", justifyContent: "center", alignItems: "flex-start", overflow: "hidden" }}>
+        <div style={{ position: "relative", width: DESIGN_W, height: frameH, transform: `scale(${scale})`, transformOrigin: "top center", display: "flex", flexDirection: "column", overflow: "hidden", background: BODY, boxShadow: isWide ? "0 0 50px rgba(20,40,65,.28)" : "none" }}>
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [sb, setSb] = useState(null);           // modulo Supabase (se presente e configurato)
+  useEffect(() => {
+    import("./beeweat-supabase.js")
+      .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️" }); }).catch(() => {}); })
+      .catch(() => {});                          // modulo assente (anteprima): resta la demo
+  }, []);
+  const [user, setUser] = useState(null);
+  const [tab, setTab] = useState("feed");
+  const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
+  const [km, setKm] = useState(10);
+  const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [events, setEvents] = useState(INITIAL_EVENTS);
+  const [favs, setFavs] = useState([11]);
+  const [contacts, setContacts] = useState([PEOPLE[0]]);
+  const [groups, setGroups] = useState([]);
+  const [notif, setNotif] = useState({ enabled: false, radiusKm: 10, posts: true, eventi: true, allerte: true, messaggi: true, quiet: false });
+  const [following, setFollowing] = useState([]);
+  const [reported, setReported] = useState([]);
+  const [reportTarget, setReportTarget] = useState(null);
+  const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); };
+  const toggleFollow = name => setFollowing(f => f.includes(name) ? f.filter(x => x !== name) : [...f, name]);
+  const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city } });
+  const openPlaceChat = (place, back) => {
+    const id = "place_" + place.id;
+    if (!threads[id]) setThreads(th => ({ ...th, [id]: [
+      { id: 1, me: false, who: "Giulia", text: `Qualcuno a ${place.name}? Com'è il meteo? 🌤️`, time: "09:05" },
+      { id: 2, me: false, who: "Marco", text: "Tutto sereno qui!", time: "09:08" },
+    ] }));
+    setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
+  };
+  const [threads, setThreads] = useState({});
+  const [nextId, setNextId] = useState(1000);
+
+  const totalComments = useMemo(() => posts.reduce((s, p) => s + p.stars, 0), [posts]);
+
+  // adatta al sistema operativo: abilita le safe-area senza alterare lo zoom
+  useEffect(() => {
+    try {
+      const m = document.querySelector('meta[name="viewport"]');
+      const cur = m ? (m.getAttribute("content") || "") : "";
+      if (m && !/viewport-fit/.test(cur)) {
+        m.setAttribute("content", (cur || "width=device-width, initial-scale=1") + ", viewport-fit=cover");
+      }
+    } catch (e) { /* ignora in ambienti senza document */ }
+  }, []);
+
+  const onStar = id => setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p));
+  const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
+  const onPost = ({ img, caption, cond, dir }) => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); setOverlay(null); setTab("feed"); };
+  const sendMsg = (cid, text) => { const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] })); };
+  const openChatFromPost = (post, back) => {
+    const id = "post_" + post.id;
+    if (!threads[id]) setThreads(th => ({ ...th, [id]: [
+      { id: 1, me: false, who: post.user, text: `Che spettacolo qui a ${post.city}! 🌤️`, time: post.time },
+      { id: 2, me: false, who: "Giulia", text: "Confermo, anche da me cielo così!", time: post.time },
+    ] }));
+    setOverlay({ back, chat: { id, name: "Chat pubblica", ava: "🌐", sub: `Post di ${post.user} · ${post.city}`, public: true } });
+  };
+  const addContact = p => { setContacts(c => [...c, p]); setOverlay(null); };
+  const createGroup = g => { setGroups(gs => [...gs, { id: nextId, ...g }]); setNextId(n => n + 1); setOverlay(null); };
+  const updateGroup = (id, members) => setGroups(gs => gs.map(g => g.id === id ? { ...g, members } : g));
+  const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
+
+  if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
+
+  // overlay screens (full-screen, hide bottom nav)
+  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={a => setUser(u => ({ ...u, avatar: a }))} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
+  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={setNotif} onClose={() => setOverlay("profile")} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } })} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
+  if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
+  if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
+  if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={PEOPLE} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay === "search") {
+    const places = [...new Set([...PEOPLE.map(p => p.city), ...posts.map(p => p.city), ...events.map(e => e.place)])].sort();
+    return wrap(<SearchView people={PEOPLE} events={events} places={places} km={km}
+      onClose={() => setOverlay(null)}
+      onPerson={p => setOverlay({ chat: { id: "u_" + p.name, name: p.name, ava: p.ava } })}
+      onEvent={e => setOverlay({ eventMap: e })}
+      onPlace={() => { setTab("vicini"); setOverlay(null); }}
+      onOpenNearPlace={p => setOverlay({ place: p })}
+    />);
+  }
+
+  const showWeather = tab === "feed" || tab === "vicini";
+  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast";
+  const feedTitle = (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <NavIcon name="pin" size={18} color="#fff" sw={2} />
+      {user.city}
+    </span>
+  );
+  const titles = { vicini: "Vicini", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "Contatti" };
+  const action = tab === "contatti"
+    ? <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <button onClick={() => setOverlay("createGroup")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="groups" size={23} color="#fff" sw={2} /></button>
+        <button onClick={() => setOverlay("addContact")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
+      </div>
+    : tab === "eventi"
+      ? <button onClick={() => setOverlay("addEvent")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
+      : <button onClick={() => setOverlay("post")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", fontSize: 17, fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Post</button>;
+  const rightBtn = (
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <button onClick={() => setOverlay("search")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 6 }}><NavIcon name="search" size={22} color="#fff" sw={2} /></button>
+      {action}
+    </div>
+  );
+
+  function wrap(content) {
+    return <Frame>{content}{reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}</Frame>;
+  }
+
+  return (
+    <Frame>
+      <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
+      {showWeather && <WeatherPanel commentCount={totalComments} />}
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />}
+        {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
+        {tab === "beecast" && <BeeCastScreen km={km} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
+        {tab === "contatti" && <ContattiScreen contacts={contacts} groups={groups} km={km} onChat={c => setOverlay({ chat: c })} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+      </div>
+
+      {showRadar && <RadarBar km={km} setKm={setKm} />}
+      <BottomNav tab={tab} setTab={setTab} />
+
+      {overlay === "addContact" && <AddContactModal people={PEOPLE} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
+      {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
+      {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {overlay === "addEvent" && <AddEventModal user={user} onAdd={addEvent} onClose={() => setOverlay(null)} />}
+    </Frame>
+  );
+}
