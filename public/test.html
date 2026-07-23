@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Beeweat — Diagnosi Supabase</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#EAF1F8;margin:0;padding:20px;color:#1E3A5F}
+  h1{color:#235C9C;font-size:20px}
+  button{display:block;width:100%;margin:8px 0;padding:14px;border:0;border-radius:10px;background:#235C9C;color:#fff;font-size:15px;font-weight:600}
+  pre{background:#fff;border:1px solid #E1E9F2;border-radius:10px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:12px;min-height:40px}
+  .ok{color:#3BA776;font-weight:700}.ko{color:#E5484D;font-weight:700}
+</style>
+</head>
+<body>
+<h1>🔧 Diagnosi collegamento Supabase</h1>
+<p>Premi i pulsanti in ordine. Sotto ognuno compare la risposta vera del server.</p>
+
+<button onclick="t1()">1 · Il server risponde?</button>
+<pre id="r1">—</pre>
+
+<button onclick="t2()">2 · La chiave è valida?</button>
+<pre id="r2">—</pre>
+
+<button onclick="t3()">3 · Prova di registrazione</button>
+<pre id="r3">—</pre>
+
+<script>
+const URL_ = "https://bdgypqgtzrqoqbkqgnnj.supabase.co";
+const KEY  = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";
+const show = (id, ok, txt) => document.getElementById(id).innerHTML =
+  (ok ? '<span class="ok">✓ OK</span>\n' : '<span class="ko">✗ PROBLEMA</span>\n') + txt;
+
+async function t1(){
+  try{
+    const r = await fetch(URL_ + "/auth/v1/health");
+    const t = await r.text();
+    show("r1", r.status === 401 || r.ok, "HTTP " + r.status + "\n" + t.slice(0,400));
+  }catch(e){ show("r1", false, "Il server non è raggiungibile: " + e.message + "\n→ Progetto in pausa o URL errato."); }
+}
+async function t2(){
+  try{
+    const r = await fetch(URL_ + "/auth/v1/health", { headers: { apikey: KEY } });
+    const t = await r.text();
+    show("r2", r.ok, "HTTP " + r.status + "\n" + t.slice(0,400) + (r.ok ? "" : "\n→ Chiave non valida: ricopiala da Settings → API Keys."));
+  }catch(e){ show("r2", false, e.message); }
+}
+async function t3(){
+  const email = "test" + Date.now() + "@example.com";
+  try{
+    const r = await fetch(URL_ + "/auth/v1/signup", {
+      method: "POST",
+      headers: { apikey: KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: "ProvaBeeweat2026!" })
+    });
+    const t = await r.text();
+    show("r3", r.ok, "HTTP " + r.status + " (email di prova: " + email + ")\n" + t.slice(0,600));
+  }catch(e){ show("r3", false, e.message); }
+}
+</script>
+</body>
+</html>
