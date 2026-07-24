@@ -1718,6 +1718,7 @@ export default function App() {
       .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️" }); }).catch(() => {}); })
       .catch(() => {});                          // modulo assente (anteprima): resta la demo
   }, []);
+
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -1744,6 +1745,38 @@ export default function App() {
   };
   const [threads, setThreads] = useState({});
   const [nextId, setNextId] = useState(1000);
+  // Posizione reale dell'utente (fallback: coordinate base)
+  const [geo, setGeo] = useState(BASE_COORDS);
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(
+      p => setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {}, { enableHighAccuracy: true, timeout: 8000 });
+  }, []);
+  const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
+  const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
+  const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
+  // Feed reale dal database (quando Supabase è collegato)
+  const loadFeed = useCallback(async () => {
+    if (!sb?.isConfigured || !user) return;
+    try {
+      const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 50 });
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const ids = [...new Set((rows || []).map(r => r.user_id))];
+      const { data: profs } = ids.length ? await sb.supabase.from("profiles").select("id,name,city,avatar_url").in("id", ids) : { data: [] };
+      const pmap = Object.fromEntries((profs || []).map(p => [p.id, p]));
+      setPosts((rows || []).map(r => {
+        const pr = pmap[r.user_id] || {}; const pt = { lat: r.lat, lng: r.lng };
+        return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
+          time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+          city: pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
+          dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
+          cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: false,
+          comments: r.comments_count || 0, views: r.views_count || 0,
+          img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id };
+      }));
+    } catch (e) { console.warn("feed:", e?.message || e); }
+  }, [sb, user, geo]);
+  useEffect(() => { loadFeed(); }, [loadFeed]);
 
   const totalComments = useMemo(() => posts.reduce((s, p) => s + p.stars, 0), [posts]);
 
@@ -1758,9 +1791,21 @@ export default function App() {
     } catch (e) { /* ignora in ambienti senza document */ }
   }, []);
 
-  const onStar = id => setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p));
+  const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
-  const onPost = ({ img, caption, cond, dir }) => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); setOverlay(null); setTab("feed"); };
+  const onPost = ({ img, caption, cond, dir }) => {
+    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
+    if (sb?.isConfigured) {
+      (async () => {
+        try {
+          const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
+          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label });
+          await loadFeed();
+        } catch (e) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
+      })();
+    } else localAdd();
+    setOverlay(null); setTab("feed");
+  };
   const sendMsg = (cid, text) => { const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] })); };
   const openChatFromPost = (post, back) => {
     const id = "post_" + post.id;
