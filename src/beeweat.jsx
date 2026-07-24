@@ -274,16 +274,25 @@ function AuthScreen({ onLogin, sb }) {
       try {
         if (mode === "register") {
           await sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || CITY });
-          setInfo("Registrazione inviata! Controlla la tua email e conferma il link, poi accedi.");
-          setMode("login");
+          // Se la conferma email non è richiesta, si entra subito; altrimenti si mostra l'avviso
+          try {
+            await sb.loginEmail({ email: form.email, password: form.password });
+            let prof = null; try { prof = await sb.getCurrentProfile(); } catch (_) {}
+            onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
+            return;
+          } catch (_) {
+            setInfo("Registrazione inviata! Controlla la tua email e conferma il link, poi accedi.");
+            setMode("login");
+          }
         } else {
           await sb.loginEmail({ email: form.email, password: form.password });
           let prof = null; try { prof = await sb.getCurrentProfile(); } catch (_) {}
           onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
         }
       } catch (e) {
-        const m = String(e?.message || e);
-        setAuthErr(m.includes("Invalid login") ? "Email o password errati." : m.includes("confirm") ? "Devi prima confermare l'email: controlla la posta." : m.includes("already registered") ? "Email già registrata: prova ad accedere." : "Errore: " + m);
+        let m = e?.message || e?.error_description || e?.msg || "";
+        if (!m || m === "{}") { try { m = JSON.stringify(e, Object.getOwnPropertyNames(e || {})); } catch (_) { m = String(e); } }
+        setAuthErr(m.includes("Invalid login") ? "Email o password errati." : /confirm/i.test(m) ? "Devi prima confermare l'email: controlla la posta." : m.includes("already registered") ? "Email già registrata: prova ad accedere." : /fetch|network/i.test(m) ? "Impossibile raggiungere il server: controlla che il progetto Supabase sia attivo (non in pausa) e l'URL delle chiavi." : "Errore: " + m);
       } finally { setBusy(false); }
     } else {
       onLogin({ name: form.name || "Utente Bee", city: form.city || CITY });
