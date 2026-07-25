@@ -1777,6 +1777,20 @@ export default function App() {
     } catch (e) { console.warn("feed:", e?.message || e); }
   }, [sb, user, geo]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Aggiornamento automatico del feed: al ritorno sull'app, ogni 60s e in tempo reale
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    const onVis = () => { if (!document.hidden) loadFeed(); };
+    document.addEventListener("visibilitychange", onVis);
+    const iv = setInterval(loadFeed, 60000);
+    let ch = null;
+    try {
+      ch = sb.supabase.channel("posts-feed")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, () => loadFeed())
+        .subscribe();
+    } catch (_) {}
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(iv); try { if (ch) sb.supabase.removeChannel(ch); } catch (_) {} };
+  }, [sb, user, loadFeed]);
 
   const totalComments = useMemo(() => posts.reduce((s, p) => s + p.stars, 0), [posts]);
 
