@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
+const APP_VERSION = "1.1";
 const HBLUE   = "#235C9C";   // header (blu principale, scurito)
 const PANEL_A = "#5A93C8";   // pannello meteo top
 const PANEL_B = "#4585C1";   // pannello meteo bottom
@@ -313,6 +314,7 @@ function AuthScreen({ onLogin, sb }) {
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 42, letterSpacing: ".04em", color: "#2A7DC4", marginTop: 14 }}>BEEWEAT</div>
         <div style={{ fontSize: 14, color: "#6E8BA6", marginTop: 4, fontWeight: 500, letterSpacing: ".01em" }}>Le api del tempo · il meteo in tempo reale</div>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15.5, color: HBLUE, marginTop: 10, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
+        <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
       </div>
       <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
         <button onClick={() => social("apple")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#000", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><AppleIcon /> Accedi con Apple</button>
@@ -1761,6 +1763,8 @@ export default function App() {
     try {
       const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 50 });
       const { data: { user: au } } = await sb.supabase.auth.getUser();
+      let myStars = new Set();
+      if (au) { const { data: st } = await sb.supabase.from("stars").select("post_id").eq("user_id", au.id); myStars = new Set((st || []).map(x => x.post_id)); }
       const ids = [...new Set((rows || []).map(r => r.user_id))];
       const { data: profs } = ids.length ? await sb.supabase.from("profiles").select("id,name,city,avatar_url").in("id", ids) : { data: [] };
       const pmap = Object.fromEntries((profs || []).map(p => [p.id, p]));
@@ -1770,13 +1774,31 @@ export default function App() {
           time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
           city: pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
-          cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: false,
+          cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
           img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
   }, [sb, user, geo]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Avatar: salva anche sul profilo Supabase (emoji diretta, foto caricata nello storage)
+  const saveAvatar = a => {
+    setUser(u => ({ ...u, avatar: a }));
+    if (!sb?.isConfigured) return;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      let url = a;
+      if (typeof a === "string" && a.startsWith("data:")) {
+        const blob = dataURLtoBlob(a);
+        const path = `${au.id}/avatar_${Date.now()}.jpg`;
+        const { error } = await sb.supabase.storage.from("posts").upload(path, blob, { contentType: blob.type || "image/jpeg", upsert: true });
+        if (error) throw error;
+        url = sb.supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
+        setUser(u => ({ ...u, avatar: url }));
+      }
+      await sb.supabase.from("profiles").update({ avatar_url: url }).eq("id", au.id);
+    } catch (e) { console.warn("avatar:", e?.message || e); } })();
+  };
   // Aggiornamento automatico del feed: al ritorno sull'app, ogni 60s e in tempo reale
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -1838,7 +1860,7 @@ export default function App() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={a => setUser(u => ({ ...u, avatar: a }))} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={setNotif} onClose={() => setOverlay("profile")} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } })} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
