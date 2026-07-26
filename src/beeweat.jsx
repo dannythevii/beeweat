@@ -1807,7 +1807,7 @@ export default function App() {
     let unsub = null;
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
-      unsub = sb.subscribeDirect(au.id, m => {
+      unsub = await sb.subscribeDirect(au.id, m => {
         setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at) }] }));
       });
     } catch (_) {} })();
@@ -1896,7 +1896,7 @@ export default function App() {
         const rows = await sb.getPostMessages(post.id);
         setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
         if (chatUnsubRef.current) chatUnsubRef.current();
-        chatUnsubRef.current = sb.subscribePostChat(post.id, async m => {
+        chatUnsubRef.current = await sb.subscribePostChat(post.id, async m => {
           if (au && m.from_user_id === au.id) return; // i miei li aggiungo già all'invio
           let who = "Utente";
           try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
