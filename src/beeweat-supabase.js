@@ -210,11 +210,19 @@ export async function getEventsNearby({ lat, lng, radiusKm = 10 }) {
 // Carica gli ultimi messaggi della chat pubblica di un post
 export async function getPostMessages(postId, limit = 50) {
   const { data, error } = await supabase.from("messages")
-    .select("id, text, from_user_id, created_at, profiles(name, avatar_url)")
+    .select("id, text, from_user_id, created_at")
     .eq("scope", "post").eq("post_id", postId)
     .order("created_at", { ascending: true }).limit(limit);
   if (error) throw error;
-  return data;
+  const rows = data || [];
+  // nomi dei mittenti risolti a parte (la join diretta è ambigua: mittente/destinatario)
+  const ids = [...new Set(rows.map(r => r.from_user_id))];
+  if (ids.length) {
+    const { data: profs } = await supabase.from("profiles").select("id,name,avatar_url").in("id", ids);
+    const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    rows.forEach(r => { r.profiles = pm[r.from_user_id] || null; });
+  }
+  return rows;
 }
 
 // Invia un messaggio nella chat pubblica del post
