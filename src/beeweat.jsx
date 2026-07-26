@@ -1878,7 +1878,9 @@ export default function App() {
     const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
     setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] }));
     if (sb?.isConfigured && cid.startsWith("post_") && cid.includes("-")) {
-      sb.sendPostMessage(cid.slice(5), text).catch(e => console.warn("invio:", e?.message || e));
+      const pid = cid.slice(5);
+      setPosts(ps => ps.map(p => p.id === pid ? { ...p, comments: (p.comments || 0) + 1 } : p));
+      sb.sendPostMessage(pid, text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && typeof cid === "string" && cid.includes("-") && !cid.startsWith("post_") && !cid.startsWith("place_") && !cid.startsWith("g_")) {
       sb.sendDirectMessage(cid, text).catch(e => console.warn("invio:", e?.message || e));
     }
