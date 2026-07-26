@@ -9,10 +9,43 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+
 const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // ← incolla qui
 const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // ← incolla qui
 
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── Profili e chat dirette ────────────────────────────────────────────────────
+export async function getProfiles() {
+  const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").order("name");
+  if (error) throw error; return data || [];
+}
+export async function getDirectMessages(otherId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("messages").select("*")
+    .eq("scope", "direct")
+    .or(`and(from_user_id.eq.${user.id},to_user_id.eq.${otherId}),and(from_user_id.eq.${otherId},to_user_id.eq.${user.id})`)
+    .order("created_at", { ascending: true });
+  if (error) throw error; return data || [];
+}
+export async function sendDirectMessage(toId, text) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("messages")
+    .insert({ scope: "direct", from_user_id: user.id, to_user_id: toId, text })
+    .select().single();
+  if (error) throw error; return data;
+}
+export function subscribeDirect(myId, onMessage) {
+  const ch = supabase.channel("direct-" + myId)
+    .on("postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `to_user_id=eq.${myId}` },
+      payload => { if (payload.new?.scope === "direct") onMessage(payload.new); })
+    .subscribe();
+  return () => supabase.removeChannel(ch);
+}
 
 // true quando le chiavi qui sopra sono state compilate (attiva il login reale nell'app)
 export const isConfigured = !SUPABASE_URL.includes("IL-TUO-PROGETTO") && !SUPABASE_ANON_KEY.startsWith("LA-TUA");
