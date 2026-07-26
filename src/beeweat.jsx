@@ -1736,7 +1736,7 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState(null);
   const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); };
   const toggleFollow = name => setFollowing(f => f.includes(name) ? f.filter(x => x !== name) : [...f, name]);
-  const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city } });
+  const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city, uid: post.uid } });
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.id;
     if (!threads[id]) setThreads(th => ({ ...th, [id]: [
@@ -1776,11 +1776,43 @@ export default function App() {
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
-          img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id };
+          img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
   }, [sb, user, geo]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Contatti reali: gli utenti Beeweat dal database (escluso me)
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const profs = await sb.getProfiles();
+      setContacts(profs.filter(p => !au || p.id !== au.id).map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null })));
+    } catch (e) { console.warn("contatti:", e?.message || e); } })();
+  }, [sb, user]);
+  // Chat dirette: apertura con storico dal database
+  const openDirectChat = c => {
+    const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
+    setOverlay({ chat: c });
+    if (!real) return;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const rows = await sb.getDirectMessages(c.id);
+      setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at) })) }));
+    } catch (e) { console.warn("chat diretta:", e?.message || e); } })();
+  };
+  // Messaggi diretti in arrivo, in tempo reale (una sola iscrizione globale)
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    let unsub = null;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      unsub = sb.subscribeDirect(au.id, m => {
+        setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at) }] }));
+      });
+    } catch (_) {} })();
+    return () => { try { if (unsub) unsub(); } catch (_) {} };
+  }, [sb, user]);
   // Avatar: salva anche sul profilo Supabase (emoji diretta, foto caricata nello storage)
   const saveAvatar = a => {
     setUser(u => ({ ...u, avatar: a }));
@@ -1842,15 +1874,45 @@ export default function App() {
     } else localAdd();
     setOverlay(null); setTab("feed");
   };
-  const sendMsg = (cid, text) => { const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] })); };
+  const sendMsg = (cid, text) => {
+    const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] }));
+    if (sb?.isConfigured && cid.startsWith("post_") && cid.includes("-")) {
+      sb.sendPostMessage(cid.slice(5), text).catch(e => console.warn("invio:", e?.message || e));
+    } else if (sb?.isConfigured && typeof cid === "string" && cid.includes("-") && !cid.startsWith("post_") && !cid.startsWith("place_") && !cid.startsWith("g_")) {
+      sb.sendDirectMessage(cid, text).catch(e => console.warn("invio:", e?.message || e));
+    }
+  };
+  const chatUnsubRef = useRef(null);
+  const fmtTime = ts => new Date(ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   const openChatFromPost = (post, back) => {
     const id = "post_" + post.id;
+    const isReal = sb?.isConfigured && typeof post.id === "string" && post.id.includes("-");
+    if (isReal) {
+      setThreads(th => ({ ...th, [id]: th[id] || [] }));
+      setOverlay({ back, chat: { id, name: "Chat pubblica", ava: "🌐", sub: `Post di ${post.user} · ${post.city}`, public: true } });
+      (async () => { try {
+        const { data: { user: au } } = await sb.supabase.auth.getUser();
+        const rows = await sb.getPostMessages(post.id);
+        setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+        if (chatUnsubRef.current) chatUnsubRef.current();
+        chatUnsubRef.current = sb.subscribePostChat(post.id, async m => {
+          if (au && m.from_user_id === au.id) return; // i miei li aggiungo già all'invio
+          let who = "Utente";
+          try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
+          setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
+        });
+      } catch (e) { console.warn("chat:", e?.message || e); } })();
+      return;
+    }
     if (!threads[id]) setThreads(th => ({ ...th, [id]: [
       { id: 1, me: false, who: post.user, text: `Che spettacolo qui a ${post.city}! 🌤️`, time: post.time },
       { id: 2, me: false, who: "Giulia", text: "Confermo, anche da me cielo così!", time: post.time },
     ] }));
     setOverlay({ back, chat: { id, name: "Chat pubblica", ava: "🌐", sub: `Post di ${post.user} · ${post.city}`, public: true } });
   };
+  // chiusura chat → stop ascolto in tempo reale
+  useEffect(() => { if (!overlay?.chat && chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } }, [overlay]);
   const addContact = p => { setContacts(c => [...c, p]); setOverlay(null); };
   const createGroup = g => { setGroups(gs => [...gs, { id: nextId, ...g }]); setNextId(n => n + 1); setOverlay(null); };
   const updateGroup = (id, members) => setGroups(gs => gs.map(g => g.id === id ? { ...g, members } : g));
@@ -1862,7 +1924,7 @@ export default function App() {
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={setNotif} onClose={() => setOverlay("profile")} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } })} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
@@ -1916,7 +1978,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen contacts={contacts} groups={groups} km={km} onChat={c => setOverlay({ chat: c })} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
