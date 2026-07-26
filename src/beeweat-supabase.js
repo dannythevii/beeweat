@@ -38,7 +38,8 @@ export async function sendDirectMessage(toId, text) {
     .select().single();
   if (error) throw error; return data;
 }
-export function subscribeDirect(myId, onMessage) {
+export async function subscribeDirect(myId, onMessage) {
+  await authRealtime();
   const ch = supabase.channel("direct-" + myId)
     .on("postgres_changes",
       { event: "INSERT", schema: "public", table: "messages", filter: `to_user_id=eq.${myId}` },
@@ -49,6 +50,20 @@ export function subscribeDirect(myId, onMessage) {
 
 // true quando le chiavi qui sopra sono state compilate (attiva il login reale nell'app)
 export const isConfigured = !SUPABASE_URL.includes("IL-TUO-PROGETTO") && !SUPABASE_ANON_KEY.startsWith("LA-TUA");
+
+// I canali realtime devono "presentarsi" con il token dell'utente,
+// altrimenti le regole RLS (es. chat dirette private) non consegnano gli eventi.
+async function authRealtime() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) supabase.realtime.setAuth(session.access_token);
+  } catch (_) {}
+}
+try {
+  supabase.auth.onAuthStateChange((_e, session) => {
+    try { supabase.realtime.setAuth(session?.access_token ?? SUPABASE_ANON_KEY); } catch (_) {}
+  });
+} catch (_) {}
 
 // ============================================================================
 // AUTENTICAZIONE
@@ -215,7 +230,8 @@ export async function sendPostMessage(postId, text) {
 }
 
 // Ascolta in tempo reale i nuovi messaggi del post. Restituisce una funzione per disiscriversi.
-export function subscribePostChat(postId, onNew) {
+export async function subscribePostChat(postId, onNew) {
+  await authRealtime();
   const channel = supabase
     .channel(`post:${postId}`)
     .on("postgres_changes",
