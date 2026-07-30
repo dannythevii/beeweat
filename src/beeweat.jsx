@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.3";
 const HBLUE   = "#235C9C";   // header (blu principale, scurito)
 const PANEL_A = "#5A93C8";   // pannello meteo top
 const PANEL_B = "#4585C1";   // pannello meteo bottom
