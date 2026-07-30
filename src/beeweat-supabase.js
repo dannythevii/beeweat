@@ -15,6 +15,15 @@ const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";     
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Visualizzazioni dei post (una per utente) ────────────────────────────────
+export async function registerView(postId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("post_views").upsert(
+    { post_id: postId, user_id: user.id },
+    { onConflict: "post_id,user_id", ignoreDuplicates: true });
+}
+
 // ── Notifiche in-app ──────────────────────────────────────────────────────────
 export async function getNotifications(limit = 30) {
   const { data, error } = await supabase.from("notifications").select("*")
