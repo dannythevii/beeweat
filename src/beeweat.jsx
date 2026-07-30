@@ -492,8 +492,15 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported }) {
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView }) {
   const [anim, setAnim] = useState(false);
+  const cardRef = useRef(null);
+  useEffect(() => {
+    if (!onView || !cardRef.current || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { onView(post.id); io.disconnect(); } }), { threshold: 0.6 });
+    io.observe(cardRef.current);
+    return () => io.disconnect();
+  }, []);
   const emoji = post.cond.split(" ")[0];
   const like = e => { e.stopPropagation(); setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
   const Stat = ({ icon, count, color, onClick, active }) => (
@@ -503,7 +510,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     </button>
   );
   return (
-    <div className="fade-up" style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: `0 2px 10px ${HBLUE}0D` }}>
+    <div ref={cardRef} className="fade-up" style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: `0 2px 10px ${HBLUE}0D` }}>
       {/* HEADER */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
         <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} /></div>
@@ -544,14 +551,14 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
       {visible.length === 0
         ? <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} />)}
     </div>
   );
 }
@@ -1812,6 +1819,16 @@ export default function App() {
     return () => { try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   const unreadCount = alerts.filter(a => !a.read).length;
+  // Visualizzazioni: conta quando il post appare sullo schermo, una volta per utente
+  const seenRef = useRef(new Set());
+  const onView = pid => {
+    if (!sb?.isConfigured || typeof pid !== "string" || !pid.includes("-") || seenRef.current.has(pid)) return;
+    seenRef.current.add(pid);
+    const target = posts.find(p => p.id === pid);
+    if (!target || target.mine) return;
+    setPosts(ps => ps.map(p => p.id === pid ? { ...p, views: (p.views || 0) + 1 } : p));
+    sb.registerView(pid).catch(() => {});
+  };
   const openAlertChat = a => {
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -2038,7 +2055,7 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
