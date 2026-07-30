@@ -1754,6 +1754,17 @@ export default function App() {
       p => setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {}, { enableHighAccuracy: true, timeout: 8000 });
   }, []);
+  // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
+  const [locName, setLocName] = useState(null);
+  useEffect(() => {
+    if (!geo) return;
+    (async () => { try {
+      const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${geo.lat}&longitude=${geo.lng}&localityLanguage=it`);
+      const j = await r.json();
+      const name = j.locality || j.city || j.principalSubdivision || null;
+      if (name) setLocName(name);
+    } catch (_) {} })();
+  }, [geo]);
   const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
   const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
   const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
@@ -1772,7 +1783,7 @@ export default function App() {
         const pr = pmap[r.user_id] || {}; const pt = { lat: r.lat, lng: r.lng };
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
           time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
-          city: pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
+          city: r.city || pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
@@ -1862,12 +1873,12 @@ export default function App() {
   const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   const onPost = ({ img, caption, cond, dir }) => {
-    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
+    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
     if (sb?.isConfigured) {
       (async () => {
         try {
           const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
-          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label });
+          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city });
           await loadFeed();
         } catch (e) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
       })();
@@ -1947,7 +1958,7 @@ export default function App() {
   const feedTitle = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <NavIcon name="pin" size={18} color="#fff" sw={2} />
-      {user.city}
+      {locName || user.city}
     </span>
   );
   const titles = { vicini: "Vicini", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "Contatti" };
