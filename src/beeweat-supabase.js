@@ -15,6 +15,28 @@ const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";     
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Notifiche in-app ──────────────────────────────────────────────────────────
+export async function getNotifications(limit = 30) {
+  const { data, error } = await supabase.from("notifications").select("*")
+    .order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error; return data || [];
+}
+export async function markDirectNotifsRead(fromId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("notifications").update({ read: true })
+    .eq("user_id", user.id).eq("type", "direct").eq("from_user_id", fromId);
+}
+export async function subscribeNotifications(myId, onNotif) {
+  await authRealtime();
+  const ch = supabase.channel("notif-" + myId)
+    .on("postgres_changes",
+      { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${myId}` },
+      payload => onNotif(payload.new))
+    .subscribe();
+  return () => supabase.removeChannel(ch);
+}
+
 // ── Profili e chat dirette ────────────────────────────────────────────────────
 export async function getProfiles() {
   const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").order("name");
