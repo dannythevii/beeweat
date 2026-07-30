@@ -1798,6 +1798,24 @@ export default function App() {
     } catch (e) { console.warn("feed:", e?.message || e); }
   }, [sb, user, geo]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Avvisi (campanella): elenco reale + arrivo in tempo reale
+  const [alerts, setAlerts] = useState([]);
+  const nameOf = uid => (contacts.find(c => c.id === uid) || {}).name || "Un utente";
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    let unsub = null;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      setAlerts(await sb.getNotifications());
+      unsub = await sb.subscribeNotifications(au.id, n => setAlerts(a => [n, ...a]));
+    } catch (e) { console.warn("avvisi:", e?.message || e); } })();
+    return () => { try { if (unsub) unsub(); } catch (_) {} };
+  }, [sb, user]);
+  const unreadCount = alerts.filter(a => !a.read).length;
+  const openAlertChat = a => {
+    if (a.type !== "direct" || !a.from_user_id) return;
+    openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
+  };
   // Contatti reali: gli utenti Beeweat dal database (escluso me)
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -1812,6 +1830,8 @@ export default function App() {
     const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
     setOverlay({ chat: c });
     if (!real) return;
+    setAlerts(a => a.map(n => n.type === "direct" && n.from_user_id === c.id ? { ...n, read: true } : n));
+    sb.markDirectNotifsRead(c.id).catch(() => {});
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const rows = await sb.getDirectMessages(c.id);
@@ -1942,6 +1962,27 @@ export default function App() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
+  if (overlay === "alerts") return wrap(
+    <div style={{ background: BODY, minHeight: "100%" }}>
+      <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={22} color="#fff" sw={2} /></button>
+        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>Avvisi</span>
+      </div>
+      {alerts.length === 0
+        ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
+        : alerts.map(a => (
+          <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="comment" size={20} color={HBLUE} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, color: TXT }}><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> ti ha scritto</div>
+              {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
+              <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
+            </div>
+            {!a.read && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#E5484D", flexShrink: 0 }} />}
+          </div>
+        ))}
+    </div>
+  );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={setNotif} onClose={() => setOverlay("profile")} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
@@ -1978,6 +2019,10 @@ export default function App() {
       : <button onClick={() => setOverlay("post")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", fontSize: 17, fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Post</button>;
   const rightBtn = (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <button onClick={() => setOverlay("alerts")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 8, position: "relative" }}>
+        <NavIcon name="bell" size={22} color="#fff" sw={2} />
+        {unreadCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, minWidth: 16, height: 16, borderRadius: 8, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>}
+      </button>
       <button onClick={() => setOverlay("search")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 6 }}><NavIcon name="search" size={22} color="#fff" sw={2} /></button>
       {action}
     </div>
