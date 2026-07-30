@@ -1100,6 +1100,9 @@ function CameraView({ onPost, onBack }) {
   const [headingReal, setHeadingReal] = useState(false);
   const [shotDir, setShotDir] = useState(null);    // direzione congelata allo scatto
   const DIRS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+  // iOS: i sensori di movimento richiedono un permesso esplicito, attivabile solo da un tocco
+  const canAskSensor = typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function";
+  const askSensor = async () => { try { await DeviceOrientationEvent.requestPermission(); } catch (_) {} };
   const dirLabel = h => DIRS[Math.round(((h % 360) + 360) % 360 / 45) % 8];
   useEffect(() => {
     const onOri = e => {
@@ -1113,7 +1116,7 @@ function CameraView({ onPost, onBack }) {
     return () => { window.removeEventListener("deviceorientationabsolute", onOri, true); window.removeEventListener("deviceorientation", onOri, true); };
   }, []);
   const Compass = ({ h }) => (
-    <div style={{ position: "absolute", top: 12, right: 14, width: 62, textAlign: "center" }}>
+    <div onClick={askSensor} style={{ position: "absolute", top: 12, right: 14, width: 62, textAlign: "center", cursor: "pointer" }}>
       <div style={{ width: 54, height: 54, margin: "0 auto", borderRadius: "50%", background: "rgba(0,0,0,.38)", border: "1.5px solid rgba(255,255,255,.65)", position: "relative" }}>
         {/* rosa dei venti che ruota: il Nord segue il mondo reale */}
         <div style={{ position: "absolute", inset: 0, transform: `rotate(${-h}deg)`, transition: "transform .25s ease-out" }}>
@@ -1125,7 +1128,7 @@ function CameraView({ onPost, onBack }) {
         {/* indicatore fisso: dove punta la fotocamera */}
         <div style={{ position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${ACCENT}` }} />
       </div>
-      <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)", letterSpacing: ".04em" }}>{dirLabel(h)} · {Math.round(h)}°{!headingReal && <span style={{ fontWeight: 600, opacity: .8 }}> demo</span>}</div>
+      <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)", letterSpacing: ".04em" }}>{dirLabel(h)} · {Math.round(h)}°{!headingReal && <span style={{ fontWeight: 600, opacity: .85 }}> {canAskSensor ? "tocca 👆" : "demo"}</span>}</div>
     </div>
   );
   const start = useCallback(async () => {
