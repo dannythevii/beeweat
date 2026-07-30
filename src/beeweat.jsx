@@ -1750,9 +1750,12 @@ export default function App() {
   // Posizione reale dell'utente (fallback: coordinate base)
   const [geo, setGeo] = useState(BASE_COORDS);
   useEffect(() => {
-    navigator.geolocation?.getCurrentPosition(
+    if (!navigator.geolocation) return;
+    // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
+    const id = navigator.geolocation.watchPosition(
       p => setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {}, { enableHighAccuracy: true, timeout: 8000 });
+      () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
+    return () => navigator.geolocation.clearWatch(id);
   }, []);
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   const [locName, setLocName] = useState(null);
