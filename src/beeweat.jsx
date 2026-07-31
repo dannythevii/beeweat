@@ -1102,6 +1102,35 @@ function CameraView({ onPost, onBack }) {
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
   const [err, setErr] = useState(null), [facing, setFacing] = useState("environment"), [posting, setPosting] = useState(false);
+  // ── fotocamera pro: zoom (hardware o digitale), torcia, griglia ──
+  const [zoom, setZoom] = useState(1);
+  const [zoomCaps, setZoomCaps] = useState(null);   // {min,max,step} se lo zoom hardware esiste
+  const [torchAvail, setTorchAvail] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [grid, setGrid] = useState(false);
+  const pinchRef = useRef(null);
+  const maxZoom = zoomCaps ? Math.min(zoomCaps.max, 8) : 5;
+  const applyZoom = z => {
+    const cl = Math.max(1, Math.min(maxZoom, z));
+    setZoom(cl);
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (zoomCaps && track) track.applyConstraints({ advanced: [{ zoom: cl }] }).catch(() => {});
+  };
+  const toggleTorch = () => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track) return;
+    const next = !torchOn;
+    track.applyConstraints({ advanced: [{ torch: next }] }).then(() => setTorchOn(next)).catch(() => {});
+  };
+  const onPinchStart = e => { if (e.touches?.length === 2) { const [a, b] = e.touches; pinchRef.current = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z: zoom }; } };
+  const onPinchMove = e => {
+    if (e.touches?.length === 2 && pinchRef.current) {
+      const [a, b] = e.touches;
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      applyZoom(pinchRef.current.z * (d / pinchRef.current.d));
+    }
+  };
+  const onPinchEnd = () => { pinchRef.current = null; };
   // bussola: direzione della fotocamera (gradi 0-360, 0 = Nord)
   const [heading, setHeading] = useState(40);      // valore demo di partenza
   const [headingReal, setHeadingReal] = useState(false);
@@ -1145,8 +1174,15 @@ function CameraView({ onPost, onBack }) {
         setErr({ kind: "unsupported", msg: "La fotocamera non è disponibile in questo contesto (richiede una connessione sicura HTTPS)." });
         return;
       }
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       streamRef.current = s; if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); } setStreaming(true); setErr(null);
+      // capacità del sensore: zoom hardware e torcia (dove il dispositivo le espone)
+      setZoom(1); setTorchOn(false);
+      try {
+        const caps = s.getVideoTracks()[0].getCapabilities?.() || {};
+        setZoomCaps(caps.zoom && caps.zoom.max > 1 ? { min: caps.zoom.min || 1, max: caps.zoom.max, step: caps.zoom.step || 0.1 } : null);
+        setTorchAvail(!!caps.torch);
+      } catch (_) { setZoomCaps(null); setTorchAvail(false); }
     } catch (e) {
       const n = e && e.name;
       if (n === "NotAllowedError" || n === "SecurityError") setErr({ kind: "denied", msg: "Accesso alla fotocamera negato o bloccato." });
@@ -1155,7 +1191,11 @@ function CameraView({ onPost, onBack }) {
     }
   }, [facing]);
   useEffect(() => { start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing]);
-  const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return; c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
+  const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
+    const dz = zoomCaps ? 1 : zoom;               // zoom digitale: ritaglio reale del fotogramma
+    const sw = v.videoWidth / dz, sh = v.videoHeight / dz;
+    c.width = Math.round(sw); c.height = Math.round(sh);
+    c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const retake = () => { setCaptured(null); start(); };
   const publish = () => { if (!captured) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir }); }, 600); };
   return (
@@ -1164,7 +1204,14 @@ function CameraView({ onPost, onBack }) {
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#cdd", minHeight: 280, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
-            <video ref={videoRef} playsInline muted style={{ width: "100%", display: streaming ? "block" : "none", maxHeight: 360, objectFit: "cover" }} />
+            <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative" }}>
+              <video ref={videoRef} playsInline muted style={{ width: "100%", maxHeight: 360, objectFit: "cover", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
+              {grid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                {[1, 2].map(i => <div key={"v" + i} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 33.33}%`, width: 1, background: "rgba(255,255,255,.5)" }} />)}
+                {[1, 2].map(i => <div key={"h" + i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 33.33}%`, height: 1, background: "rgba(255,255,255,.5)" }} />)}
+              </div>}
+              {zoom > 1.02 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.45)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 14, padding: "3px 10px" }}>{zoom.toFixed(1)}×</div>}
+            </div>
             {!streaming && !err && <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: TXT2 }}>Avvio fotocamera…</div>}
             {err && <div style={{ minHeight: 280, display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", padding: "26px 22px", textAlign: "center" }}>
               <NavIcon name="camera" size={40} color={TXT2} />
@@ -1190,9 +1237,17 @@ function CameraView({ onPost, onBack }) {
             <span style={{ fontSize: 16, lineHeight: 1.3 }}>🌤️</span>
             <span style={{ fontSize: 12, color: "#9A6418", lineHeight: 1.45 }}>Inquadra il <b>cielo o il meteo</b>, non le persone: le foto con persone in primo piano non sono ammesse e verranno scartate.</span>
           </div>
-          {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
+          {!captured && streaming && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "0 6px" }}>
+            {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
+              <button key={z} onClick={() => applyZoom(z)} style={{ minWidth: 40, padding: "5px 0", borderRadius: 12, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
+            ))}
+            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, accentColor: HBLUE }} />
+          </div>}
+          {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
             <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
+            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", color: grid ? "#fff" : HBLUE, fontSize: 18, fontWeight: 700 }}>#</button>}
             {streaming && <button onClick={capture} style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55` }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
+            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
