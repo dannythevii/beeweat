@@ -1197,6 +1197,23 @@ function CameraView({ onPost, onBack }) {
     c.width = Math.round(sw); c.height = Math.round(sh);
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const retake = () => { setCaptured(null); start(); };
+  const [saved, setSaved] = useState(false);
+  const savePhoto = async () => {
+    try {
+      const blob = await (await fetch(captured)).blob();
+      const file = new File([blob], `beeweat_${Date.now()}.jpg`, { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Beeweat" });   // iOS/Android: "Salva immagine" → galleria
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (_) {}
+  };
   const publish = () => { if (!captured) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir }); }, 600); };
   return (
     <>
@@ -1253,6 +1270,7 @@ function CameraView({ onPost, onBack }) {
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
+              <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
               <button onClick={publish} disabled={posting} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : "Pubblica ora"}</button>
             </div>
           </div>}
