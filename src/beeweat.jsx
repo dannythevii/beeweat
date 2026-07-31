@@ -492,7 +492,41 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView }) {
+function PhotoViewer({ src, caption, onClose }) {
+  const [saved, setSaved] = useState(false);
+  const save = async () => {
+    try {
+      const blob = await (await fetch(src)).blob();
+      const file = new File([blob], `beeweat_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Beeweat" });   // foglio nativo → "Salva immagine"
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (_) {}
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(8,14,24,.94)", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px" }}>
+        <button onClick={onClose} style={{ background: "rgba(255,255,255,.12)", border: "none", width: 40, height: 40, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
+      </div>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minHeight: 0 }}>
+        <img src={src} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />
+      </div>
+      <div onClick={e => e.stopPropagation()} style={{ padding: "14px 16px calc(18px + env(safe-area-inset-bottom))" }}>
+        {caption && <div style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
+        <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : "#fff", color: saved ? "#fff" : HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva nel telefono"}</button>
+      </div>
+    </div>
+  );
+}
+
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto }) {
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -533,7 +567,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 
       {/* PHOTO (a tutta larghezza) */}
       <div style={{ position: "relative", width: "100%", aspectRatio: "3 / 2", borderRadius: 4, overflow: "hidden", background: "#dfe8f1" }}>
-        <img src={post.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
         {reported && <div style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 5, background: "rgba(30,40,60,.78)", color: "#fff", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "5px 11px" }}><NavIcon name="search" size={12} color="#fff" sw={2} /> In revisione</div>}
       </div>
 
@@ -551,14 +585,14 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
       {visible.length === 0
         ? <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} />)}
     </div>
   );
 }
@@ -2052,6 +2086,7 @@ export default function App() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
+  if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(null)} />);
   if (overlay === "alerts") return wrap(
     <div style={{ background: BODY, minHeight: "100%" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -2128,7 +2163,7 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
