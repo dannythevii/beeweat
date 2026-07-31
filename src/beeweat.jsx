@@ -423,11 +423,11 @@ function WeatherPanel({ commentCount }) {
 
 // ─── RADAR SLIDER ─────────────────────────────────────────────────────────────
 function RadarBar({ km, setKm }) {
-  const pct = ((km - 1) / 49) * 100;
+  const pct = ((km - 1) / 99) * 100;
   return (
     <div style={{ background: GREYP, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderTop: `1px solid ${LINE}` }}>
       <NavIcon name="locate" size={26} color={HBLUE} sw={1.8} />
-      <input type="range" min={1} max={50} value={km} onChange={e => setKm(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE}26 ${pct}%, ${HBLUE}26 100%)` }} />
+      <input type="range" min={1} max={100} value={km} onChange={e => setKm(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE}26 ${pct}%, ${HBLUE}26 100%)` }} />
       <span style={{ color: HBLUE, fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk',sans-serif", minWidth: 92, textAlign: "right" }}>Raggio: {km} Km</span>
     </div>
   );
@@ -1701,7 +1701,7 @@ function NotifSettingsView({ settings, onChange, onClose }) {
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Raggio di prossimità</div>
         <div style={{ background: "#fff", padding: "14px 16px", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: TXT, marginBottom: 8 }}><span>Avvisami entro</span><b style={{ color: HBLUE }}>{settings.radiusKm} km</b></div>
-          <input type="range" min="1" max="50" value={settings.radiusKm} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", accentColor: ACCENT }} />
+          <input type="range" min="1" max="100" value={settings.radiusKm} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", accentColor: ACCENT }} />
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Cosa notificare</div>
@@ -1892,7 +1892,7 @@ export default function App() {
   const loadFeed = useCallback(async () => {
     if (!sb?.isConfigured || !user) return;
     try {
-      const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 50 });
+      const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       let myStars = new Set();
       if (au) { const { data: st } = await sb.supabase.from("stars").select("post_id").eq("user_id", au.id); myStars = new Set((st || []).map(x => x.post_id)); }
