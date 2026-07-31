@@ -1333,7 +1333,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
     <>
       <Header title="Profilo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
-        <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, height: 110 }} />
+        <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, height: 78 }} />
         <div style={{ padding: "0 20px", marginTop: -42 }}>
           <button onClick={() => setEditing(true)} style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
             <div style={{ width: 90, height: 90, borderRadius: "50%", background: "#fff", border: "3px solid #fff", boxShadow: `0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1344,7 +1344,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 24, color: TXT }}>{user.name}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}</div>
         </div>
-        <div style={{ display: "flex", margin: "20px 16px", background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 12px ${HBLUE}10` }}>
+        <div style={{ display: "flex", margin: "16px 16px 0", background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 12px ${HBLUE}10` }}>
           {[{ l: "Post", v: mine.length, i: "camera" }, { l: "Stelle", v: stars, i: "starFill" }, { l: "Giorni", v: 7, i: "feed" }].map((s, i) => (
             <div key={i} style={{ flex: 1, textAlign: "center", padding: "16px 8px", borderRight: i < 2 ? `1px solid ${LINE}` : "none" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><NavIcon name={s.i} size={20} color={HBLUE} /></div>
@@ -1353,10 +1353,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
           ))}
         </div>
-        <div style={{ padding: "0 16px 20px" }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
-          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} />)}
-          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, margin: "22px 0 12px" }}>Impostazioni</div>
+        <div style={{ padding: "14px 16px 0" }}>
           <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="bell" size={19} color={HBLUE} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
@@ -1365,6 +1362,10 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
+        </div>
+        <div style={{ padding: "18px 16px 20px" }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
+          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} />)}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
         </div>
       </div>
