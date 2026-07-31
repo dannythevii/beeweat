@@ -59,6 +59,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
     flip: <><path d="M1 4v6h6M23 20v-6h-6" {...p} /><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15" {...p} /></>,
     grid: <><rect x="4" y="4" width="16" height="16" rx="2" {...p} /><line x1="9.3" y1="4" x2="9.3" y2="20" {...p} /><line x1="14.7" y1="4" x2="14.7" y2="20" {...p} /><line x1="4" y1="9.3" x2="20" y2="9.3" {...p} /><line x1="4" y1="14.7" x2="20" y2="14.7" {...p} /></>,
+    trash: <><polyline points="3 6 5 6 21 6" {...p} /><path d="M19 6v13a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" {...p} /><line x1="10" y1="11" x2="10" y2="16.5" {...p} /><line x1="14" y1="11" x2="14" y2="16.5" {...p} /></>,
     capture: <><circle cx="12" cy="12" r="8" {...p} /><circle cx="12" cy="12" r="3" fill={color} stroke="none" /></>,
     pin: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
     eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" {...p} /><circle cx="12" cy="12" r="3.2" {...p} /></>,
@@ -527,7 +528,7 @@ function PhotoViewer({ src, caption, onClose }) {
   );
 }
 
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto }) {
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete }) {
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -563,6 +564,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
           {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="flag" size={18} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
+          {onDelete && canDelete && <button onClick={e => { e.stopPropagation(); onDelete(post); }} title="Elimina post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="trash" size={18} color="#E5484D" sw={1.9} /></button>}
         </div>
       </div>
 
@@ -586,14 +588,14 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
       {visible.length === 0
         ? <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} />)}
     </div>
   );
 }
@@ -1325,7 +1327,7 @@ function CameraView({ onPost, onBack }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete }) {
   const mine = posts.filter(p => p.mine);
   const stars = mine.reduce((s, p) => s + p.stars, 0);
   const [editing, setEditing] = useState(false);
@@ -1365,7 +1367,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
-          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} />)}
+          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} />)}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
         </div>
       </div>
@@ -1937,6 +1939,19 @@ export default function App() {
     return () => { try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   const unreadCount = alerts.filter(a => !a.read).length;
+  // Amministratore Beeweat? (colonna is_admin sul profilo)
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) { setIsAdmin(false); return; }
+    (async () => { try { const p = await sb.getCurrentProfile(); setIsAdmin(!!p?.is_admin); } catch (_) {} })();
+  }, [sb, user]);
+  // Cancellazione post (autore o admin)
+  const deletePost = post => {
+    if (!window.confirm("Eliminare definitivamente questo post?")) return;
+    const real = sb?.isConfigured && typeof post.id === "string" && post.id.includes("-");
+    setPosts(ps => ps.filter(p => p.id !== post.id));
+    if (real) sb.deletePost(post).catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+  };
   // Visualizzazioni: conta quando il post appare sullo schermo, una volta per utente
   const seenRef = useRef(new Set());
   const onView = pid => {
@@ -2096,7 +2111,7 @@ export default function App() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(null)} />);
   if (overlay === "alerts") return wrap(
     <div style={{ background: BODY, minHeight: "100%" }}>
@@ -2174,7 +2189,7 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
