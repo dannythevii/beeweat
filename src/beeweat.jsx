@@ -58,6 +58,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     starFill: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" fill={STAR} stroke="none" />,
     send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
     flip: <><path d="M1 4v6h6M23 20v-6h-6" {...p} /><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15" {...p} /></>,
+    grid: <><rect x="4" y="4" width="16" height="16" rx="2" {...p} /><line x1="9.3" y1="4" x2="9.3" y2="20" {...p} /><line x1="14.7" y1="4" x2="14.7" y2="20" {...p} /><line x1="4" y1="9.3" x2="20" y2="9.3" {...p} /><line x1="4" y1="14.7" x2="20" y2="14.7" {...p} /></>,
     capture: <><circle cx="12" cy="12" r="8" {...p} /><circle cx="12" cy="12" r="3" fill={color} stroke="none" /></>,
     pin: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
     eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" {...p} /><circle cx="12" cy="12" r="3.2" {...p} /></>,
@@ -1142,6 +1143,8 @@ function CameraView({ onPost, onBack }) {
   const [torchAvail, setTorchAvail] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [grid, setGrid] = useState(false);
+  const [format, setFormat] = useState("std");     // std | wide (16:9) | pano (21:9)
+  const FORMAT_AR = { std: null, wide: 16 / 9, pano: 21 / 9 };
   const pinchRef = useRef(null);
   const maxZoom = zoomCaps ? Math.min(zoomCaps.max, 8) : 5;
   const applyZoom = z => {
@@ -1227,7 +1230,9 @@ function CameraView({ onPost, onBack }) {
   useEffect(() => { start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing]);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
     const dz = zoomCaps ? 1 : zoom;               // zoom digitale: ritaglio reale del fotogramma
-    const sw = v.videoWidth / dz, sh = v.videoHeight / dz;
+    let sw = v.videoWidth / dz, sh = v.videoHeight / dz;
+    const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
+    if (ar) { if (sw / sh > ar) sw = sh * ar; else sh = sw / ar; }
     c.width = Math.round(sw); c.height = Math.round(sh);
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const retake = () => { setCaptured(null); start(); };
@@ -1255,8 +1260,8 @@ function CameraView({ onPost, onBack }) {
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#cdd", minHeight: 280, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
-            <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative" }}>
-              <video ref={videoRef} playsInline muted style={{ width: "100%", maxHeight: 360, objectFit: "cover", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
+            <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative", aspectRatio: format === "pano" ? "21 / 9" : format === "wide" ? "16 / 9" : undefined }}>
+              <video ref={videoRef} playsInline muted style={{ width: "100%", height: format === "std" ? undefined : "100%", maxHeight: 360, objectFit: "cover", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
               {grid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {[1, 2].map(i => <div key={"v" + i} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 33.33}%`, width: 1, background: "rgba(255,255,255,.5)" }} />)}
                 {[1, 2].map(i => <div key={"h" + i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 33.33}%`, height: 1, background: "rgba(255,255,255,.5)" }} />)}
@@ -1288,6 +1293,11 @@ function CameraView({ onPost, onBack }) {
             <span style={{ fontSize: 16, lineHeight: 1.3 }}>🌤️</span>
             <span style={{ fontSize: 12, color: "#9A6418", lineHeight: 1.45 }}>Inquadra il <b>cielo o il meteo</b>, non le persone: le foto con persone in primo piano non sono ammesse e verranno scartate.</span>
           </div>
+          {!captured && streaming && <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
+            {[["std", "Std"], ["wide", "16:9"], ["pano", "Pano"]].map(([id, label]) => (
+              <button key={id} onClick={() => setFormat(id)} style={{ padding: "5px 14px", borderRadius: 14, border: `1.5px solid ${format === id ? HBLUE : LINE}`, background: format === id ? HBLUE : "#fff", color: format === id ? "#fff" : HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
+            ))}
+          </div>}
           {!captured && streaming && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "0 6px" }}>
             {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
               <button key={z} onClick={() => applyZoom(z)} style={{ minWidth: 40, padding: "5px 0", borderRadius: 12, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
@@ -1296,7 +1306,7 @@ function CameraView({ onPost, onBack }) {
           </div>}
           {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
             <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
-            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", color: grid ? "#fff" : HBLUE, fontSize: 18, fontWeight: 700 }}>#</button>}
+            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : HBLUE} sw={1.7} /></button>}
             {streaming && <button onClick={capture} style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55` }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
             {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
