@@ -1891,6 +1891,22 @@ export default function App() {
   const [contacts, setContacts] = useState([]);   // niente contatti demo: solo utenti reali
   const [groups, setGroups] = useState([]);
   const [notif, setNotif] = useState({ enabled: false, radiusKm: 10, posts: true, eventi: true, allerte: true, messaggi: true, quiet: false });
+  // preferenze notifiche persistenti sul profilo (colonna notif_prefs)
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    (async () => { try {
+      const p = await sb.getCurrentProfile();
+      if (p?.notif_prefs) setNotif(n => ({ ...n, ...p.notif_prefs }));
+    } catch (_) {} })();
+  }, [sb, user]);
+  const saveNotif = next => {
+    setNotif(next);
+    if (!sb?.isConfigured) return;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      await sb.supabase.from("profiles").update({ notif_prefs: next }).eq("id", au.id);
+    } catch (e) { console.warn("notifiche:", e?.message || e); } })();
+  };
   const [following, setFollowing] = useState([]);
   const [reported, setReported] = useState([]);
   const [reportTarget, setReportTarget] = useState(null);
@@ -2195,7 +2211,7 @@ export default function App() {
         ))}
     </div>
   );
-  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={setNotif} onClose={() => setOverlay("profile")} />);
+  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
