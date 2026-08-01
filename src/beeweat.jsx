@@ -1880,10 +1880,10 @@ export default function App() {
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
   const [km, setKm] = useState(10);
-  const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
   const [events, setEvents] = useState(INITIAL_EVENTS);
   const [favs, setFavs] = useState([11]);
-  const [contacts, setContacts] = useState([PEOPLE[0]]);
+  const [contacts, setContacts] = useState([]);   // niente contatti demo: solo utenti reali
   const [groups, setGroups] = useState([]);
   const [notif, setNotif] = useState({ enabled: false, radiusKm: 10, posts: true, eventi: true, allerte: true, messaggi: true, quiet: false });
   const [following, setFollowing] = useState([]);
@@ -1978,7 +1978,10 @@ export default function App() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
       setAlerts(await sb.getNotifications());
-      unsub = await sb.subscribeNotifications(au.id, n => setAlerts(a => [n, ...a]));
+      unsub = await sb.subscribeNotifications(au.id, n => {
+        setAlerts(a => [n, ...a]);
+        if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
+      });
     } catch (e) { console.warn("avvisi:", e?.message || e); } })();
     return () => { try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
