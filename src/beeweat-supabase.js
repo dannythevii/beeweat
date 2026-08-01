@@ -12,8 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
 const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
 
-
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Cancellazione post (autore o amministratore; decidono le regole RLS) ─────
@@ -34,6 +32,33 @@ export async function registerView(postId) {
   await supabase.from("post_views").upsert(
     { post_id: postId, user_id: user.id },
     { onConflict: "post_id,user_id", ignoreDuplicates: true });
+}
+
+// ── Seguiti / Follower ────────────────────────────────────────────────────────
+export async function getMyFollows() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase.from("follows").select("followed_id").eq("follower_id", user.id);
+  if (error) throw error; return (data || []).map(r => r.followed_id);
+}
+export async function getMyFollowers() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await supabase.from("follows").select("follower_id").eq("followed_id", user.id);
+  if (error) throw error; return (data || []).map(r => r.follower_id);
+}
+export async function setFollow(followedId, on) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  if (on) {
+    const { error } = await supabase.from("follows")
+      .upsert({ follower_id: user.id, followed_id: followedId }, { onConflict: "follower_id,followed_id", ignoreDuplicates: true });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("follows").delete()
+      .eq("follower_id", user.id).eq("followed_id", followedId);
+    if (error) throw error;
+  }
 }
 
 // ── Notifiche in-app ──────────────────────────────────────────────────────────
