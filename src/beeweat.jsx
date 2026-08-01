@@ -588,13 +588,18 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, loading }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
       {visible.length === 0
-        ? <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>
+        ? (loading
+            ? <div style={{ textAlign: "center", padding: "56px 20px", color: TXT2 }}>
+                <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><span style={{ animation: "blink 1.1s infinite", display: "flex" }}><NavIcon name="beecast" size={40} color={HBLUE} sw={1.6} /></span></div>
+                Lettura del cielo in corso…
+              </div>
+            : <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>)
         : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} />)}
     </div>
   );
@@ -1946,6 +1951,7 @@ export default function App() {
   const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
   const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
   // Feed reale dal database (quando Supabase è collegato)
+  const [feedReady, setFeedReady] = useState(false);
   const loadFeed = useCallback(async () => {
     if (!sb?.isConfigured || !user) return;
     try {
@@ -1967,7 +1973,14 @@ export default function App() {
           img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
+    finally { setFeedReady(true); }
   }, [sb, user, geo]);
+  // niente attese infinite: dopo il login, al massimo 5s di caricamento
+  useEffect(() => {
+    if (!user) { setFeedReady(false); return; }
+    const t = setTimeout(() => setFeedReady(true), 5000);
+    return () => clearTimeout(t);
+  }, [user]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
   // Avvisi (campanella): elenco reale + arrivo in tempo reale
   const [alerts, setAlerts] = useState([]);
@@ -2237,7 +2250,7 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
