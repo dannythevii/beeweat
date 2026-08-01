@@ -1327,7 +1327,8 @@ function CameraView({ onPost, onBack }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, followingList, followersList, onFollow, following }) {
+  const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine);
   const stars = mine.reduce((s, p) => s + p.stars, 0);
   const [editing, setEditing] = useState(false);
@@ -1356,6 +1357,30 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           ))}
         </div>
         <div style={{ padding: "14px 16px 0" }}>
+          <div style={{ display: "flex", background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
+            {[["Seguiti", followingList], ["Follower", followersList]].map(([label, list], i) => (
+              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? HBLUE + "0E" : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
+                <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: TXT }}>{(list || []).length}</div>
+                <div style={{ fontSize: 11.5, color: TXT2 }}>{label}</div>
+              </button>
+            ))}
+          </div>
+          {followTab && (
+            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, marginBottom: 12, overflow: "hidden" }}>
+              {((followTab === "Seguiti" ? followingList : followersList) || []).length === 0
+                ? <div style={{ padding: "18px 16px", color: TXT2, fontSize: 13.5, textAlign: "center" }}>{followTab === "Seguiti" ? "Non segui ancora nessuno." : "Nessun follower per ora — pubblica bei cieli!"}</div>
+                : (followTab === "Seguiti" ? followingList : followersList).map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
+                    <UserAvatar src={c.ava} size={38} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
+                      {c.city && <div style={{ fontSize: 11.5, color: TXT2 }}>{c.city}</div>}
+                    </div>
+                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : HBLUE }}>{following?.includes(c.name) ? "Segui ✓" : "+ Segui"}</button>}
+                  </div>
+                ))}
+            </div>
+          )}
           <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="bell" size={19} color={HBLUE} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
@@ -1865,7 +1890,26 @@ export default function App() {
   const [reported, setReported] = useState([]);
   const [reportTarget, setReportTarget] = useState(null);
   const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); };
-  const toggleFollow = name => setFollowing(f => f.includes(name) ? f.filter(x => x !== name) : [...f, name]);
+  const [followingIds, setFollowingIds] = useState([]);
+  const [followerIds, setFollowerIds] = useState([]);
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || contacts.length === 0) return;
+    (async () => { try {
+      const ids = await sb.getMyFollows();
+      setFollowingIds(ids);
+      setFollowing(contacts.filter(c => ids.includes(c.id)).map(c => c.name));
+      setFollowerIds(await sb.getMyFollowers());
+    } catch (e) { console.warn("follow:", e?.message || e); } })();
+  }, [sb, user, contacts]);
+  const toggleFollow = name => {
+    const on = !following.includes(name);
+    setFollowing(f => on ? [...f, name] : f.filter(x => x !== name));
+    const c = contacts.find(x => x.name === name);
+    if (sb?.isConfigured && c) {
+      setFollowingIds(ids => on ? [...ids, c.id] : ids.filter(i => i !== c.id));
+      sb.setFollow(c.id, on).catch(e => console.warn("follow:", e?.message || e));
+    }
+  };
   const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city, uid: post.uid } });
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.id;
@@ -1963,6 +2007,7 @@ export default function App() {
     sb.registerView(pid).catch(() => {});
   };
   const openAlertChat = a => {
+    if (a.type === "follow" && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); if (c) setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
   };
@@ -2111,7 +2156,7 @@ export default function App() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(null)} />);
   if (overlay === "alerts") return wrap(
     <div style={{ background: BODY, minHeight: "100%" }}>
@@ -2125,7 +2170,7 @@ export default function App() {
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
             <div style={{ width: 42, height: 42, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="comment" size={20} color={HBLUE} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, color: TXT }}><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> ti ha scritto</div>
+              <div style={{ fontSize: 14.5, color: TXT }}><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : "ti ha scritto"}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
