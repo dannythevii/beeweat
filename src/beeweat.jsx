@@ -920,7 +920,7 @@ function EventiScreen({ events, km, onOpen }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
@@ -1012,10 +1012,11 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       {list.length === 0
         ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
         : list.map(c => (
-          <div key={c.id} onClick={() => onOpenUser && onOpenUser(c)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
+          <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: c.me ? HBLUE + "08" : "transparent" }}>
             <UserAvatar src={c.ava} size={56} />
-            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{c.city}</span></div>
-            <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>
+            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name}{c.me && <span style={{ fontSize: 13.5, color: TXT2, fontWeight: 500 }}>(tu)</span>} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{c.city}</span></div>
+            {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>}
+            {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
         ))}
       </>
@@ -2121,11 +2122,14 @@ export default function App() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const profs = await sb.getProfiles();
-      setContacts(profs.filter(p => !au || p.id !== au.id).map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null })));
+      setContacts(profs
+        .map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null, me: !!au && p.id === au.id }))
+        .sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0)));
     } catch (e) { console.warn("contatti:", e?.message || e); } })();
   }, [sb, user, socialTick]);
   // Chat dirette: apertura con storico dal database
   const openDirectChat = c => {
+    if (c?.me) { setOverlay("profile"); return; }
     const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
     setOverlay({ chat: c });
     if (!real) return;
@@ -2357,7 +2361,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
