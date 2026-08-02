@@ -920,12 +920,12 @@ function EventiScreen({ events, km, onOpen }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
   const list = contacts.filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
-  const places = NEARBY_PLACES.filter(p => p.dist <= km);
+  const places = (nearPlaces || []).filter(p => p.dist <= km);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const favList = (people || []).filter(p => favs?.includes(p.id));
   const FavRow = ({ p }) => {
@@ -1562,8 +1562,8 @@ function AvatarEditor({ current, onPick, onClose }) {
 // ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
 // ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
 function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported }) {
-  const rot = place.id % people.length;
-  const users = [...people.slice(rot), ...people.slice(0, rot)];
+  const placeAuthors = place.users && place.users.length ? place.users : [];
+  const users = placeAuthors.length ? placeAuthors : people;
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const evCount = events.filter(e => e.place === place.name).length || place.events;
   const placePosts = (posts || []).filter(p => p.city === place.name);
@@ -1769,13 +1769,13 @@ function NotifSettingsView({ settings, onChange, onClose }) {
 }
 
 // ─── RICERCA (persone, luoghi, eventi) ────────────────────────────────────────
-function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent }) {
+function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces }) {
   const [q, setQ] = useState("");
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
   const ql = q.trim().toLowerCase();
   const match = s => s.toLowerCase().includes(ql);
-  const near = NEARBY_PLACES.filter(p => p.dist <= km).filter(p => !ql || match(p.name));
+  const near = (nearPlaces || []).filter(p => p.dist <= km).filter(p => !ql || match(p.name));
   const nearNames = new Set(near.map(p => p.name));
   const fp = people.filter(p => !ql || match(p.name) || match(p.city));
   const fpl = places.filter(c => !nearNames.has(c)).filter(c => !ql || match(c));
@@ -1938,13 +1938,39 @@ export default function App() {
     }
   };
   const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city, uid: post.uid } });
+  // Luoghi vicini reali: le località dei post nel raggio
+  const realPlaces = useMemo(() => {
+    const map = {};
+    posts.forEach(p => {
+      if (!p.city) return;
+      if (!map[p.city]) map[p.city] = { id: "pl_" + p.city, name: p.city, dist: p.dist ?? 0, photos: 0, users: [], events: 0 };
+      const pl = map[p.city];
+      pl.photos += 1;
+      pl.dist = Math.min(pl.dist, p.dist ?? pl.dist);
+      if (!pl.users.some(u => u.name === p.user)) pl.users.push({ name: p.user, ava: p.ava, city: p.city, uid: p.uid });
+    });
+    return Object.values(map).sort((a, b) => a.dist - b.dist);
+  }, [posts]);
   const openPlaceChat = (place, back) => {
-    const id = "place_" + place.id;
-    if (!threads[id]) setThreads(th => ({ ...th, [id]: [
-      { id: 1, me: false, who: "Giulia", text: `Qualcuno a ${place.name}? Com'è il meteo? 🌤️`, time: "09:05" },
-      { id: 2, me: false, who: "Marco", text: "Tutto sereno qui!", time: "09:08" },
-    ] }));
+    const id = "place_" + place.name;
     setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
+    if (sb?.isConfigured) {
+      setThreads(th => ({ ...th, [id]: th[id] || [] }));
+      (async () => { try {
+        const { data: { user: au } } = await sb.supabase.auth.getUser();
+        const rows = await sb.getPlaceMessages(place.name);
+        setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+        if (chatUnsubRef.current) chatUnsubRef.current();
+        chatUnsubRef.current = await sb.subscribePlaceChat(place.name, async m => {
+          if (au && m.from_user_id === au.id) return;
+          let who = "Utente";
+          try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
+          setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
+        });
+      } catch (e) { console.warn("chat luogo:", e?.message || e); } })();
+      return;
+    }
+    if (!threads[id]) setThreads(th => ({ ...th, [id]: [] }));
   };
   const [threads, setThreads] = useState({});
   const [nextId, setNextId] = useState(1000);
@@ -2151,6 +2177,8 @@ export default function App() {
       const pid = cid.slice(5);
       setPosts(ps => ps.map(p => p.id === pid ? { ...p, comments: (p.comments || 0) + 1 } : p));
       sb.sendPostMessage(pid, text).catch(e => console.warn("invio:", e?.message || e));
+    } else if (sb?.isConfigured && cid.startsWith("place_")) {
+      sb.sendPlaceMessage(cid.slice(6), text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && typeof cid === "string" && cid.includes("-") && !cid.startsWith("post_") && !cid.startsWith("place_") && !cid.startsWith("g_")) {
       sb.sendDirectMessage(cid, text).catch(e => console.warn("invio:", e?.message || e));
     }
@@ -2225,7 +2253,7 @@ export default function App() {
   if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={PEOPLE} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...PEOPLE.map(p => p.city), ...posts.map(p => p.city), ...events.map(e => e.place)])].sort();
-    return wrap(<SearchView people={PEOPLE} events={events} places={places} km={km}
+    return wrap(<SearchView nearPlaces={realPlaces} people={PEOPLE} events={events} places={places} km={km}
       onClose={() => setOverlay(null)}
       onPerson={p => setOverlay({ chat: { id: "u_" + p.name, name: p.name, ava: p.ava } })}
       onEvent={e => setOverlay({ eventMap: e })}
@@ -2276,7 +2304,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
