@@ -920,7 +920,7 @@ function EventiScreen({ events, km, onOpen }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
@@ -994,7 +994,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)}</div>
-                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 2 }}>{p.photos ?? 0} {(p.photos ?? 0) === 1 ? "foto" : "foto"} · {(p.users?.length ?? 0)} {(p.users?.length ?? 0) === 1 ? "utente" : "utenti"}</div>
+                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 2 }}>{p.photos ?? 0} post · {p.events ?? 0} eventi · {p.users?.length ?? 0} utenti</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, minWidth: 60, justifyContent: "flex-end" }}>
                   <WIcon name="chat" size={21} color={HBLUE} sw={1.9} />
@@ -1012,10 +1012,10 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       {list.length === 0
         ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
         : list.map(c => (
-          <div key={c.id} onClick={() => onChat(c)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
+          <div key={c.id} onClick={() => onOpenUser && onOpenUser(c)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
             <UserAvatar src={c.ava} size={56} />
             <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{c.city}</span></div>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={18} color="#fff" sw={2.4} /></div>
+            <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>
           </div>
         ))}
       </>
@@ -1395,11 +1395,11 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
+          <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
           {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} />)}
-          <button onClick={onLogout} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -1408,7 +1408,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan }) {
   const mine = posts.filter(p => p.user === profile.name);
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1424,6 +1424,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
+              {isAdmin && <button onClick={() => onBan && onBan(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${RED}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: RED }}>Ban</button>}
               <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
             </div>
           </div>
@@ -1599,10 +1600,10 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         {/* utenti collegati al luogo */}
         <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Utenti a {place.name}</div>
         {users.map(u => (
-          <div key={u.id} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: "#fff", cursor: "pointer" }}>
+          <div key={u.uid || u.id || u.name} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: "#fff", cursor: "pointer" }}>
             <UserAvatar src={u.ava} size={50} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{u.name}</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{u.name}{u.me && <span style={{ color: TXT2, fontWeight: 500 }}> (tu)</span>}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {place.name}</div>
             </div>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3BA776", flexShrink: 0 }} title="online" />
@@ -1819,7 +1820,7 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
         ) : (
           <>
             <Section label="Luoghi vicino a te" count={near.length}>
-              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.photos ?? 0} foto · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
+              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.photos ?? 0} post · ${p.events ?? 0} eventi · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
             </Section>
             <Section label="Persone" count={fp.length}>
               {fp.map(p => <Row key={"p" + p.id} ava={p.ava} title={p.name} sub={"📍 " + p.city} onClick={() => onPerson(p)} />)}
@@ -1948,10 +1949,15 @@ export default function App() {
       const pl = map[p.city];
       pl.photos += 1;
       pl.dist = Math.min(pl.dist, p.dist ?? pl.dist);
-      if (!pl.users.some(u => u.name === p.user)) pl.users.push({ name: p.user, ava: p.ava, city: p.city, uid: p.uid });
+      if (!pl.users.some(u => u.name === p.user)) pl.users.push({ name: p.user, ava: p.ava, city: p.city, uid: p.uid, me: !!p.mine });
     });
-    return Object.values(map).sort((a, b) => a.dist - b.dist);
-  }, [posts]);
+    const list = Object.values(map).sort((a, b) => a.dist - b.dist);
+    list.forEach(pl => {
+      pl.users.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));       // tu per primo
+      pl.events = (events || []).filter(e => e.place === pl.name).length;
+    });
+    return list;
+  }, [posts, events]);
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.name;
     setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
@@ -2052,8 +2058,27 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     if (!sb?.isConfigured || !user) { setIsAdmin(false); return; }
-    (async () => { try { const p = await sb.getCurrentProfile(); setIsAdmin(!!p?.is_admin); } catch (_) {} })();
+    (async () => { try {
+      const p = await sb.getCurrentProfile();
+      setIsAdmin(!!p?.is_admin);
+      setBanInfo(p?.banned_until && new Date(p.banned_until) > new Date() ? { until: p.banned_until, reason: p.ban_reason } : null);
+    } catch (_) {} })();
   }, [sb, user]);
+  const [banInfo, setBanInfo] = useState(null);
+  const banUser = profile => {
+    if (!profile?.uid) { alert("Utente non identificabile."); return; }
+    const d = window.prompt(`Ban per "${profile.name}"\nGiorni di sospensione (0 = rimuovi il ban):`, "10");
+    if (d === null) return;
+    const days = Math.max(0, parseInt(d, 10) || 0);
+    if (days === 0) {
+      sb.banUser(profile.uid, null, null).then(() => alert(`${profile.name} è stato sbloccato.`)).catch(e => alert("Errore: " + (e?.message || e)));
+      return;
+    }
+    const reason = window.prompt("Messaggio per l'utente:", `Sei stato bannato per ${days} giorni per condotta scorretta.`);
+    if (reason === null) return;
+    const until = new Date(Date.now() + days * 86400000).toISOString();
+    sb.banUser(profile.uid, until, reason).then(() => alert(`${profile.name} è stato bannato per ${days} giorni.`)).catch(e => alert("Errore: " + (e?.message || e)));
+  };
   // Cancellazione post (autore o admin)
   const deletePost = post => {
     if (!window.confirm("Eliminare definitivamente questo post?")) return;
@@ -2071,7 +2096,21 @@ export default function App() {
     setPosts(ps => ps.map(p => p.id === pid ? { ...p, views: (p.views || 0) + 1 } : p));
     sb.registerView(pid).catch(() => {});
   };
+  const markAlertRead = a => {
+    if (a.read) return;
+    setAlerts(al => al.map(n => n.id === a.id ? { ...n, read: true } : n));
+    if (sb?.isConfigured) sb.markNotifRead(a.id).catch(() => {});
+  };
+  const markAllRead = () => {
+    setAlerts(al => al.map(n => ({ ...n, read: true })));
+    if (sb?.isConfigured) sb.markAllNotifsRead().catch(() => {});
+  };
+  const removeAlert = a => {
+    setAlerts(al => al.filter(n => n.id !== a.id));
+    if (sb?.isConfigured) sb.deleteNotification(a.id).catch(() => {});
+  };
   const openAlertChat = a => {
+    markAlertRead(a);
     if (a.type === "follow" && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); if (c) setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -2220,6 +2259,17 @@ export default function App() {
   const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
 
   if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
+  if (banInfo) return (
+    <Frame>
+      <div style={{ minHeight: "100%", background: BODY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
+        <div style={{ fontSize: 52, marginBottom: 14 }}>🚫</div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 21, color: TXT, marginBottom: 10 }}>Account sospeso</div>
+        <div style={{ fontSize: 15, color: TXT, lineHeight: 1.5, marginBottom: 8 }}>{banInfo.reason || "Il tuo account è stato temporaneamente sospeso."}</div>
+        <div style={{ fontSize: 13, color: TXT2, marginBottom: 24 }}>Fino al {new Date(banInfo.until).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}</div>
+        <button onClick={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setBanInfo(null); }} style={{ padding: "12px 28px", borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Esci</button>
+      </div>
+    </Frame>
+  );
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
@@ -2229,7 +2279,8 @@ export default function App() {
     <div style={{ background: BODY, minHeight: "100%" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={22} color="#fff" sw={2} /></button>
-        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>Avvisi</span>
+        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
+        {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Segna tutti letti</button>}
       </div>
       {alerts.length === 0
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
@@ -2242,12 +2293,13 @@ export default function App() {
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
             {!a.read && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#E5484D", flexShrink: 0 }} />}
+            <button onClick={e => { e.stopPropagation(); removeAlert(a); }} title="Elimina avviso" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2} /></button>
           </div>
         ))}
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
@@ -2305,7 +2357,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
