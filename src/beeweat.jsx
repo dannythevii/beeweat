@@ -994,9 +994,10 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)}</div>
+                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 2 }}>{p.photos ?? 0} {(p.photos ?? 0) === 1 ? "foto" : "foto"} · {(p.users?.length ?? 0)} {(p.users?.length ?? 0) === 1 ? "utente" : "utenti"}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, minWidth: 60, justifyContent: "flex-end" }}>
-                  <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 17 }}>{p.chats}</span><WIcon name="chat" size={19} color={HBLUE} sw={1.9} />
+                  <WIcon name="chat" size={21} color={HBLUE} sw={1.9} />
                 </div>
               </button>
               <button onClick={() => onOpenPlaceEvents(p)} style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, padding: "12px 16px 12px 10px", background: "none", border: "none", cursor: "pointer" }}>
@@ -1818,7 +1819,7 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
         ) : (
           <>
             <Section label="Luoghi vicino a te" count={near.length}>
-              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.chats} chat · ${p.events} eventi`} onClick={() => onOpenNearPlace(p)} />)}
+              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.photos ?? 0} foto · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
             </Section>
             <Section label="Persone" count={fp.length}>
               {fp.map(p => <Row key={"p" + p.id} ava={p.ava} title={p.name} sub={"📍 " + p.city} onClick={() => onPerson(p)} />)}
