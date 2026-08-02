@@ -9,8 +9,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co";                 // incolla qui
-const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";      // incolla qui
+const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
+const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -23,6 +23,26 @@ export async function deletePost(post) {
     const m = String(post.img || post.image_url || "").split("/object/public/posts/")[1];
     if (m) await supabase.storage.from("posts").remove([decodeURIComponent(m)]);
   } catch (_) {}
+}
+
+// ── Gestione avvisi ───────────────────────────────────────────────────────────
+export async function markNotifRead(id) {
+  await supabase.from("notifications").update({ read: true }).eq("id", id);
+}
+export async function markAllNotifsRead() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+}
+export async function deleteNotification(id) {
+  await supabase.from("notifications").delete().eq("id", id);
+}
+
+// ── Amministrazione: ban/sblocco utenti ──────────────────────────────────────
+export async function banUser(userId, until, reason) {
+  const { error } = await supabase.from("profiles")
+    .update({ banned_until: until, ban_reason: reason }).eq("id", userId);
+  if (error) throw error;
 }
 
 // ── Visualizzazioni dei post (una per utente) ────────────────────────────────
