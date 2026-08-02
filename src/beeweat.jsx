@@ -1884,7 +1884,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
-  const [km, setKm] = useState(10);
+  const [km, setKm] = useState(() => { try { const v = +localStorage.getItem("bw_km"); return v >= 1 && v <= 100 ? v : 10; } catch (_) { return 10; } });
+  useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
   const [events, setEvents] = useState(INITIAL_EVENTS);
   const [favs, setFavs] = useState([11]);
@@ -1928,7 +1929,11 @@ export default function App() {
     const c = contacts.find(x => x.name === name);
     if (sb?.isConfigured && c) {
       setFollowingIds(ids => on ? [...ids, c.id] : ids.filter(i => i !== c.id));
-      sb.setFollow(c.id, on).catch(e => console.warn("follow:", e?.message || e));
+      sb.setFollow(c.id, on).catch(e => {
+        setFollowing(f => on ? f.filter(x => x !== name) : [...f, name]);
+        setFollowingIds(ids => on ? ids.filter(i => i !== c.id) : [...ids, c.id]);
+        alert("Segui non salvato: " + (e?.message || e));
+      });
     }
   };
   const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city, uid: post.uid } });
