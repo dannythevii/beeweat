@@ -9,8 +9,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
-const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
+const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co";                 // incolla qui
+const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";      // incolla qui
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -32,6 +32,40 @@ export async function registerView(postId) {
   await supabase.from("post_views").upsert(
     { post_id: postId, user_id: user.id },
     { onConflict: "post_id,user_id", ignoreDuplicates: true });
+}
+
+// ── Chat pubbliche dei luoghi ─────────────────────────────────────────────────
+export async function getPlaceMessages(place, limit = 50) {
+  const { data, error } = await supabase.from("messages")
+    .select("id, text, from_user_id, created_at")
+    .eq("scope", "place").eq("place", place)
+    .order("created_at", { ascending: true }).limit(limit);
+  if (error) throw error;
+  const rows = data || [];
+  const ids = [...new Set(rows.map(r => r.from_user_id))];
+  if (ids.length) {
+    const { data: profs } = await supabase.from("profiles").select("id,name").in("id", ids);
+    const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    rows.forEach(r => { r.profiles = pm[r.from_user_id] || null; });
+  }
+  return rows;
+}
+export async function sendPlaceMessage(place, text) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("messages")
+    .insert({ scope: "place", place, from_user_id: user.id, text })
+    .select().single();
+  if (error) throw error; return data;
+}
+export async function subscribePlaceChat(place, onNew) {
+  await authRealtime();
+  const ch = supabase.channel("place:" + place)
+    .on("postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `place=eq.${place}` },
+      payload => onNew(payload.new))
+    .subscribe();
+  return () => supabase.removeChannel(ch);
 }
 
 // ── Seguiti / Follower ────────────────────────────────────────────────────────
