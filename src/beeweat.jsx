@@ -522,7 +522,7 @@ function PhotoViewer({ src, caption, onClose }) {
       </div>
       <div onClick={e => e.stopPropagation()} style={{ padding: "14px 16px calc(18px + env(safe-area-inset-bottom))" }}>
         {caption && <div style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
-        <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : "#fff", color: saved ? "#fff" : HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva nel telefono"}</button>
+        <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : "#fff", color: saved ? "#fff" : HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Fatto" : "Condividi"}</button>
       </div>
     </div>
   );
@@ -557,7 +557,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
             <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
             {post.dir && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><WIcon name="compass" size={16} color={HBLUE} sw={2} /><span>{post.dir.label}</span></span>}
             {onFollow && !post.mine && (
-              <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ marginLeft: 4, fontSize: 12, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "3px 12px", borderRadius: 20, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Segui ✓" : "+ Segui"}</button>
+              <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ marginLeft: 4, fontSize: 12, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "3px 12px", borderRadius: 20, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
             )}
           </div>
         </div>
@@ -1381,7 +1381,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
                       <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
                       {c.city && <div style={{ fontSize: 11.5, color: TXT2 }}>{c.city}</div>}
                     </div>
-                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : HBLUE }}>{following?.includes(c.name) ? "Segui ✓" : "+ Segui"}</button>}
+                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : HBLUE }}>{following?.includes(c.name) ? "Seguito già" : "+ Segui"}</button>}
                   </div>
                 ))}
             </div>
@@ -1389,7 +1389,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="bell" size={19} color={HBLUE} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Notifiche</div>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Configurazione</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{notif?.enabled ? `Attive · entro ${notif.radiusKm} km` : "Disattivate"}</div>
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
@@ -1423,7 +1423,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
-              <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Segui ✓" : "+ Segui"}</button>
+              <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
@@ -1914,6 +1914,7 @@ export default function App() {
   const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); };
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
+  const [socialTick, setSocialTick] = useState(0);
   useEffect(() => {
     if (!sb?.isConfigured || !user || contacts.length === 0) return;
     (async () => { try {
@@ -1922,7 +1923,7 @@ export default function App() {
       setFollowing(contacts.filter(c => ids.includes(c.id)).map(c => c.name));
       setFollowerIds(await sb.getMyFollowers());
     } catch (e) { console.warn("follow:", e?.message || e); } })();
-  }, [sb, user, contacts]);
+  }, [sb, user, contacts, socialTick]);
   const toggleFollow = name => {
     const on = !following.includes(name);
     setFollowing(f => on ? [...f, name] : f.filter(x => x !== name));
@@ -2056,7 +2057,7 @@ export default function App() {
       const profs = await sb.getProfiles();
       setContacts(profs.filter(p => !au || p.id !== au.id).map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null })));
     } catch (e) { console.warn("contatti:", e?.message || e); } })();
-  }, [sb, user]);
+  }, [sb, user, socialTick]);
   // Chat dirette: apertura con storico dal database
   const openDirectChat = c => {
     const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
@@ -2103,9 +2104,9 @@ export default function App() {
   // Aggiornamento automatico del feed: al ritorno sull'app, ogni 60s e in tempo reale
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
-    const onVis = () => { if (!document.hidden) loadFeed(); };
+    const onVis = () => { if (!document.hidden) { loadFeed(); setSocialTick(t => t + 1); } };
     document.addEventListener("visibilitychange", onVis);
-    const iv = setInterval(loadFeed, 60000);
+    const iv = setInterval(() => { loadFeed(); setSocialTick(t => t + 1); }, 60000);
     let ch = null;
     try {
       ch = sb.supabase.channel("posts-feed")
