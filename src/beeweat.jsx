@@ -1981,47 +1981,6 @@ export default function App() {
     });
     return list;
   }, [posts, events]);
-  // ── BeeCast: gli occhi della community ──────────────────────────────────────
-  // Foto recenti nel raggio → condizione prevalente, confronto col modello,
-  // e rilevamento del maltempo osservato SOPRAVENTO (in arrivo col vento).
-  const beeSense = useMemo(() => {
-    const angDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
-    const now = Date.now();
-    const recent = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= km);
-    if (recent.length === 0) return null;
-    const byCond = {};
-    recent.forEach(p => { const c = p.cond || "—"; byCond[c] = (byCond[c] || 0) + 1; });
-    const [domCond, domN] = Object.entries(byCond).sort((a, b) => b[1] - a[1])[0];
-    const share = Math.round((domN / recent.length) * 100);
-    const conf = recent.length >= 8 ? "alta" : recent.length >= 3 ? "media" : "bassa";
-    const agree = wx ? domCond.includes(wx.condition.split(" ")[0]) : null;
-    let incoming = null;
-    if (wx?.windDeg != null) {
-      const bad = recent.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
-      const upwind = bad.filter(p => (p.dist ?? 0) >= 2 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);
-      if (upwind.length >= 2) {
-        const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
-        const speed = Math.max(8, wx.windKmh || 15);
-        incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.round((avgDist / speed) * 60), speed };
-      }
-    }
-    return { count: recent.length, domCond, share, conf, agree, incoming };
-  }, [posts, km, wx]);
-  const senseCard = beeSense ? {
-    text: beeSense.incoming
-      ? `Maltempo osservato in avvicinamento da ${beeSense.incoming.dir} (~${beeSense.incoming.etaMin} min)`
-      : `${beeSense.domCond} — lo dice la community (${beeSense.share}%)`,
-    conf: "Affidabilità " + beeSense.conf,
-    photos: beeSense.count,
-    why: `${beeSense.count} foto della community nelle ultime 3 ore entro ${km} km. Condizione prevalente: ${beeSense.domCond} (${beeSense.share}%). `
-      + (wx ? (beeSense.agree ? `Il modello (${wx.condition}) è confermato dalle osservazioni reali.` : `Il modello indica ${wx.condition}: le osservazioni raccontano altro e lo correggono.`) : "")
-      + (beeSense.incoming ? ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.` : ""),
-    alert: beeSense.incoming ? {
-      icon: "🌧️", title: `Maltempo in arrivo tra ~${beeSense.incoming.etaMin} min`,
-      dir: "da " + beeSense.incoming.dir, photos: beeSense.incoming.n,
-      speed: beeSense.incoming.speed, conf: beeSense.conf
-    } : null
-  } : null;
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.name;
     setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
@@ -2111,6 +2070,47 @@ export default function App() {
     const iv = setInterval(load, 30 * 60000);
     return () => { stop = true; clearInterval(iv); };
   }, [geoKey]);
+  // ── BeeCast: gli occhi della community ──────────────────────────────────────
+  // Foto recenti nel raggio → condizione prevalente, confronto col modello,
+  // e rilevamento del maltempo osservato SOPRAVENTO (in arrivo col vento).
+  const beeSense = useMemo(() => {
+    const angDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
+    const now = Date.now();
+    const recent = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= km);
+    if (recent.length === 0) return null;
+    const byCond = {};
+    recent.forEach(p => { const c = p.cond || "—"; byCond[c] = (byCond[c] || 0) + 1; });
+    const [domCond, domN] = Object.entries(byCond).sort((a, b) => b[1] - a[1])[0];
+    const share = Math.round((domN / recent.length) * 100);
+    const conf = recent.length >= 8 ? "alta" : recent.length >= 3 ? "media" : "bassa";
+    const agree = wx ? domCond.includes(wx.condition.split(" ")[0]) : null;
+    let incoming = null;
+    if (wx?.windDeg != null) {
+      const bad = recent.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
+      const upwind = bad.filter(p => (p.dist ?? 0) >= 2 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);
+      if (upwind.length >= 2) {
+        const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
+        const speed = Math.max(8, wx.windKmh || 15);
+        incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.round((avgDist / speed) * 60), speed };
+      }
+    }
+    return { count: recent.length, domCond, share, conf, agree, incoming };
+  }, [posts, km, wx]);
+  const senseCard = beeSense ? {
+    text: beeSense.incoming
+      ? `Maltempo osservato in avvicinamento da ${beeSense.incoming.dir} (~${beeSense.incoming.etaMin} min)`
+      : `${beeSense.domCond} — lo dice la community (${beeSense.share}%)`,
+    conf: "Affidabilità " + beeSense.conf,
+    photos: beeSense.count,
+    why: `${beeSense.count} foto della community nelle ultime 3 ore entro ${km} km. Condizione prevalente: ${beeSense.domCond} (${beeSense.share}%). `
+      + (wx ? (beeSense.agree ? `Il modello (${wx.condition}) è confermato dalle osservazioni reali.` : `Il modello indica ${wx.condition}: le osservazioni raccontano altro e lo correggono.`) : "")
+      + (beeSense.incoming ? ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.` : ""),
+    alert: beeSense.incoming ? {
+      icon: "🌧️", title: `Maltempo in arrivo tra ~${beeSense.incoming.etaMin} min`,
+      dir: "da " + beeSense.incoming.dir, photos: beeSense.incoming.n,
+      speed: beeSense.incoming.speed, conf: beeSense.conf
+    } : null
+  } : null;
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   const [locName, setLocName] = useState(null);
   useEffect(() => {
