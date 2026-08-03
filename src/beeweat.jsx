@@ -591,7 +591,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, loading }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
       {visible.length === 0
         ? (loading
@@ -664,7 +664,7 @@ function BeeCastScreen({ km }) {
     { h: "+6h", e: "☁️", t: 21 }, { h: "+8h", e: "🌧️", t: 19 }, { h: "+10h", e: "🌧️", t: 18 }, { h: "+12h", e: "⛅", t: 18 },
   ];
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
       {/* riquadro principale */}
       <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", boxShadow: `0 4px 16px ${HBLUE}26` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -826,7 +826,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
   const R = 150, cx = 160, cy = 160;
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post · {evVisible.length} eventi entro {km} km</div>
       <div style={{ position: "relative", background: `radial-gradient(circle at center, #DCEBF7, #C2DCF0)`, borderRadius: 18, padding: 10, border: `2px solid ${HBLUE}33`, boxShadow: `0 2px 12px ${HBLUE}18`, overflow: "hidden" }}>
         <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", display: "block", touchAction: "none", cursor: zoomed ? "grab" : "default" }}>
@@ -888,7 +888,7 @@ function EventiScreen({ events, km, onOpen }) {
   const visible = events.filter(e => e.dist <= km || km >= 25);
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi segnalati nella zona</div>
       {visible.map(e => (
         <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
@@ -942,7 +942,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
     );
   };
   return (
-    <div style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
       {/* schede: Contatti | Preferiti */}
       <div style={{ display: "flex", gap: 22, padding: "12px 16px 0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
         {[["contatti", "Contatti"], ["preferiti", "Preferiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
@@ -2066,6 +2066,19 @@ export default function App() {
     } catch (_) {} })();
   }, [sb, user]);
   const [banInfo, setBanInfo] = useState(null);
+  // Memoria di scorrimento: al ritorno da post/chat/profili si resta dove si era
+  const scrollMem = useRef({});
+  useEffect(() => {
+    const h = e => { const el = e.target; if (el?.classList?.contains("scr")) scrollMem.current[tab] = el.scrollTop; };
+    document.addEventListener("scroll", h, true);
+    return () => document.removeEventListener("scroll", h, true);
+  }, [tab]);
+  const overlayOpen = overlay != null;
+  useEffect(() => {
+    if (overlayOpen) return;
+    const top = scrollMem.current[tab] || 0;
+    requestAnimationFrame(() => { const el = document.querySelector(".scr"); if (el) el.scrollTop = top; });
+  }, [overlayOpen, tab]);
   const banUser = profile => {
     if (!profile?.uid) { alert("Utente non identificabile."); return; }
     const d = window.prompt(`Ban per "${profile.name}"\nGiorni di sospensione (0 = rimuovi il ban):`, "10");
@@ -2335,7 +2348,7 @@ export default function App() {
       </div>
     : tab === "eventi"
       ? <button onClick={() => setOverlay("addEvent")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
-      : <button onClick={() => setOverlay("post")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", fontSize: 17, fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Post</button>;
+      : <button onClick={() => setOverlay("post")} title="Nuovo post" style={{ width: 40, height: 40, borderRadius: "50%", background: ACCENT, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,.28)" }}><NavIcon name="plus" size={22} color={HBLUE} sw={2.8} /></button>;
   const rightBtn = (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
       <button onClick={() => setOverlay("alerts")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 8, position: "relative" }}>
