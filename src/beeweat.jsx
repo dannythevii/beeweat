@@ -130,6 +130,14 @@ const WMO = c => {
   if (c <= 86) return { e: "🌨️", l: "Neve" };
   return { e: "⛈️", l: "Temporale" };
 };
+const moonPhase = () => {
+  const synodic = 29.530588853;
+  const days = (Date.now() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+  const age = ((days % synodic) + synodic) % synodic;
+  const idx = Math.round(age / (synodic / 8)) % 8;
+  const phases = [["🌑", "Luna nuova"], ["🌒", "Crescente"], ["🌓", "Primo quarto"], ["🌔", "Gibbosa cresc."], ["🌕", "Luna piena"], ["🌖", "Gibbosa cal."], ["🌗", "Ultimo quarto"], ["🌘", "Calante"]];
+  return { e: phases[idx][0], l: phases[idx][1] };
+};
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
@@ -621,14 +629,11 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-// Ripieghi dimostrativi (usati solo finché non ci sono foto recenti nel raggio)
-const NOW_DEMO = { text: "Nuvole in aumento tra ~3h", conf: "Affidabilità media", photos: 18, why: "18 foto della community a nord-ovest mostrano cielo in copertura, in movimento verso di te a ~25 km/h. La previsione del modello è stata corretta di conseguenza." };
-const ALERT_DEMO = { icon: "🌧️", title: "Pioggia in arrivo tra ~20 min", dir: "da ovest", photos: 12, speed: 25, conf: "alta" };
-function BeeCastScreen({ km, wxHours, wxSea, sense }) {
-  const S = sense || NOW_DEMO;
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense }) {
+  const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
     ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
-    : ALERT_DEMO;
+    : { icon: "🐝", title: "Allerte di prossimità", dir: "si attivano con le foto della community", photos: 0, speed: null, conf: "—" };
   const [alertOn, setAlertOn] = useState(false);
   const [toast, setToast] = useState(false);
   const armAlert = () => {
@@ -670,11 +675,14 @@ function BeeCastScreen({ km, wxHours, wxSea, sense }) {
       </svg>
     );
   };
-  const SKY = [
+  const SKY = wxSky ? [
+    { kind: "sunrise", label: "Alba", time: wxSky.sunrise || "—" },
+    { kind: "sunset", label: "Tramonto", time: wxSky.sunset || "—" },
+    { kind: "moon", label: wxSky.moon?.l || "Luna", time: wxSky.moon?.e || "🌙" },
+  ] : [
     { kind: "sunrise", label: "Alba", time: "05:42" },
     { kind: "sunset", label: "Tramonto", time: "20:31" },
-    { kind: "moonrise", label: "Sorgere luna", time: "22:07" },
-    { kind: "moonset", label: "Calare luna", time: "08:54" },
+    { kind: "moon", label: "Luna", time: "🌙" },
   ];
   const HOURS = [
     { h: "Ora", e: "☀️", t: 24 }, { h: "+1h", e: "☀️", t: 24 }, { h: "+2h", e: "🌤️", t: 23 },
@@ -700,7 +708,7 @@ function BeeCastScreen({ km, wxHours, wxSea, sense }) {
           <span style={{ fontSize: 26, lineHeight: 1 }}>{AL.icon}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 14.5, color: "#8A5A12" }}>{AL.title}</div>
-            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{AL.dir} · {AL.photos} foto · affidabilità {AL.conf}</div>
+            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
         </div>
         <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
@@ -739,8 +747,8 @@ function BeeCastScreen({ km, wxHours, wxSea, sense }) {
       <div style={{ background: "#fff", borderRadius: 14, padding: "12px 8px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex" }}>
         {SKY.map((s, i) => (
           <div key={i} style={{ flex: 1, textAlign: "center", borderRight: i < SKY.length - 1 ? `1px solid ${LINE}` : "none" }}>
-            <SkyIcon kind={s.kind} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif", marginTop: 3 }}>{s.time}</div>
+            {s.kind === "moon" ? <div style={{ fontSize: 26, lineHeight: "30px" }}>{s.time}</div> : <SkyIcon kind={s.kind} />}
+            <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif", marginTop: 3 }}>{s.kind === "moon" ? "" : s.time}</div>
             <div style={{ fontSize: 10.5, color: TXT2, marginTop: 1 }}>{s.label}</div>
           </div>
         ))}
@@ -2021,7 +2029,7 @@ export default function App() {
     if (!geo) return;
     let stop = false;
     const load = async () => { try {
-      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&forecast_days=2&timezone=auto`);
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=2&timezone=auto`);
       const j = await r.json();
       if (stop || !j?.current) return;
       const cw = WMO(j.current.weather_code);
@@ -2063,6 +2071,9 @@ export default function App() {
         wind: WDIR16(j.current.wind_direction_10m),
         windDeg: j.current.wind_direction_10m,
         windKmh: Math.round(j.current.wind_speed_10m),
+        sunrise: j.daily.sunrise?.[0]?.slice(11, 16) || null,
+        sunset: j.daily.sunset?.[0]?.slice(11, 16) || null,
+        moon: moonPhase(),
         hours
       });
     } catch (e) { console.warn("meteo:", e?.message || e); } };
@@ -2492,7 +2503,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} sense={senseCard} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
