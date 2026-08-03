@@ -117,6 +117,20 @@ function UserAvatar({ src, size = 44, ring = true }) {
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const CITY = "Sorrento";
 const WEATHER = { condition: "☀️ Sereno", temp: "24°", hi: "26°", lo: "19°", humidity: "73%", wind: "NNW" };
+// Codici meteo WMO (standard Open-Meteo) → emoji + etichetta italiana
+const WMO = c => {
+  if (c === 0) return { e: "☀️", l: "Sereno" };
+  if (c <= 2) return { e: "⛅", l: "Poco nuvoloso" };
+  if (c === 3) return { e: "☁️", l: "Coperto" };
+  if (c === 45 || c === 48) return { e: "🌫️", l: "Nebbia" };
+  if (c <= 57) return { e: "🌦️", l: "Pioviggine" };
+  if (c <= 67) return { e: "🌧️", l: "Pioggia" };
+  if (c <= 77) return { e: "🌨️", l: "Neve" };
+  if (c <= 82) return { e: "🌦️", l: "Rovesci" };
+  if (c <= 86) return { e: "🌨️", l: "Neve" };
+  return { e: "⛈️", l: "Temporale" };
+};
+const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
@@ -399,7 +413,8 @@ function Header({ title, left, right }) {
 }
 
 // ─── WEATHER PANEL ────────────────────────────────────────────────────────────
-function WeatherPanel({ commentCount }) {
+function WeatherPanel({ commentCount, wx }) {
+  const W = wx || WEATHER;
   const M = ({ icon, children }) => <div style={{ display: "flex", alignItems: "center", gap: 5 }}><WIcon name={icon} size={21} color={HBLUE} sw={1.7} /><span style={{ fontSize: 13.5, fontWeight: 500 }}>{children}</span></div>;
   return (
     <div style={{ background: GREYP, color: HBLUE, padding: "7px 20px 8px", flexShrink: 0, borderBottom: `1px solid ${LINE}` }}>
@@ -408,16 +423,16 @@ function WeatherPanel({ commentCount }) {
           <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif", lineHeight: 1.05 }}>{new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5 }}><span>{commentCount}</span><WIcon name="chat" size={14} color={HBLUE} sw={1.8} /></div>
         </div>
-        <WIcon name="sun" size={32} color={HBLUE} sw={1.7} />
+        <span style={{ fontSize: 28, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.1 }}>{WEATHER.condition.replace(/^[^ ]+ /, "")}</div>
-          <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{WEATHER.temp}</div>
+          <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.1 }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
+          <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{W.temp}</div>
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <M icon="thermo">{WEATHER.hi}/{WEATHER.lo}</M>
-        <M icon="drop">{WEATHER.humidity}</M>
-        <M icon="compass">{WEATHER.wind}</M>
+        <M icon="thermo">{W.hi}/{W.lo}</M>
+        <M icon="drop">{W.humidity}</M>
+        <M icon="compass">{W.wind}</M>
       </div>
     </div>
   );
@@ -606,7 +621,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km }) {
+function BeeCastScreen({ km, wxHours }) {
   const [alertOn, setAlertOn] = useState(false);
   const [toast, setToast] = useState(false);
   // dati simulati: nel backend arriveranno dall'algoritmo di nowcasting
@@ -707,7 +722,7 @@ function BeeCastScreen({ km }) {
       {/* prossime 12 ore */}
       <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
       <div style={{ background: "#fff", borderRadius: 14, padding: "12px 6px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex", overflowX: "auto", gap: 2 }}>
-        {HOURS.map((x, i) => (
+        {(wxHours || HOURS).map((x, i) => (
           <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
             <div style={{ fontSize: 11, color: TXT2, fontWeight: 600 }}>{x.h}</div>
             <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
@@ -1992,6 +2007,37 @@ export default function App() {
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
   }, []);
+  // Meteo reale Open-Meteo per la posizione attuale (senza chiavi; ogni 30 min)
+  const [wx, setWx] = useState(null);
+  const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
+  useEffect(() => {
+    if (!geo) return;
+    let stop = false;
+    const load = async () => { try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&forecast_days=2&timezone=auto`);
+      const j = await r.json();
+      if (stop || !j?.current) return;
+      const cw = WMO(j.current.weather_code);
+      const nowIdx = Math.max(1, j.hourly.time.findIndex(t => new Date(t) > new Date()));
+      const hours = [];
+      for (let k = 2; k <= 12; k += 2) {
+        const idx = Math.min(nowIdx - 1 + k, j.hourly.time.length - 1);
+        hours.push({ h: "+" + k + "h", e: WMO(j.hourly.weather_code[idx]).e, t: Math.round(j.hourly.temperature_2m[idx]) });
+      }
+      setWx({
+        condition: cw.e + " " + cw.l,
+        temp: Math.round(j.current.temperature_2m) + "°",
+        hi: Math.round(j.daily.temperature_2m_max[0]) + "°",
+        lo: Math.round(j.daily.temperature_2m_min[0]) + "°",
+        humidity: Math.round(j.current.relative_humidity_2m) + "%",
+        wind: WDIR16(j.current.wind_direction_10m),
+        hours
+      });
+    } catch (e) { console.warn("meteo:", e?.message || e); } };
+    load();
+    const iv = setInterval(load, 30 * 60000);
+    return () => { stop = true; clearInterval(iv); };
+  }, [geoKey]);
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   const [locName, setLocName] = useState(null);
   useEffect(() => {
@@ -2367,12 +2413,12 @@ export default function App() {
   return (
     <Frame>
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
-      {showWeather && <WeatherPanel commentCount={totalComments} />}
+      {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
