@@ -621,7 +621,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km, wxHours }) {
+function BeeCastScreen({ km, wxHours, wxSea }) {
   const [alertOn, setAlertOn] = useState(false);
   const [toast, setToast] = useState(false);
   // dati simulati: nel backend arriveranno dall'algoritmo di nowcasting
@@ -749,17 +749,21 @@ function BeeCastScreen({ km, wxHours }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <WaveIcon />
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: TXT }}>{SEA.state}</div>
-            <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>Onda {SEA.wave} · {SEA.trend}</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: TXT }}>{(wxSea || SEA).state}</div>
+            <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>
+              {wxSea
+                ? <>Onda {wxSea.wave} da {wxSea.dir}{wxSea.period ? ` · periodo ${wxSea.period}` : ""}{wxSea.sst ? ` · mare ${wxSea.sst}` : ""}</>
+                : <>Onda {SEA.wave} · {SEA.trend}</>}
+            </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 11, color: TXT2 }}>{SEA.photos} foto<br />della costa</div>
+          <div style={{ textAlign: "right", fontSize: 11, color: TXT2 }}>{wxSea ? <>modello<br />Copernicus</> : <>{SEA.photos} foto<br />della costa</>}</div>
         </div>
         {/* scala Douglas semplificata */}
         <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
           {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ height: 6, borderRadius: 4, background: i <= SEA.scale - 1 ? HBLUE : LINE }} />
-              <div style={{ fontSize: 8.5, color: i === SEA.scale - 1 ? HBLUE : TXT2, fontWeight: i === SEA.scale - 1 ? 700 : 500, marginTop: 3 }}>{s}</div>
+              <div style={{ height: 6, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? HBLUE : LINE }} />
+              <div style={{ fontSize: 8.5, color: i === (wxSea || SEA).scale - 1 ? HBLUE : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 3 }}>{s}</div>
             </div>
           ))}
         </div>
@@ -2024,7 +2028,30 @@ export default function App() {
         const idx = Math.min(nowIdx - 1 + k, j.hourly.time.length - 1);
         hours.push({ h: "+" + k + "h", e: WMO(j.hourly.weather_code[idx]).e, t: Math.round(j.hourly.temperature_2m[idx]) });
       }
+      // Stato del mare: modello d'onda MFWAM (Copernicus Marine) via Open-Meteo Marine
+      let sea = null;
+      try {
+        let mr = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${geo.lat}&longitude=${geo.lng}&current=wave_height,wave_direction,wave_period,sea_surface_temperature&timezone=auto`);
+        let mj = await mr.json();
+        if (!mj?.current) {
+          mr = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${geo.lat}&longitude=${geo.lng}&current=wave_height,wave_direction,wave_period&timezone=auto`);
+          mj = await mr.json();
+        }
+        if (mj?.current && mj.current.wave_height != null) {
+          const h = mj.current.wave_height;
+          const scale = h < 0.1 ? 1 : h < 0.5 ? 1 : h < 1.25 ? 2 : h < 2.5 ? 3 : h < 4 ? 4 : 5;
+          const state = ["", "Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"][scale];
+          sea = {
+            state, scale,
+            wave: h.toFixed(1).replace(".", ",") + " m",
+            dir: WDIR16(mj.current.wave_direction ?? 0),
+            period: mj.current.wave_period != null ? Math.round(mj.current.wave_period) + "s" : null,
+            sst: mj.current.sea_surface_temperature != null ? Math.round(mj.current.sea_surface_temperature) + "°" : null
+          };
+        }
+      } catch (_) {}
       setWx({
+        sea,
         condition: cw.e + " " + cw.l,
         temp: Math.round(j.current.temperature_2m) + "°",
         hi: Math.round(j.daily.temperature_2m_max[0]) + "°",
@@ -2418,7 +2445,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
