@@ -138,6 +138,15 @@ const moonPhase = () => {
   const phases = [["🌑", "Luna nuova"], ["🌒", "Crescente"], ["🌓", "Primo quarto"], ["🌔", "Gibbosa cresc."], ["🌕", "Luna piena"], ["🌖", "Gibbosa cal."], ["🌗", "Ultimo quarto"], ["🌘", "Calante"]];
   return { e: phases[idx][0], l: phases[idx][1] };
 };
+// Data+ora dei post: "oggi · 16:37", "ieri · 09:12", "31/07 · 18:45"
+const fmtPostTime = ts => {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return "oggi · " + time;
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return "ieri · " + time;
+  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }) + " · " + time;
+};
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
@@ -2151,7 +2160,7 @@ export default function App() {
       setPosts((rows || []).map(r => {
         const pr = pmap[r.user_id] || {}; const pt = { lat: r.lat, lng: r.lng };
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
-          time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+          time: fmtPostTime(r.created_at),
           ts: r.created_at,
           city: r.city || pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
@@ -2346,7 +2355,7 @@ export default function App() {
   const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   const onPost = ({ img, caption, cond, dir }) => {
-    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
+    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
     if (sb?.isConfigured) {
       (async () => {
         try {
