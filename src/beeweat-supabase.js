@@ -27,6 +27,24 @@ export async function deletePost(post) {
   } catch (_) {}
 }
 
+// ── Push (Web Push VAPID) e posizione per le allerte ─────────────────────────
+export async function savePushSub(sub) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const k = sub.keys || {};
+  const { error } = await supabase.from("push_subs").upsert(
+    { user_id: user.id, endpoint: sub.endpoint, p256dh: k.p256dh, auth: k.auth },
+    { onConflict: "endpoint" });
+  if (error) throw error;
+}
+export async function saveMyLocation(lat, lng) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("user_location").upsert(
+    { user_id: user.id, lat, lng, updated_at: new Date().toISOString() },
+    { onConflict: "user_id" });
+}
+
 // ── Gestione avvisi ───────────────────────────────────────────────────────────
 export async function markNotifRead(id) {
   await supabase.from("notifications").update({ read: true }).eq("id", id);
