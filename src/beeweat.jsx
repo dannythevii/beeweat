@@ -621,13 +621,16 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km, wxHours, wxSea }) {
+// Ripieghi dimostrativi (usati solo finché non ci sono foto recenti nel raggio)
+const NOW_DEMO = { text: "Nuvole in aumento tra ~3h", conf: "Affidabilità media", photos: 18, why: "18 foto della community a nord-ovest mostrano cielo in copertura, in movimento verso di te a ~25 km/h. La previsione del modello è stata corretta di conseguenza." };
+const ALERT_DEMO = { icon: "🌧️", title: "Pioggia in arrivo tra ~20 min", dir: "da ovest", photos: 12, speed: 25, conf: "alta" };
+function BeeCastScreen({ km, wxHours, wxSea, sense }) {
+  const S = sense || NOW_DEMO;
+  const AL = sense
+    ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
+    : ALERT_DEMO;
   const [alertOn, setAlertOn] = useState(false);
   const [toast, setToast] = useState(false);
-  // dati simulati: nel backend arriveranno dall'algoritmo di nowcasting
-  const NOW = { text: "Nuvole in aumento tra ~3h", conf: "Affidabilità media", photos: 18, why: "18 foto della community a nord-ovest mostrano cielo in copertura, in movimento verso di te a ~25 km/h. La previsione del modello è stata corretta di conseguenza." };
-  // allerta di prossimità simulata (modulo 6.2 dell'algoritmo)
-  const ALERT = { icon: "🌧️", title: "Pioggia in arrivo tra ~20 min", dir: "da ovest", photos: 12, speed: 25, conf: "alta" };
   const armAlert = () => {
     setAlertOn(true); setToast(true);
     setTimeout(() => setToast(false), 4200);
@@ -685,23 +688,23 @@ function BeeCastScreen({ km, wxHours, wxSea }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <NavIcon name="beecast" size={20} color="#fff" sw={2} />
           <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>BeeCast</span>
-          <span style={{ marginLeft: "auto", fontSize: 11, background: "rgba(255,255,255,.2)", borderRadius: 12, padding: "3px 10px", fontWeight: 600 }}>{NOW.conf}</span>
+          <span style={{ marginLeft: "auto", fontSize: 11, background: "rgba(255,255,255,.2)", borderRadius: 12, padding: "3px 10px", fontWeight: 600 }}>{S.conf}</span>
         </div>
-        <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{NOW.text}</div>
-        <div style={{ fontSize: 12, opacity: .92, marginTop: 6, lineHeight: 1.5 }}>{NOW.why}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{S.text}</div>
+        <div style={{ fontSize: 12, opacity: .92, marginTop: 6, lineHeight: 1.5 }}>{S.why}</div>
       </div>
 
       {/* allerta di prossimità (dalle foto della community) */}
       <div style={{ marginTop: 12, background: "#fff", borderRadius: 14, border: `1.5px solid ${ACCENT}`, boxShadow: `0 2px 10px ${HBLUE}0D`, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 14px", background: ACCENT + "1F" }}>
-          <span style={{ fontSize: 26, lineHeight: 1 }}>{ALERT.icon}</span>
+          <span style={{ fontSize: 26, lineHeight: 1 }}>{AL.icon}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: "#8A5A12" }}>{ALERT.title}</div>
-            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{ALERT.dir} · {ALERT.photos} foto lo confermano · affidabilità {ALERT.conf}</div>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: "#8A5A12" }}>{AL.title}</div>
+            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{AL.dir} · {AL.photos} foto · affidabilità {AL.conf}</div>
           </div>
         </div>
         <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, fontSize: 11.5, color: TXT2, lineHeight: 1.4 }}>Fenomeno osservato in avvicinamento a ~{ALERT.speed} km/h. Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
+          <div style={{ flex: 1, fontSize: 11.5, color: TXT2, lineHeight: 1.4 }}>{AL.speed ? `Fenomeno in avvicinamento a ~${AL.speed} km/h. ` : ""}Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
           <button onClick={armAlert} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: "none", background: alertOn ? "#3BA776" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
             <NavIcon name={alertOn ? "check" : "bell"} size={15} color="#fff" sw={2} />{alertOn ? "Allerte attive" : "Avvisami"}
           </button>
@@ -1978,6 +1981,47 @@ export default function App() {
     });
     return list;
   }, [posts, events]);
+  // ── BeeCast: gli occhi della community ──────────────────────────────────────
+  // Foto recenti nel raggio → condizione prevalente, confronto col modello,
+  // e rilevamento del maltempo osservato SOPRAVENTO (in arrivo col vento).
+  const beeSense = useMemo(() => {
+    const angDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
+    const now = Date.now();
+    const recent = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= km);
+    if (recent.length === 0) return null;
+    const byCond = {};
+    recent.forEach(p => { const c = p.cond || "—"; byCond[c] = (byCond[c] || 0) + 1; });
+    const [domCond, domN] = Object.entries(byCond).sort((a, b) => b[1] - a[1])[0];
+    const share = Math.round((domN / recent.length) * 100);
+    const conf = recent.length >= 8 ? "alta" : recent.length >= 3 ? "media" : "bassa";
+    const agree = wx ? domCond.includes(wx.condition.split(" ")[0]) : null;
+    let incoming = null;
+    if (wx?.windDeg != null) {
+      const bad = recent.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
+      const upwind = bad.filter(p => (p.dist ?? 0) >= 2 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);
+      if (upwind.length >= 2) {
+        const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
+        const speed = Math.max(8, wx.windKmh || 15);
+        incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.round((avgDist / speed) * 60), speed };
+      }
+    }
+    return { count: recent.length, domCond, share, conf, agree, incoming };
+  }, [posts, km, wx]);
+  const senseCard = beeSense ? {
+    text: beeSense.incoming
+      ? `Maltempo osservato in avvicinamento da ${beeSense.incoming.dir} (~${beeSense.incoming.etaMin} min)`
+      : `${beeSense.domCond} — lo dice la community (${beeSense.share}%)`,
+    conf: "Affidabilità " + beeSense.conf,
+    photos: beeSense.count,
+    why: `${beeSense.count} foto della community nelle ultime 3 ore entro ${km} km. Condizione prevalente: ${beeSense.domCond} (${beeSense.share}%). `
+      + (wx ? (beeSense.agree ? `Il modello (${wx.condition}) è confermato dalle osservazioni reali.` : `Il modello indica ${wx.condition}: le osservazioni raccontano altro e lo correggono.`) : "")
+      + (beeSense.incoming ? ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.` : ""),
+    alert: beeSense.incoming ? {
+      icon: "🌧️", title: `Maltempo in arrivo tra ~${beeSense.incoming.etaMin} min`,
+      dir: "da " + beeSense.incoming.dir, photos: beeSense.incoming.n,
+      speed: beeSense.incoming.speed, conf: beeSense.conf
+    } : null
+  } : null;
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.name;
     setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
@@ -2058,6 +2102,8 @@ export default function App() {
         lo: Math.round(j.daily.temperature_2m_min[0]) + "°",
         humidity: Math.round(j.current.relative_humidity_2m) + "%",
         wind: WDIR16(j.current.wind_direction_10m),
+        windDeg: j.current.wind_direction_10m,
+        windKmh: Math.round(j.current.wind_speed_10m),
         hours
       });
     } catch (e) { console.warn("meteo:", e?.message || e); } };
@@ -2095,6 +2141,7 @@ export default function App() {
         const pr = pmap[r.user_id] || {}; const pt = { lat: r.lat, lng: r.lng };
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
           time: new Date(r.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+          ts: r.created_at,
           city: r.city || pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
@@ -2288,7 +2335,7 @@ export default function App() {
   const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   const onPost = ({ img, caption, cond, dir }) => {
-    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
+    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
     if (sb?.isConfigured) {
       (async () => {
         try {
@@ -2445,7 +2492,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} sense={senseCard} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
