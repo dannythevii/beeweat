@@ -714,10 +714,10 @@ function BeeCastScreen({ km, wxHours, wxSea, sense }) {
       {/* toast: simulazione notifica push in arrivo */}
       {toast && (
         <div className="fade-up" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 96, zIndex: 90, width: "min(360px, 90%)", background: "#1E2A3A", color: "#fff", borderRadius: 14, padding: "12px 14px", boxShadow: "0 8px 26px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 11 }}>
-          <span style={{ fontSize: 22 }}>{ALERT.icon}</span>
+          <span style={{ fontSize: 22 }}>{AL.icon}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700 }}>Beeweat · Allerta meteo</div>
-            <div style={{ fontSize: 12, opacity: .9, marginTop: 1 }}>{ALERT.title} {ALERT.dir} — {ALERT.photos} foto lo confermano</div>
+            <div style={{ fontSize: 12, opacity: .9, marginTop: 1 }}>{AL.title} {AL.dir} — {AL.photos} foto</div>
           </div>
         </div>
       )}
@@ -775,7 +775,7 @@ function BeeCastScreen({ km, wxHours, wxSea, sense }) {
       {/* come funziona */}
       <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
       <div style={{ background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
-        BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({NOW.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
+        BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({S.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
         <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
       </div>
     </div>
