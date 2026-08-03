@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
 const APP_VERSION = "1.5";
 // Web Push: chiave pubblica VAPID (genera la coppia con: npx web-push generate-vapid-keys)
-const VAPID_PUBLIC_KEY = "BIwRPp2gcW8-GkT4d";twLJz9hacwfDYf9FoqRWowBapzfxcwt8oh0GUL01hiWTvrbC5i-L_2qupVv5A6Swrs-1gU";
+const VAPID_PUBLIC_KEY = "BBTQRvIBEAxom-19cD8u6ZpF0cOIaz8rqJsOpp72kiIH9jxS9UqU6vqhjn3VZDYEhllT0YrCjSTOEkWDtFoYinw";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
