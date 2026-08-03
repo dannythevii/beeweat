@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.5";
+// Web Push: chiave pubblica VAPID (genera la coppia con: npx web-push generate-vapid-keys)
+const VAPID_PUBLIC_KEY = "BIwRPp2gcW8-GkT4d";twLJz9hacwfDYf9FoqRWowBapzfxcwt8oh0GUL01hiWTvrbC5i-L_2qupVv5A6Swrs-1gU";
+const urlB64ToU8 = b64 => {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+};
 const HBLUE   = "#235C9C";   // header (blu principale, scurito)
 const PANEL_A = "#5A93C8";   // pannello meteo top
 const PANEL_B = "#4585C1";   // pannello meteo bottom
@@ -638,7 +645,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense }) {
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert }) {
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
     ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
@@ -646,6 +653,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense }) {
   const [alertOn, setAlertOn] = useState(false);
   const [toast, setToast] = useState(false);
   const armAlert = () => {
+    if (onArmAlert) onArmAlert();
     setAlertOn(true); setToast(true);
     setTimeout(() => setToast(false), 4200);
   };
@@ -1754,7 +1762,7 @@ function Toggle({ on, onChange }) {
 }
 
 // ─── IMPOSTAZIONI NOTIFICHE ───────────────────────────────────────────────────
-function NotifSettingsView({ settings, onChange, onClose }) {
+function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush }) {
   const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const set = (k, v) => onChange({ ...settings, [k]: v });
   const enableMaster = async v => {
@@ -1763,6 +1771,7 @@ function NotifSettingsView({ settings, onChange, onClose }) {
     }
     set("enabled", v);
   };
+  const pushLabel = { on: "Attive su questo dispositivo ✓", off: "Da attivare su questo dispositivo", denied: "Bloccate dal browser (sbloccale nelle impostazioni del sito)", unsupported: "Non supportate qui (iPhone: aggiungi ad Home)" }[pushState || "off"];
   const Row = ({ icon, label, desc, children }) => (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
       {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={HBLUE} /></div>}
@@ -1781,6 +1790,16 @@ function NotifSettingsView({ settings, onChange, onClose }) {
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ background: "#fff", marginTop: 12 }}>
           <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, background: HBLUE + "06" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "33", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="bell" size={19} color="#8A5A12" /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Push sul telefono</div>
+              <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{pushLabel}</div>
+            </div>
+            {(pushState === "off" || !pushState) &&
+              <button onClick={onEnablePush} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 18, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Attiva</button>}
+            {pushState === "on" && <NavIcon name="check" size={20} color="#3BA776" sw={2.4} />}
+          </div>
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Raggio di prossimità</div>
@@ -2206,6 +2225,33 @@ export default function App() {
     } catch (_) {} })();
   }, [sb, user]);
   const [banInfo, setBanInfo] = useState(null);
+  // ── Push sul dispositivo (Web Push VAPID) ──
+  const [pushState, setPushState] = useState("off");   // off | on | denied | unsupported
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushState("unsupported"); return; }
+    if (typeof Notification !== "undefined" && Notification.permission === "denied") { setPushState("denied"); return; }
+    navigator.serviceWorker.getRegistration().then(reg =>
+      reg?.pushManager.getSubscription().then(sub => { if (sub) setPushState("on"); }));
+  }, []);
+  const enablePush = async () => {
+    try {
+      if (pushState === "unsupported") { alert("Questo browser non supporta le push. Su iPhone: aggiungi prima Beeweat alla schermata Home."); return; }
+      if (VAPID_PUBLIC_KEY.startsWith("INCOLLA")) { alert("Chiave VAPID mancante nel file (vedi istruzioni)."); return; }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setPushState("denied"); return; }
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC_KEY) });
+      if (sb?.isConfigured) await sb.savePushSub(sub.toJSON());
+      setPushState("on");
+    } catch (e) { alert("Attivazione push non riuscita: " + (e?.message || e)); }
+  };
+  // posizione per lo scanner delle allerte (solo con allerte attive)
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || !geo || !notif?.enabled || !notif?.allerte) return;
+    sb.saveMyLocation(geo.lat, geo.lng).catch(() => {});
+  }, [sb, user, geoKey, notif?.enabled, notif?.allerte]);
   // Memoria di scorrimento: al ritorno da post/chat/profili si resta dove si era
   const scrollMem = useRef({});
   useEffect(() => {
@@ -2455,7 +2501,7 @@ export default function App() {
         ))}
     </div>
   );
-  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} />);
+  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
@@ -2512,7 +2558,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
