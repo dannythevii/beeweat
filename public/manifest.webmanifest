@@ -1,0 +1,9 @@
+{
+  "name": "Beeweat",
+  "short_name": "Beeweat",
+  "description": "Mille occhi, un solo cielo — il meteo raccontato dalla community",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EAF2FA",
+  "theme_color": "#1B4E96"
+}
