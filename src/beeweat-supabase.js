@@ -9,12 +9,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-
 const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
 const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
-
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Cancellazione post (autore o amministratore; decidono le regole RLS) ─────
 export async function deletePost(post) {
@@ -43,6 +39,20 @@ export async function saveMyLocation(lat, lng) {
   await supabase.from("user_location").upsert(
     { user_id: user.id, lat, lng, updated_at: new Date().toISOString() },
     { onConflict: "user_id" });
+}
+
+// ── Cancellazione messaggi (singolo o intera chat diretta) ───────────────────
+export async function deleteMessage(id) {
+  const { error } = await supabase.from("messages").delete().eq("id", id);
+  if (error) throw error;
+}
+export async function clearDirectChat(otherId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { error } = await supabase.from("messages").delete()
+    .eq("scope", "direct")
+    .or(`and(from_user_id.eq.${user.id},to_user_id.eq.${otherId}),and(from_user_id.eq.${otherId},to_user_id.eq.${user.id})`);
+  if (error) throw error;
 }
 
 // ── Gestione avvisi ───────────────────────────────────────────────────────────
