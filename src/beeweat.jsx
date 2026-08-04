@@ -154,6 +154,24 @@ const fmtPostTime = ts => {
   if (d.toDateString() === yest.toDateString()) return "ieri · " + time;
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }) + " · " + time;
 };
+// Rintocco Beeweat per il banner in-app (doppia nota, sintetizzata al volo)
+let _bwAudio = null;
+const playChime = () => {
+  try {
+    _bwAudio = _bwAudio || new (window.AudioContext || window.webkitAudioContext)();
+    if (_bwAudio.state === "suspended") _bwAudio.resume();
+    const t = _bwAudio.currentTime;
+    [[880, 0], [1318.5, 0.13]].forEach(([f, off]) => {
+      const o = _bwAudio.createOscillator(), g = _bwAudio.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + off);
+      g.gain.exponentialRampToValueAtTime(0.16, t + off + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.34);
+      o.connect(g); g.connect(_bwAudio.destination);
+      o.start(t + off); o.stop(t + off + 0.38);
+    });
+  } catch (_) {}
+};
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
@@ -2203,7 +2221,7 @@ export default function App() {
   const [alerts, setAlerts] = useState([]);
   const [notifToast, setNotifToast] = useState(null);
   const toastTimerRef = useRef(null);
-  const routeNotifTap = kind => { if (kind === "alert") { setOverlay(null); setTab("beecast"); } else setOverlay("alerts"); };
+  const routeNotifTap = () => setOverlay("alerts");   // il popup porta agli Avvisi; da lì ogni avviso alla sua destinazione
   const nameOf = uid => (contacts.find(c => c.id === uid) || {}).name || "Un utente";
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -2215,6 +2233,7 @@ export default function App() {
         setAlerts(a => [n, ...a]);
         if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
         setNotifToast({ kind: n.type, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
+        playChime();
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
       });
@@ -2250,8 +2269,10 @@ export default function App() {
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushState("unsupported"); return; }
     if (typeof Notification !== "undefined" && Notification.permission === "denied") { setPushState("denied"); return; }
-    navigator.serviceWorker.getRegistration().then(reg =>
-      reg?.pushManager.getSubscription().then(sub => { if (sub) setPushState("on"); }));
+    navigator.serviceWorker.getRegistration().then(reg => {
+      reg?.update().catch(() => {});                          // aggiorna sw.js se è uscita una versione nuova
+      reg?.pushManager.getSubscription().then(sub => { if (sub) setPushState("on"); });
+    });
   }, []);
   const enablePush = async () => {
     try {
