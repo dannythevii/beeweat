@@ -2230,18 +2230,25 @@ export default function App() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
       setAlerts(await sb.getNotifications());
-      unsub = await sb.subscribeNotifications(au.id, n => {
-        setAlerts(a => [n, ...a]);
-        if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
-        setNotifToast({ kind: n.type, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
-        playChime();
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
+      unsub = await sb.subscribeNotifications(au.id, (ev, n, old) => {
+        if (ev === "INSERT" && n) {
+          setAlerts(a => a.some(x => x.id === n.id) ? a : [n, ...a]);
+          if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
+          setNotifToast({ kind: n.type, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
+          playChime();
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
+        } else if (ev === "UPDATE" && n) {
+          setAlerts(a => a.map(x => x.id === n.id ? { ...x, ...n } : x));   // letto su un dispositivo → letto ovunque
+        } else if (ev === "DELETE" && old) {
+          setAlerts(a => a.filter(x => x.id !== old.id));                   // eliminato su uno → sparisce ovunque
+        }
       });
     } catch (e) { console.warn("avvisi:", e?.message || e); } })();
-    const onVisA = () => { if (!document.hidden) sb.getNotifications().then(setAlerts).catch(() => {}); };
-    document.addEventListener("visibilitychange", onVisA);
-    return () => { document.removeEventListener("visibilitychange", onVisA); try { if (unsub) unsub(); } catch (_) {} };
+    const refreshA = () => { if (!document.hidden) sb.getNotifications().then(setAlerts).catch(() => {}); };
+    document.addEventListener("visibilitychange", refreshA);
+    const ivA = setInterval(refreshA, 20000);       // rete di sicurezza: riallinea ogni 20s
+    return () => { document.removeEventListener("visibilitychange", refreshA); clearInterval(ivA); try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   useEffect(() => {
     const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind); };
