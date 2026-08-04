@@ -1103,7 +1103,8 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
 }
 
 // ─── CHAT 1-A-1 ───────────────────────────────────────────────────────────────
-function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGroup }) {
+function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGroup, onDeleteMsg, onClearChat }) {
+  const clearAll = () => { if (window.confirm("Svuotare l'intera conversazione? I messaggi saranno eliminati per entrambi.")) onClearChat(); };
   const [text, setText] = useState("");
   const [manage, setManage] = useState(false);
   const ref = useRef(null);
@@ -1116,7 +1117,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
   };
   return (
     <>
-      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />} />
+      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}>{onClearChat && <button onClick={clearAll} title="Svuota conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 34, height: 34, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
 
       {/* banner chat pubblica */}
       {contact.public && (
@@ -1149,9 +1150,9 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, background: BODY }}>
         {msgs.map(m => (
-          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }}>
+          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "10px 14px", fontSize: 14, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, textAlign: "right" }}>{m.time}</div></div>
+            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "10px 14px", fontSize: 14, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
           </div>
         ))}
         <div ref={ref} />
@@ -2327,6 +2328,14 @@ export default function App() {
     } catch (e) { console.warn("contatti:", e?.message || e); } })();
   }, [sb, user, socialTick]);
   // Chat dirette: apertura con storico dal database
+  const deleteDirectMsg = (cid, m) => {
+    setThreads(th => ({ ...th, [cid]: (th[cid] || []).filter(x => x.id !== m.id) }));
+    if (sb?.isConfigured && typeof m.id === "string" && String(m.id).includes("-")) sb.deleteMessage(m.id).catch(e => console.warn("elimina msg:", e?.message || e));
+  };
+  const clearDirect = cid => {
+    setThreads(th => ({ ...th, [cid]: [] }));
+    if (sb?.isConfigured && typeof cid === "string" && cid.includes("-")) sb.clearDirectChat(cid).catch(e => console.warn("svuota chat:", e?.message || e));
+  };
   const openDirectChat = c => {
     if (c?.me) { setOverlay("profile"); return; }
     const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
@@ -2503,7 +2512,7 @@ export default function App() {
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
-  if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
+  if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
   if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={PEOPLE} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
