@@ -645,12 +645,13 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert }) {
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, alertArmed }) {
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
     ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
     : { icon: "🐝", title: "Allerte di prossimità", dir: "si attivano con le foto della community", photos: 0, speed: null, conf: "—" };
-  const [alertOn, setAlertOn] = useState(false);
+  const [alertOn, setAlertOn] = useState(!!alertArmed);
+  useEffect(() => { setAlertOn(!!alertArmed); }, [alertArmed]);
   const [toast, setToast] = useState(false);
   const armAlert = () => {
     if (onArmAlert) onArmAlert();
@@ -2567,7 +2568,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} />}
+        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
