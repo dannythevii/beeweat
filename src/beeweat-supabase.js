@@ -9,8 +9,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
-const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
+const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; 				// NOSTRO
+const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";     // NOSTRO
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -159,12 +159,12 @@ export async function markDirectNotifsRead(fromId) {
   await supabase.from("notifications").update({ read: true })
     .eq("user_id", user.id).eq("type", "direct").eq("from_user_id", fromId);
 }
-export async function subscribeNotifications(myId, onNotif) {
+export async function subscribeNotifications(myId, onEvent) {
   await authRealtime();
   const ch = supabase.channel("notif-" + myId)
     .on("postgres_changes",
-      { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${myId}` },
-      payload => onNotif(payload.new))
+      { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${myId}` },
+      payload => onEvent(payload.eventType, payload.new, payload.old))
     .subscribe();
   return () => supabase.removeChannel(ch);
 }
