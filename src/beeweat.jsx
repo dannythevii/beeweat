@@ -758,7 +758,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
       {/* toast: simulazione notifica push in arrivo */}
       {toast && (
-        <div className="fade-up" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: 96, zIndex: 90, width: "min(360px, 90%)", background: "#1E2A3A", color: "#fff", borderRadius: 14, padding: "12px 14px", boxShadow: "0 8px 26px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 11 }}>
+        <div className="fade-up" style={{ position: "fixed", left: 12, right: 12, margin: "0 auto", bottom: 96, zIndex: 90, maxWidth: 360, background: "#1E2A3A", color: "#fff", borderRadius: 14, padding: "12px 14px", boxShadow: "0 8px 26px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 11 }}>
           <span style={{ fontSize: 22 }}>{AL.icon}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700 }}>Beeweat · Allerta meteo</div>
@@ -2614,7 +2614,7 @@ export default function App() {
     <Frame>
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
-        <div onClick={() => { const k = notifToast.kind; setNotifToast(null); routeNotifTap(k); }} style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: "92%", cursor: "pointer" }} className="fade-up">
+        <div onClick={() => { const k = notifToast.kind; setNotifToast(null); routeNotifTap(k); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
           <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
