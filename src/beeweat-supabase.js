@@ -9,10 +9,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-
 const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; // incolla qui
 const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";                 // incolla qui
 
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Cancellazione post (autore o amministratore; decidono le regole RLS) ─────
 export async function deletePost(post) {
