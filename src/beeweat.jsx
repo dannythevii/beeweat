@@ -2201,6 +2201,9 @@ export default function App() {
   useEffect(() => { loadFeed(); }, [loadFeed]);
   // Avvisi (campanella): elenco reale + arrivo in tempo reale
   const [alerts, setAlerts] = useState([]);
+  const [notifToast, setNotifToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const routeNotifTap = kind => { if (kind === "alert") { setOverlay(null); setTab("beecast"); } else setOverlay("alerts"); };
   const nameOf = uid => (contacts.find(c => c.id === uid) || {}).name || "Un utente";
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -2211,10 +2214,25 @@ export default function App() {
       unsub = await sb.subscribeNotifications(au.id, n => {
         setAlerts(a => [n, ...a]);
         if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
+        setNotifToast({ kind: n.type, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
       });
     } catch (e) { console.warn("avvisi:", e?.message || e); } })();
-    return () => { try { if (unsub) unsub(); } catch (_) {} };
+    const onVisA = () => { if (!document.hidden) sb.getNotifications().then(setAlerts).catch(() => {}); };
+    document.addEventListener("visibilitychange", onVisA);
+    return () => { document.removeEventListener("visibilitychange", onVisA); try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
+  useEffect(() => {
+    const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind); };
+    if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", h);
+    try {
+      const u = new URL(window.location.href);
+      const k = u.searchParams.get("notif");
+      if (k) { routeNotifTap(k); u.searchParams.delete("notif"); window.history.replaceState({}, "", u.pathname + u.hash); }
+    } catch (_) {}
+    return () => { if ("serviceWorker" in navigator) navigator.serviceWorker.removeEventListener("message", h); };
+  }, []);
   const unreadCount = alerts.filter(a => !a.read).length;
   // Amministratore Beeweat? (colonna is_admin sul profilo)
   const [isAdmin, setIsAdmin] = useState(false);
@@ -2313,6 +2331,7 @@ export default function App() {
   };
   const openAlertChat = a => {
     markAlertRead(a);
+    if (a.type === "alert") { setOverlay(null); setTab("beecast"); return; }
     if (a.type === "follow" && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); if (c) setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -2499,9 +2518,11 @@ export default function App() {
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
         : alerts.map(a => (
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="comment" size={20} color={HBLUE} /></div>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: a.type === "alert" ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, color: TXT }}><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : "ti ha scritto"}</div>
+              <div style={{ fontSize: 14.5, color: TXT }}>{a.type === "alert"
+                ? <b style={{ color: HBLUE }}>Allerta BeeCast</b>
+                : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : "ti ha scritto"}</>}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
@@ -2563,6 +2584,12 @@ export default function App() {
   return (
     <Frame>
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
+      {notifToast && (
+        <div onClick={() => { const k = notifToast.kind; setNotifToast(null); routeNotifTap(k); }} style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: "92%", cursor: "pointer" }} className="fade-up">
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
+          <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
+        </div>
+      )}
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
