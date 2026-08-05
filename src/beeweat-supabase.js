@@ -1,17 +1,12 @@
 // ============================================================================
 // BEEWEAT — Modulo di integrazione con Supabase
 // ----------------------------------------------------------------------------
-// 1) Installa il client:   npm install @supabase/supabase-js
-// 2) Inserisci le TUE chiavi qui sotto (le trovi in Supabase → Project Settings → API).
-//    Usa SEMPRE la "anon key" pubblica nell'app, MAI la service_role key.
-// 3) Crea un bucket Storage chiamato "posts" (lettura pubblica) per le foto.
+// Le chiavi vivono in beeweat-config.js: questo file NON va più modificato
+// quando arrivano gli aggiornamenti.
 // ============================================================================
 
 import { createClient } from "@supabase/supabase-js";
-
-
-const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; 				// NOSTRO
-const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";     // NOSTRO
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -203,7 +198,7 @@ export async function subscribeDirect(myId, onMessage) {
 }
 
 // true quando le chiavi qui sopra sono state compilate (attiva il login reale nell'app)
-export const isConfigured = !SUPABASE_URL.includes("IL-TUO-PROGETTO") && !SUPABASE_ANON_KEY.startsWith("LA-TUA");
+export const isConfigured = !SUPABASE_URL.includes("IL-TUO-PROGETTO") && !SUPABASE_ANON_KEY.includes("INCOLLA") && !SUPABASE_ANON_KEY.startsWith("LA-TUA");
 
 // I canali realtime devono "presentarsi" con il token dell'utente,
 // altrimenti le regole RLS (es. chat dirette private) non consegnano gli eventi.

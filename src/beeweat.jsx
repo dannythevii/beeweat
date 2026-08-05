@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
 const APP_VERSION = "1.5";
-// Web Push: chiave pubblica VAPID (genera la coppia con: npx web-push generate-vapid-keys)
-const VAPID_PUBLIC_KEY = "BBTQRvIBEAxom-19cD8u6ZpF0cOIaz8rqJsOpp72kiIH9jxS9UqU6vqhjn3VZDYEhllT0YrCjSTOEkWDtFoYinw";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1377,15 +1376,18 @@ function CameraView({ onPost, onBack }) {
     c.width = Math.round(sw); c.height = Math.round(sh);
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setTimeout(runAI, 60); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
+  const aiSeqRef = useRef(0);
   const runAI = () => {
     const c = canvasRef.current; if (!c) return;
+    const my = ++aiSeqRef.current;                     // ogni analisi ha il suo numero
     setAi({ checking: true });
     analyzePhoto(c).then(v => {
+      if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
       setAi(v);
       if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
-    }).catch(e => { console.warn("AI:", e?.message || e); setAi(null); });
+    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi(null); } });
   };
-  const retake = () => { setCaptured(null); setAi(null); start(); };
+  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
   const [saved, setSaved] = useState(false);
   const savePhoto = async () => {
     try {
