@@ -202,7 +202,9 @@ const classifySky = canvas => {
     const w = 64, h = 64, c = document.createElement("canvas");
     c.width = w; c.height = h;
     const ctx = c.getContext("2d");
-    ctx.drawImage(canvas, 0, 0, w, h);
+    // analizzo solo la FASCIA ALTA del fotogramma (45%): lì vive il cielo,
+    // così mare, strade e terrazze non ingannano più il giudizio
+    ctx.drawImage(canvas, 0, 0, canvas.width, Math.max(1, Math.round(canvas.height * 0.45)), 0, 0, w, h);
     const d = ctx.getImageData(0, 0, w, h).data;
     let blue = 0, grey = 0, dark = 0, warm = 0, bright = 0, n = 0;
     for (let i = 0; i < d.length; i += 4) {
@@ -953,7 +955,8 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
     return () => { el.removeEventListener("touchstart", onStart); el.removeEventListener("touchmove", onMove); el.removeEventListener("touchend", onEnd); el.removeEventListener("wheel", onWheel); };
   }, []);
 
-  const visible = posts.filter(p => p.dist <= km);
+  const EMERG = /🌧|⛈|❄|🌨|🌫|🌬/;
+  const visible = posts.filter(p => p.dist <= km && EMERG.test(p.cond || ""));   // sul radar solo il maltempo (+ eventi)
   const evVisible = (events || []).filter(e => e.dist <= km);
   const R = 150, cx = 160, cy = 160;
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
@@ -1017,7 +1020,8 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
 function EventiScreen({ events, km, onOpen }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
-  const visible = events.filter(e => e.dist <= km || km >= 25);
+  const today = new Date().toISOString().slice(0, 10);
+  const visible = events.filter(e => (!e.ends || e.ends >= today) && (e.dist <= km || km >= 25));
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
@@ -1168,9 +1172,9 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
       <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Nuovo gruppo</div>
         <input placeholder="Nome del gruppo" value={name} onChange={e => setName(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14 }} />
-        <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Seleziona i membri ({sel.length})</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Seleziona i membri ({sel.length}) · tu sei incluso automaticamente</div>
         <div style={{ flex: 1, overflowY: "auto", marginBottom: 14 }}>
-          {contacts.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Aggiungi prima dei contatti per formare un gruppo.</div> : contacts.map(c => {
+          {contacts.filter(c => !c.me).length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Servono altri utenti registrati per formare un gruppo.</div> : contacts.filter(c => !c.me).map(c => {
             const on = sel.includes(c.id);
             return (
               <div key={c.id} onClick={() => toggle(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
@@ -1638,6 +1642,7 @@ function AddEventModal({ onAdd, onClose, user }) {
   const [title, setTitle] = useState("");
   const [place, setPlace] = useState(user.city);
   const [sev, setSev] = useState("Media");
+  const [ends, setEnds] = useState(new Date().toISOString().slice(0, 10));   // scadenza: default oggi
   const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
   const locate = () => {
@@ -1654,7 +1659,7 @@ function AddEventModal({ onAdd, onClose, user }) {
     const c = coords || { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true };
     const category = cat === EVENT_CATEGORIES[0] ? "" : cat;
     const t = type === EVENT_TYPES[0] ? "" : type.split(" ")[0];
-    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category });
+    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category, ends });
   };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
@@ -1671,7 +1676,9 @@ function AddEventModal({ onAdd, onClose, user }) {
           <div>
             <div style={{ fontSize: 11, color: TXT2, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Localizzazione</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input placeholder="Luogo" value={place} onChange={e => setPlace(e.target.value)} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
+              <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Valido fino a</div>
+        <input type="date" value={ends} min={new Date().toISOString().slice(0, 10)} onChange={e => setEnds(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 12, width: "100%" }} />
+        <input placeholder="Luogo" value={place} onChange={e => setPlace(e.target.value)} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
               <button onClick={locate} style={{ flexShrink: 0, padding: "0 14px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: coords ? HBLUE : HBLUE + "10", color: coords ? "#fff" : HBLUE, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Sora',sans-serif" }}>
                 <NavIcon name="locate" size={18} color={coords ? "#fff" : HBLUE} /> {locating ? "…" : "GPS"}
               </button>
