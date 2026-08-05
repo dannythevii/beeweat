@@ -171,6 +171,8 @@ const playChime = () => {
     });
   } catch (_) {}
 };
+// "capri" e "Capri" sono lo stesso posto: normalizzazione con iniziali maiuscole
+const titleCase = s => (s || "").trim().replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
@@ -1123,7 +1125,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
               <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)} <span style={{ color: TXT2, fontSize: 12 }}>da te</span></div>
                   <div style={{ fontSize: 12.5, color: TXT2, marginTop: 2 }}>{p.photos ?? 0} post · {p.events ?? 0} eventi · {p.users?.length ?? 0} utenti</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, minWidth: 60, justifyContent: "flex-end" }}>
@@ -1144,7 +1146,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
         : list.map(c => (
           <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: c.me ? HBLUE + "08" : "transparent" }}>
             <UserAvatar src={c.ava} size={56} />
-            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name}{c.me && <span style={{ fontSize: 13.5, color: TXT2, fontWeight: 500 }}>(tu)</span>} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{c.city}</span></div>
+            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name}{c.me && <span style={{ fontSize: 13.5, color: TXT2, fontWeight: 500 }}>(tu)</span>} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{titleCase(c.city)}</span></div>
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
@@ -1235,7 +1237,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         {msgs.map(m => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "10px 14px", fontSize: 14, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
+            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "11px 14px", fontSize: 15.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
           </div>
         ))}
         <div ref={ref} />
@@ -1982,7 +1984,7 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
         ) : (
           <>
             <Section label="Luoghi vicino a te" count={near.length}>
-              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} · ${p.photos ?? 0} post · ${p.events ?? 0} eventi · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
+              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} da te · ${p.photos ?? 0} post · ${p.events ?? 0} eventi · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
             </Section>
             <Section label="Persone" count={fp.length}>
               {fp.map(p => <Row key={"p" + p.id} ava={p.ava} title={p.name} sub={"📍 " + p.city} onClick={() => onPerson(p)} />)}
@@ -2119,8 +2121,9 @@ export default function App() {
     const map = {};
     posts.forEach(p => {
       if (!p.city) return;
-      if (!map[p.city]) map[p.city] = { id: "pl_" + p.city, name: p.city, dist: p.dist ?? 0, photos: 0, users: [], events: 0 };
-      const pl = map[p.city];
+      const key = p.city.trim().toLowerCase();
+      if (!map[key]) map[key] = { id: "pl_" + key, name: titleCase(p.city), dist: p.dist ?? 0, photos: 0, users: [], events: 0 };
+      const pl = map[key];
       pl.photos += 1;
       pl.dist = Math.min(pl.dist, p.dist ?? pl.dist);
       if (!pl.users.some(u => u.name === p.user)) pl.users.push({ name: p.user, ava: p.ava, city: p.city, uid: p.uid, me: !!p.mine });
@@ -2314,7 +2317,7 @@ export default function App() {
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
           time: fmtPostTime(r.created_at),
           ts: r.created_at,
-          city: r.city || pr.city || "", dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
+          city: titleCase(r.city || pr.city || ""), dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
