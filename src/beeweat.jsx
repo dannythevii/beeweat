@@ -175,6 +175,70 @@ const playChime = () => {
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
+// ─── OCCHI AI DELL'ALVEARE: moderazione + classifica del cielo (nel telefono) ──
+let _aiModelsP = null;
+const loadAIModels = () => {
+  if (_aiModelsP) return _aiModelsP;
+  _aiModelsP = (async () => {
+    const tf = await import("https://esm.sh/@tensorflow/tfjs@4.20.0");
+    await tf.ready();
+    const [cocoSsd, nsfwjs] = await Promise.all([
+      import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"),
+      import("https://esm.sh/nsfwjs@4.2.0"),
+    ]);
+    const [detector, nsfw] = await Promise.all([
+      cocoSsd.load({ base: "lite_mobilenet_v2" }),
+      nsfwjs.load(),
+    ]);
+    return { detector, nsfw };
+  })();
+  _aiModelsP.catch(() => { _aiModelsP = null; });
+  return _aiModelsP;
+};
+
+const classifySky = canvas => {
+  try {
+    const w = 64, h = 64, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let blue = 0, grey = 0, dark = 0, warm = 0, bright = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx;
+      n++;
+      if (lum > 190) bright++;
+      if (lum < 60) dark++;
+      if (b > r + 18 && b > g + 6 && lum > 90) blue++;
+      if (sat < 0.16 && lum >= 60 && lum <= 190) grey++;
+      if (r > b + 25 && lum > 100) warm++;
+    }
+    const p = x => x / n;
+    let cls, score;
+    if (p(dark) > 0.5) { cls = "⛈️ Temporale"; score = p(dark); }
+    else if (p(blue) > 0.45) { cls = "☀️ Sereno"; score = p(blue); }
+    else if (p(warm) > 0.3) { cls = "☀️ Sereno"; score = p(warm); }
+    else if (p(grey) > 0.55) { cls = p(bright) > 0.25 ? "🌫️ Nebbia" : "🌧️ Pioggia"; score = p(grey); }
+    else if (p(blue) > 0.18) { cls = "⛅ Poco nuvoloso"; score = 0.5 + p(blue) / 2; }
+    else { cls = "⛅ Poco nuvoloso"; score = 0.4; }
+    return { cls, score: Math.min(0.95, Math.round(score * 100) / 100) };
+  } catch (_) { return null; }
+};
+
+const analyzePhoto = async canvas => {
+  const { detector, nsfw } = await loadAIModels();
+  const [dets, nsfwRes] = await Promise.all([detector.detect(canvas), nsfw.classify(canvas)]);
+  const person = dets.find(x => x.class === "person" && x.score > 0.55);
+  const bad = nsfwRes.filter(x => ["Porn", "Hentai", "Sexy"].includes(x.className))
+                     .reduce((sm, x) => sm + x.probability, 0);
+  if (bad > 0.6) return { block: true, reason: "Contenuto non adatto rilevato. Beeweat è per il cielo. 🌤️", cls: "nsfw", score: Math.round(bad * 100) / 100 };
+  if (person) return { block: true, reason: "Persona rilevata nella foto: per la privacy, inquadra solo cielo e paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
+  const sky = classifySky(canvas);
+  return { block: false, reason: null, cls: sky?.cls || null, score: sky?.score || null, suggest: sky?.cls || null };
+};
+
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
 const AVA_M = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop";
 // ── INTERRUTTORE PROVE: metti false in produzione per disattivare la foto demo ──
@@ -1311,8 +1375,17 @@ function CameraView({ onPost, onBack }) {
     const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
     if (ar) { if (sw / sh > ar) sw = sh * ar; else sh = sw / ar; }
     c.width = Math.round(sw); c.height = Math.round(sh);
-    c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
-  const retake = () => { setCaptured(null); start(); };
+    c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setTimeout(runAI, 60); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
+  const [ai, setAi] = useState(null);
+  const runAI = () => {
+    const c = canvasRef.current; if (!c) return;
+    setAi({ checking: true });
+    analyzePhoto(c).then(v => {
+      setAi(v);
+      if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
+    }).catch(e => { console.warn("AI:", e?.message || e); setAi(null); });
+  };
+  const retake = () => { setCaptured(null); setAi(null); start(); };
   const [saved, setSaved] = useState(false);
   const savePhoto = async () => {
     try {
@@ -1330,7 +1403,13 @@ function CameraView({ onPost, onBack }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir }); }, 600); };
+  const publish = () => { if (!captured || ai?.block || ai?.checking) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const AiChip = () => !ai ? null : (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? HBLUE + "0E" : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? HBLUE : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HBLUE + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>{ai.checking ? "🐝" : ai.block ? "🚫" : "✅"}</span>
+      <span>{ai.checking ? "Gli occhi dell'alveare stanno guardando la foto…" : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
+    </div>
+  );
   return (
     <>
       <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
@@ -1389,10 +1468,11 @@ function CameraView({ onPost, onBack }) {
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+            <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || ai?.block || ai?.checking} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: ai?.block ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: ai?.block ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.block ? "Non pubblicabile" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2458,13 +2538,13 @@ export default function App() {
 
   const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
-  const onPost = ({ img, caption, cond, dir }) => {
+  const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
     const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
     if (sb?.isConfigured) {
       (async () => {
         try {
           const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
-          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city });
+          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore });
           await loadFeed();
         } catch (e) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
       })();
