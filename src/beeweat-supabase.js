@@ -116,6 +116,75 @@ export async function subscribePlaceChat(place, onNew) {
   return () => supabase.removeChannel(ch);
 }
 
+// ── Gruppi ────────────────────────────────────────────────────────────────────
+export async function getMyGroups() {
+  const { data, error } = await supabase.from("groups").select("id, name, owner_id");
+  if (error) throw error;
+  const ids = (data || []).map(g => g.id);
+  let members = [];
+  if (ids.length) {
+    const { data: gm, error: e2 } = await supabase.from("group_members")
+      .select("group_id, user_id").in("group_id", ids);
+    if (e2) throw e2; members = gm || [];
+  }
+  return { groups: data || [], members };
+}
+export async function createGroup(name, memberIds) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data: g, error } = await supabase.from("groups")
+    .insert({ name, owner_id: user.id }).select().single();
+  if (error) throw error;
+  const rows = [...new Set([user.id, ...(memberIds || [])])].map(uid => ({ group_id: g.id, user_id: uid }));
+  const { error: e2 } = await supabase.from("group_members").insert(rows);
+  if (e2) throw e2;
+  return g;
+}
+export async function updateGroupMembers(groupId, addIds, removeIds) {
+  if (addIds?.length) {
+    const { error } = await supabase.from("group_members")
+      .insert(addIds.map(uid => ({ group_id: groupId, user_id: uid })));
+    if (error) throw error;
+  }
+  if (removeIds?.length) {
+    const { error } = await supabase.from("group_members").delete()
+      .eq("group_id", groupId).in("user_id", removeIds);
+    if (error) throw error;
+  }
+}
+export async function getGroupMessages(groupId, limit = 50) {
+  const { data, error } = await supabase.from("messages")
+    .select("id, text, from_user_id, created_at")
+    .eq("scope", "group").eq("group_id", groupId)
+    .order("created_at", { ascending: true }).limit(limit);
+  if (error) throw error;
+  const rows = data || [];
+  const ids = [...new Set(rows.map(r => r.from_user_id))];
+  if (ids.length) {
+    const { data: profs } = await supabase.from("profiles").select("id,name").in("id", ids);
+    const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    rows.forEach(r => { r.profiles = pm[r.from_user_id] || null; });
+  }
+  return rows;
+}
+export async function sendGroupMessage(groupId, text) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("messages")
+    .insert({ scope: "group", group_id: groupId, from_user_id: user.id, text })
+    .select().single();
+  if (error) throw error; return data;
+}
+export async function subscribeGroupChat(groupId, onNew) {
+  await authRealtime();
+  const ch = supabase.channel("group:" + groupId)
+    .on("postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `group_id=eq.${groupId}` },
+      payload => onNew(payload.new))
+    .subscribe();
+  return () => supabase.removeChannel(ch);
+}
+
 // ── Seguiti / Follower ────────────────────────────────────────────────────────
 export async function getMyFollows() {
   const { data: { user } } = await supabase.auth.getUser();

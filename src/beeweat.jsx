@@ -1097,7 +1097,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
                 <div style={{ width: 50, height: 50, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={HBLUE} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
-                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
+                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).map(id => ((contacts || []).find(c => c.id === id) || {}).name || "").filter(Boolean).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
                 </div>
                 <NavIcon name="chevron" size={18} color={TXT2} sw={2} />
               </div>
@@ -2088,6 +2088,18 @@ export default function App() {
       setFollowerIds(await sb.getMyFollowers());
     } catch (e) { console.warn("follow:", e?.message || e); } })();
   }, [sb, user, contacts, socialTick]);
+  // Gruppi reali
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { groups: gs, members } = await sb.getMyGroups();
+      setGroups(gs.map(g => ({
+        id: g.id, name: g.name, owner: g.owner_id, mine: g.owner_id === au.id,
+        members: members.filter(m => m.group_id === g.id).map(m => m.user_id),
+      })));
+    } catch (e) { console.warn("gruppi:", e?.message || e); } })();
+  }, [sb, user, socialTick]);
   const toggleFollow = name => {
     const on = !following.includes(name);
     setFollowing(f => on ? [...f, name] : f.filter(x => x !== name));
@@ -2120,6 +2132,24 @@ export default function App() {
     });
     return list;
   }, [posts, events]);
+  const openGroupChat = g => {
+    const id = "g_" + g.id;
+    setOverlay({ chat: { id, name: g.name, ava: "👥", group: true }, groupId: g.id });
+    if (!(sb?.isConfigured && typeof g.id === "string" && g.id.includes("-"))) { if (!threads[id]) setThreads(th => ({ ...th, [id]: [] })); return; }
+    setThreads(th => ({ ...th, [id]: th[id] || [] }));
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const rows = await sb.getGroupMessages(g.id);
+      setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+      if (chatUnsubRef.current) chatUnsubRef.current();
+      chatUnsubRef.current = await sb.subscribeGroupChat(g.id, async m => {
+        if (au && m.from_user_id === au.id) return;
+        let who = "Utente";
+        try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
+        setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
+      });
+    } catch (e) { console.warn("chat gruppo:", e?.message || e); } })();
+  };
   const openPlaceChat = (place, back) => {
     const id = "place_" + place.name;
     setOverlay({ chat: { id, name: place.name, ava: "🌐", public: true, sub: `Chat pubblica di ${place.name}` }, back });
@@ -2562,6 +2592,8 @@ export default function App() {
       sb.sendPostMessage(pid, text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && cid.startsWith("place_")) {
       sb.sendPlaceMessage(cid.slice(6), text).catch(e => console.warn("invio:", e?.message || e));
+    } else if (sb?.isConfigured && cid.startsWith("g_") && cid.slice(2).includes("-")) {
+      sb.sendGroupMessage(cid.slice(2), text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && typeof cid === "string" && cid.includes("-") && !cid.startsWith("post_") && !cid.startsWith("place_") && !cid.startsWith("g_")) {
       sb.sendDirectMessage(cid, text).catch(e => console.warn("invio:", e?.message || e));
     }
@@ -2597,8 +2629,25 @@ export default function App() {
   // chiusura chat → stop ascolto in tempo reale
   useEffect(() => { if (!overlay?.chat && chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } }, [overlay]);
   const addContact = p => { setContacts(c => [...c, p]); setOverlay(null); };
-  const createGroup = g => { setGroups(gs => [...gs, { id: nextId, ...g }]); setNextId(n => n + 1); setOverlay(null); };
-  const updateGroup = (id, members) => setGroups(gs => gs.map(g => g.id === id ? { ...g, members } : g));
+  const createGroup = g => {
+    setOverlay(null);
+    if (sb?.isConfigured) {
+      sb.createGroup(g.name, g.members)
+        .then(() => setSocialTick(t => t + 1))
+        .catch(e => alert("Creazione gruppo non riuscita: " + (e?.message || e)));
+      return;
+    }
+    setGroups(gs => [...gs, { id: nextId, ...g }]); setNextId(n => n + 1);
+  };
+  const updateGroup = (id, members) => {
+    const cur = (groups.find(g => g.id === id) || {}).members || [];
+    setGroups(gs => gs.map(g => g.id === id ? { ...g, members } : g));
+    if (sb?.isConfigured && typeof id === "string" && id.includes("-")) {
+      const add = members.filter(x => !cur.includes(x));
+      const rem = cur.filter(x => !members.includes(x));
+      sb.updateGroupMembers(id, add, rem).catch(e => { alert("Aggiornamento membri non riuscito: " + (e?.message || e)); setSocialTick(t => t + 1); });
+    }
+  };
   const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
 
   if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
@@ -2708,7 +2757,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={g => setOverlay({ chat: { id: "g_" + g.id, name: g.name, ava: "👥", group: true }, groupId: g.id })} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
