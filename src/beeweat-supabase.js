@@ -9,6 +9,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+
 const SUPABASE_URL = "https://bdgypqgtzrqoqbkqgnnj.supabase.co"; 				// NOSTRO
 const SUPABASE_ANON_KEY = "sb_publishable_HtXEzXb12JA-6GjY-EwQtw_VxmncYdC";     // NOSTRO
 
@@ -289,13 +290,13 @@ export async function uploadPhoto(file) {
 // ============================================================================
 
 // Crea un post: prima carica la foto, poi salva il record
-export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city }) {
+export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
   const { data, error } = await supabase.from("posts").insert({
     user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
-    cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null,
+    cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null,
   }).select().single();
   if (error) throw error;
   return data;
