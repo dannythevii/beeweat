@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "1.6";
+const APP_VERSION = "2.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -65,6 +65,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
     flip: <><path d="M1 4v6h6M23 20v-6h-6" {...p} /><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15" {...p} /></>,
     grid: <><rect x="4" y="4" width="16" height="16" rx="2" {...p} /><line x1="9.3" y1="4" x2="9.3" y2="20" {...p} /><line x1="14.7" y1="4" x2="14.7" y2="20" {...p} /><line x1="4" y1="9.3" x2="20" y2="9.3" {...p} /><line x1="4" y1="14.7" x2="20" y2="14.7" {...p} /></>,
+    edit: <><path d="M17 3a2.4 2.4 0 013.4 3.4L8 18.8 3 20l1.2-5L17 3z" {...p} /></>,
     trash: <><polyline points="3 6 5 6 21 6" {...p} /><path d="M19 6v13a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" {...p} /><line x1="10" y1="11" x2="10" y2="16.5" {...p} /><line x1="14" y1="11" x2="14" y2="16.5" {...p} /></>,
     capture: <><circle cx="12" cy="12" r="8" {...p} /><circle cx="12" cy="12" r="3" fill={color} stroke="none" /></>,
     pin: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
@@ -183,15 +184,17 @@ const loadAIModels = () => {
   _aiModelsP = (async () => {
     const tf = await import("https://esm.sh/@tensorflow/tfjs@4.20.0");
     await tf.ready();
-    const [cocoSsd, nsfwjs] = await Promise.all([
+    const [cocoSsd, nsfwjs, mobilenetMod] = await Promise.all([
       import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"),
       import("https://esm.sh/nsfwjs@4.2.0"),
+      import("https://esm.sh/@tensorflow-models/mobilenet@2.1.1"),
     ]);
-    const [detector, nsfw] = await Promise.all([
+    const [detector, nsfw, scenes] = await Promise.all([
       cocoSsd.load({ base: "lite_mobilenet_v2" }),
       nsfwjs.load(),
+      mobilenetMod.load({ version: 2, alpha: 0.5 }),
     ]);
-    return { detector, nsfw };
+    return { detector, nsfw, scenes };
   })();
   _aiModelsP.catch(() => { _aiModelsP = null; });
   return _aiModelsP;
@@ -218,6 +221,9 @@ const classifySky = canvas => {
       if (sat < 0.16 && lum >= 60 && lum <= 190) grey++;
       if (r > b + 25 && lum > 100) warm++;
     }
+    let lumSum = 0;
+    for (let i = 0; i < d.length; i += 4) lumSum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const meanLum = lumSum / n;
     const p = x => x / n;
     let cls, score;
     if (p(dark) > 0.5) { cls = "⛈️ Temporale"; score = p(dark); }
@@ -226,19 +232,47 @@ const classifySky = canvas => {
     else if (p(grey) > 0.55) { cls = p(bright) > 0.25 ? "🌫️ Nebbia" : "🌧️ Pioggia"; score = p(grey); }
     else if (p(blue) > 0.18) { cls = "⛅ Poco nuvoloso"; score = 0.5 + p(blue) / 2; }
     else { cls = "⛅ Poco nuvoloso"; score = 0.4; }
-    return { cls, score: Math.min(0.95, Math.round(score * 100) / 100) };
+    return { cls, score: Math.min(0.95, Math.round(score * 100) / 100),
+             stats: { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum } };
   } catch (_) { return null; }
 };
 
+// oggetti che tradiscono un interno o un soggetto ravvicinato: non è meteo
+const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "fork", "knife", "spoon", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "book", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "vase", "scissors", "teddy bear", "potted plant", "clock"];
+// scene da esterno riconosciute da MobileNet: cieli, mare, orizzonti, paesaggi
+const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef/i;
+
 const analyzePhoto = async canvas => {
-  const { detector, nsfw } = await loadAIModels();
-  const [dets, nsfwRes] = await Promise.all([detector.detect(canvas), nsfw.classify(canvas)]);
+  const { detector, nsfw, scenes } = await loadAIModels();
+  const [dets, nsfwRes, preds] = await Promise.all([
+    detector.detect(canvas), nsfw.classify(canvas), scenes.classify(canvas, 7),
+  ]);
   const person = dets.find(x => x.class === "person" && x.score > 0.55);
   const bad = nsfwRes.filter(x => ["Porn", "Hentai", "Sexy"].includes(x.className))
                      .reduce((sm, x) => sm + x.probability, 0);
   if (bad > 0.6) return { block: true, reason: "Contenuto non adatto rilevato. Beeweat è per il cielo. 🌤️", cls: "nsfw", score: Math.round(bad * 100) / 100 };
   if (person) return { block: true, reason: "Persona rilevata nella foto: per la privacy, inquadra solo cielo e paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
+  // È davvero una foto del cielo/paesaggio?
+  const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
+  const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
+  const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
+  if (indoorObj || confidentNotOutdoor) {
+    const what = indoorObj ? indoorObj.class : preds[0].className.split(",")[0];
+    return { block: true, reason: `Questa non sembra una foto del cielo (rilevato: ${what}). Inquadra cielo, orizzonte o paesaggio. 🌤️`, cls: "not_sky", score: Math.round((indoorObj?.score || preds[0].probability) * 100) / 100 };
+  }
   const sky = classifySky(canvas);
+  if (!outdoorHit) {
+    // nessuna scena da esterno riconosciuta: la foto deve DIMOSTRARE di essere cielo.
+    // I cieli veri sono luminosi (anche il coperto: è retroilluminato); il grigio da interni no.
+    const st = sky?.stats;
+    const skyEvidence = st && (
+      st.blue > 0.30 ||                       // azzurro franco
+      (st.grey > 0.45 && st.meanLum > 165) || // coperto ma LUMINOSO
+      (st.warm > 0.35 && st.meanLum > 150) || // alba/tramonto
+      st.dark > 0.65                          // notte o temporale nero
+    );
+    if (!skyEvidence) return { block: true, reason: "Questa non sembra una foto del cielo: nessun cielo riconoscibile nell'inquadratura. Punta verso l'alto o verso l'orizzonte. 🌤️", cls: "not_sky", score: sky?.score || null };
+  }
   return { block: false, reason: null, cls: sky?.cls || null, score: sky?.score || null, suggest: sky?.cls || null };
 };
 
@@ -618,6 +652,26 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
+function EditPostModal({ post, onSave, onClose }) {
+  const [caption, setCaption] = useState(post.caption || "");
+  const [cond, setCond] = useState(post.cond || CONDITIONS[0]);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica post</div>
+        <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Descrivi il meteo…" rows={3} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", resize: "none", fontFamily: "'Sora',sans-serif", marginBottom: 10 }} />
+        <select value={cond} onChange={e => setCond(e.target.value)} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14, fontFamily: "'Sora',sans-serif" }}>
+          {CONDITIONS.map(c => <option key={c}>{c}</option>)}
+        </select>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
+          <button onClick={() => onSave({ caption: caption.trim(), cond })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PhotoViewer({ src, caption, onClose }) {
   const [saved, setSaved] = useState(false);
   const save = async () => {
@@ -652,7 +706,7 @@ function PhotoViewer({ src, caption, onClose }) {
   );
 }
 
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete }) {
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit }) {
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -688,6 +742,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
           {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="flag" size={18} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
+          {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           {onDelete && canDelete && <button onClick={e => { e.stopPropagation(); onDelete(post); }} title="Elimina post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="trash" size={18} color="#E5484D" sw={1.9} /></button>}
         </div>
       </div>
@@ -712,7 +767,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, loading }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading }) {
   const visible = posts.filter(p => p.dist <= km);
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
@@ -724,7 +779,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
                 Lettura del cielo in corso…
               </div>
             : <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>)
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} />)}
     </div>
   );
 }
@@ -1018,7 +1073,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen }) {
+function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds, onDeleteEvent }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const visible = events.filter(e => (!e.ends || e.ends >= today) && (e.dist <= km || km >= 25));
@@ -1033,9 +1088,13 @@ function EventiScreen({ events, km, onOpen }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
               {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
-              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}</div>
+              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
             </div>
             <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
+            {(isAdmin || e.user === userName) && <span style={{ display: "flex", gap: 6 }}>
+              <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica scadenza" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>
+              <button onClick={ev => { ev.stopPropagation(); onDeleteEvent(e); }} title="Elimina evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="trash" size={16} color="#E5484D" sw={1.9} /></button>
+            </span>}
           </div>
           {/* terzo rigo: localizzazione (tocca per la mappa) */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "9px 10px", background: HBLUE + "0E", borderRadius: 10 }}>
@@ -1490,7 +1549,7 @@ function CameraView({ onPost, onBack }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, followingList, followersList, onFollow, following }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine);
   const stars = mine.reduce((s, p) => s + p.stars, 0);
@@ -1553,10 +1612,11 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
+          <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
-          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} />)}
+          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} />)}
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -1636,27 +1696,27 @@ function AddContactModal({ people, contacts, onAdd, onClose }) {
 }
 
 // ─── ADD EVENT MODAL ──────────────────────────────────────────────────────────
-function AddEventModal({ onAdd, onClose, user }) {
+function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   const [type, setType] = useState(EVENT_TYPES[0]);
   const [cat, setCat] = useState(EVENT_CATEGORIES[0]);
   const [title, setTitle] = useState("");
-  const [place, setPlace] = useState(user.city);
+  const [place, setPlace] = useState(locName || user.city);
   const [sev, setSev] = useState("Media");
   const [ends, setEnds] = useState(new Date().toISOString().slice(0, 10));   // scadenza: default oggi
   const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
   const locate = () => {
     setLocating(true);
-    if (!navigator.geolocation) { setCoords({ ...BASE_COORDS, approx: true }); setLocating(false); return; }
+    if (!navigator.geolocation) { setCoords(geo ? { ...geo } : { ...BASE_COORDS, approx: true }); setLocating(false); return; }
     navigator.geolocation.getCurrentPosition(
       pos => { setCoords({ lat: +pos.coords.latitude.toFixed(5), lng: +pos.coords.longitude.toFixed(5) }); setLocating(false); },
-      () => { setCoords({ ...BASE_COORDS, approx: true }); setLocating(false); },
+      () => { setCoords(geo ? { ...geo } : { ...BASE_COORDS, approx: true }); setLocating(false); },   // ripiego: la posizione viva dell'app
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
   const submit = () => {
     if (!title.trim()) return;
-    const c = coords || { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true };
+    const c = coords || (geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true });
     const category = cat === EVENT_CATEGORIES[0] ? "" : cat;
     const t = type === EVENT_TYPES[0] ? "" : type.split(" ")[0];
     onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category, ends });
@@ -2450,6 +2510,15 @@ export default function App() {
     const until = new Date(Date.now() + days * 86400000).toISOString();
     sb.banUser(profile.uid, until, reason).then(() => alert(`${profile.name} è stato bannato per ${days} giorni.`)).catch(e => alert("Errore: " + (e?.message || e)));
   };
+  // Modifica post (autore o admin)
+  const [editTarget, setEditTarget] = useState(null);
+  const saveEdit = ({ caption, cond }) => {
+    const p = editTarget; setEditTarget(null);
+    if (!p) return;
+    setPosts(ps => ps.map(x => x.id === p.id ? { ...x, caption, cond } : x));
+    if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
+      sb.updatePost(p.id, { caption, condition: cond }).catch(e => { alert("Modifica non salvata: " + (e?.message || e)); loadFeed(); });
+  };
   // Cancellazione post (autore o admin)
   const deletePost = post => {
     if (!window.confirm("Eliminare definitivamente questo post?")) return;
@@ -2658,6 +2727,18 @@ export default function App() {
       sb.updateGroupMembers(id, add, rem).catch(e => { alert("Aggiornamento membri non riuscito: " + (e?.message || e)); setSocialTick(t => t + 1); });
     }
   };
+  const editEventEnds = e => {
+    const cur = e.ends || new Date().toISOString().slice(0, 10);
+    const v = window.prompt("Nuova scadenza (AAAA-MM-GG) — vuoto per rimuoverla:", cur);
+    if (v === null) return;
+    const ends = v.trim() === "" ? null : v.trim();
+    if (ends && !/^\d{4}-\d{2}-\d{2}$/.test(ends)) { alert("Formato data non valido (esempio: 2026-08-15)."); return; }
+    setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ends } : x));
+  };
+  const deleteEvent = e => {
+    if (!window.confirm(`Eliminare l'evento "${e.title}"?`)) return;
+    setEvents(ev => ev.filter(x => x.id !== e.id));
+  };
   const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
 
   if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
@@ -2675,7 +2756,7 @@ export default function App() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(null)} />);
   if (overlay === "alerts") return wrap(
     <div style={{ background: BODY, minHeight: "100%" }}>
@@ -2763,10 +2844,10 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={editEventEnds} onDeleteEvent={deleteEvent} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} />}
       </div>
 
@@ -2776,7 +2857,8 @@ export default function App() {
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {overlay === "addEvent" && <AddEventModal user={user} onAdd={addEvent} onClose={() => setOverlay(null)} />}
+      {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} />}
     </Frame>
   );
 }

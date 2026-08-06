@@ -10,6 +10,15 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Modifica post (autore o amministratore) ──────────────────────────────────
+export async function updatePost(postId, { caption, condition }) {
+  const patch = {};
+  if (caption !== undefined) patch.caption = caption;
+  if (condition !== undefined) patch.condition = condition;
+  const { error } = await supabase.from("posts").update(patch).eq("id", postId);
+  if (error) throw error;
+}
+
 // ── Cancellazione post (autore o amministratore; decidono le regole RLS) ─────
 export async function deletePost(post) {
   const { error } = await supabase.from("posts").delete().eq("id", post.id);
