@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -652,7 +652,7 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
-function EditPostModal({ post, onSave, onClose }) {
+function EditPostModal({ post, onSave, onClose, onDelete }) {
   const [caption, setCaption] = useState(post.caption || "");
   const [cond, setCond] = useState(post.cond || CONDITIONS[0]);
   return (
@@ -667,6 +667,34 @@ function EditPostModal({ post, onSave, onClose }) {
           <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
           <button onClick={() => onSave({ caption: caption.trim(), cond })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
         </div>
+        {onDelete && <button onClick={() => { if (window.confirm("Eliminare definitivamente questo post?")) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>}
+      </div>
+    </div>
+  );
+}
+
+function EditEventModal({ ev, onSave, onDelete, onClose }) {
+  const [title, setTitle] = useState(ev.title || "");
+  const [place, setPlace] = useState(ev.place || "");
+  const [sev, setSev] = useState(ev.sev || "Media");
+  const [cat, setCat] = useState(ev.cat || EVENT_CATEGORIES[0]);
+  const [ends, setEnds] = useState(ev.ends || new Date().toISOString().slice(0, 10));
+  const F = { width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 10, fontFamily: "'Sora',sans-serif" };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica evento</div>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titolo" style={F} />
+        <input value={place} onChange={e => setPlace(e.target.value)} placeholder="Luogo" style={F} />
+        <select value={cat} onChange={e => setCat(e.target.value)} style={F}>{EVENT_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
+        <select value={sev} onChange={e => setSev(e.target.value)} style={F}>{["Alta", "Media", "Bassa"].map(x => <option key={x}>{x}</option>)}</select>
+        <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Valido fino a</div>
+        <input type="date" value={ends} onChange={e => setEnds(e.target.value)} style={{ ...F, marginBottom: 14 }} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
+          <button onClick={() => { if (!title.trim()) { alert("Il titolo è obbligatorio."); return; } onSave({ title: title.trim(), place: place.trim(), sev, cat, ends }); }} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
+        </div>
+        <button onClick={() => { if (window.confirm(`Eliminare definitivamente l'evento "${ev.title}"?`)) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>
       </div>
     </div>
   );
@@ -743,7 +771,6 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
           {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="flag" size={18} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
           {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
-          {onDelete && canDelete && <button onClick={e => { e.stopPropagation(); onDelete(post); }} title="Elimina post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="trash" size={18} color="#E5484D" sw={1.9} /></button>}
         </div>
       </div>
 
@@ -1073,7 +1100,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds, onDeleteEvent }) {
+function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const visible = events.filter(e => (!e.ends || e.ends >= today) && (e.dist <= km || km >= 25));
@@ -1091,10 +1118,7 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds, onDel
               <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
             </div>
             <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
-            {(isAdmin || e.user === userName) && <span style={{ display: "flex", gap: 6 }}>
-              <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica scadenza" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>
-              <button onClick={ev => { ev.stopPropagation(); onDeleteEvent(e); }} title="Elimina evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="trash" size={16} color="#E5484D" sw={1.9} /></button>
-            </span>}
+            {(isAdmin || e.user === userName) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           </div>
           {/* terzo rigo: localizzazione (tocca per la mappa) */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "9px 10px", background: HBLUE + "0E", borderRadius: 10 }}>
@@ -1705,6 +1729,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   const [ends, setEnds] = useState(new Date().toISOString().slice(0, 10));   // scadenza: default oggi
   const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
+  useEffect(() => { if (geo && !coords) setCoords({ lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) }); }, [geo]);   // posizione viva, subito
   const locate = () => {
     setLocating(true);
     if (!navigator.geolocation) { setCoords(geo ? { ...geo } : { ...BASE_COORDS, approx: true }); setLocating(false); return; }
@@ -2519,6 +2544,12 @@ export default function App() {
     if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
       sb.updatePost(p.id, { caption, condition: cond }).catch(e => { alert("Modifica non salvata: " + (e?.message || e)); loadFeed(); });
   };
+  // Cancellazione post (autore o admin) — senza doppia conferma (il modale l'ha già chiesta)
+  const doDeletePost = p => {
+    setPosts(ps => ps.filter(x => x.id !== p.id));
+    if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
+      sb.deletePost(p.id).catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+  };
   // Cancellazione post (autore o admin)
   const deletePost = post => {
     if (!window.confirm("Eliminare definitivamente questo post?")) return;
@@ -2727,16 +2758,15 @@ export default function App() {
       sb.updateGroupMembers(id, add, rem).catch(e => { alert("Aggiornamento membri non riuscito: " + (e?.message || e)); setSocialTick(t => t + 1); });
     }
   };
-  const editEventEnds = e => {
-    const cur = e.ends || new Date().toISOString().slice(0, 10);
-    const v = window.prompt("Nuova scadenza (AAAA-MM-GG) — vuoto per rimuoverla:", cur);
-    if (v === null) return;
-    const ends = v.trim() === "" ? null : v.trim();
-    if (ends && !/^\d{4}-\d{2}-\d{2}$/.test(ends)) { alert("Formato data non valido (esempio: 2026-08-15)."); return; }
-    setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ends } : x));
+  const [editEventTarget, setEditEventTarget] = useState(null);
+  const saveEventEdit = patch => {
+    const e = editEventTarget; setEditEventTarget(null);
+    if (!e) return;
+    setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ...patch } : x));
   };
-  const deleteEvent = e => {
-    if (!window.confirm(`Eliminare l'evento "${e.title}"?`)) return;
+  const doDeleteEvent = () => {
+    const e = editEventTarget; setEditEventTarget(null);
+    if (!e) return;
     setEvents(ev => ev.filter(x => x.id !== e.id));
   };
   const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
@@ -2847,7 +2877,7 @@ export default function App() {
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={editEventEnds} onDeleteEvent={deleteEvent} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} />}
       </div>
 
@@ -2858,7 +2888,8 @@ export default function App() {
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} />}
-      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} />}
+      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} />}
     </Frame>
   );
 }
