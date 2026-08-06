@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1649,7 +1649,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit }) {
   const mine = posts.filter(p => p.user === profile.name);
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1693,7 +1693,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         <div style={{ padding: 16 }}>
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
-            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} />)}
+            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} />)}
         </div>
       </div>
     </>
@@ -1808,7 +1808,7 @@ function AvatarEditor({ current, onPick, onClose }) {
 
 // ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
 // ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
-function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported }) {
+function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit }) {
   const placeAuthors = place.users && place.users.length ? place.users : [];
   const users = placeAuthors.length ? placeAuthors : people;
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
@@ -1839,7 +1839,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         <div style={{ padding: "8px 14px 0" }}>
           {placePosts.length === 0
             ? <div style={{ background: "#fff", borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
-            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} />)}
+            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} />)}
         </div>
 
         {/* utenti collegati al luogo */}
@@ -2429,7 +2429,21 @@ export default function App() {
   const [alerts, setAlerts] = useState([]);
   const [notifToast, setNotifToast] = useState(null);
   const toastTimerRef = useRef(null);
-  const routeNotifTap = () => setOverlay("alerts");   // il popup porta agli Avvisi; da lì ogni avviso alla sua destinazione
+  const pendingNotifRef = useRef(null);
+  const routeNotifTap = (kind, from) => {
+    if (!user) { pendingNotifRef.current = { kind, from }; return; }
+    if (kind === "direct" && from) {
+      openDirectChat({ id: from, name: nameOf(from), ava: (contacts.find(c => c.id === from) || {}).ava || null });
+      return;
+    }
+    setOverlay("alerts");
+  };
+  useEffect(() => {
+    if (user && pendingNotifRef.current) {
+      const { kind, from } = pendingNotifRef.current; pendingNotifRef.current = null;
+      setTimeout(() => routeNotifTap(kind, from), 500);
+    }
+  }, [user, contacts]);
   const nameOf = uid => (contacts.find(c => c.id === uid) || {}).name || "Un utente";
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -2441,7 +2455,7 @@ export default function App() {
         if (ev === "INSERT" && n) {
           setAlerts(a => a.some(x => x.id === n.id) ? a : [n, ...a]);
           if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
-          setNotifToast({ kind: n.type, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
+          setNotifToast({ kind: n.type, from: n.from_user_id || null, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
           playChime();
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
@@ -2458,12 +2472,13 @@ export default function App() {
     return () => { document.removeEventListener("visibilitychange", refreshA); clearInterval(ivA); try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   useEffect(() => {
-    const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind); };
+    const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind, e.data.from || null); };
     if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", h);
     try {
       const u = new URL(window.location.href);
       const k = u.searchParams.get("notif");
-      if (k) { routeNotifTap(k); u.searchParams.delete("notif"); window.history.replaceState({}, "", u.pathname + u.hash); }
+      const fr = u.searchParams.get("from");
+      if (k) { routeNotifTap(k, fr || null); u.searchParams.delete("notif"); u.searchParams.delete("from"); window.history.replaceState({}, "", u.pathname + u.hash); }
     } catch (_) {}
     return () => { if ("serviceWorker" in navigator) navigator.serviceWorker.removeEventListener("message", h); };
   }, []);
@@ -2814,11 +2829,11 @@ export default function App() {
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
     return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}
@@ -2866,7 +2881,7 @@ export default function App() {
     <Frame>
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
-        <div onClick={() => { const k = notifToast.kind; setNotifToast(null); routeNotifTap(k); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
+        <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
           <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
