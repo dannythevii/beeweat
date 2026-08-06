@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "1.5";
+const APP_VERSION = "1.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1001,7 +1001,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
       </div>
       {/* legenda */}
       <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 10, fontSize: 11, color: TXT2 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Post</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Maltempo</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #E5484D", background: "#fff", display: "inline-block" }} /> Eventi</span>
       </div>
       <div style={{ textAlign: "center", color: TXT2, fontSize: 11, marginTop: 6 }}>Pizzica per zoomare · trascina per spostarti</div>
@@ -1012,7 +1012,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
             </div>
             <PostCard post={sel} onStar={() => {}} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(sel.user)} onFollow={onFollow} />
           </div>
-        : <div style={{ textAlign: "center", color: TXT2, fontSize: 13, marginTop: 10 }}>Tocca un segnale sulla mappa: 🔵 post · 🔴 eventi</div>}
+        : <div style={{ textAlign: "center", color: TXT2, fontSize: 13, marginTop: 10 }}>Radar delle emergenze: 🔵 maltempo · 🔴 eventi. Nessun segnale = tutto tranquillo nel raggio. 🌤️</div>}
     </div>
   );
 }
@@ -2061,7 +2061,7 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
   const [events, setEvents] = useState(INITIAL_EVENTS);
-  const [favs, setFavs] = useState([11]);
+  const [favs, setFavs] = useState([]);   // preferiti: si parte puliti, solo scelte reali
   const [contacts, setContacts] = useState([]);   // niente contatti demo: solo utenti reali
   const [groups, setGroups] = useState([]);
   const [notif, setNotif] = useState({ enabled: false, radiusKm: 10, posts: true, eventi: true, allerte: true, messaggi: true, quiet: false });
@@ -2707,10 +2707,10 @@ export default function App() {
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={PEOPLE} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
-    const places = [...new Set([...PEOPLE.map(p => p.city), ...posts.map(p => p.city), ...events.map(e => e.place)])].sort();
-    return wrap(<SearchView nearPlaces={realPlaces} people={PEOPLE} events={events} places={places} km={km}
+    const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
+    return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}
       onClose={() => setOverlay(null)}
       onPerson={p => setOverlay({ chat: { id: "u_" + p.name, name: p.name, ava: p.ava } })}
       onEvent={e => setOverlay({ eventMap: e })}
@@ -2767,13 +2767,13 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={PEOPLE} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
       <BottomNav tab={tab} setTab={setTab} />
 
-      {overlay === "addContact" && <AddContactModal people={PEOPLE} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
+      {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} onAdd={addEvent} onClose={() => setOverlay(null)} />}
