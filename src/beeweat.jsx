@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.2";
+const APP_VERSION = "2.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2142,6 +2142,28 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
+  // ── Tasto/gesto "indietro" del browser: chiude i sottomenu invece di uscire dal sito ──
+  const overlayNavRef = useRef(null); overlayNavRef.current = overlay;
+  const prevOverlayRef = useRef(null);
+  const popHandledRef = useRef(false);
+  useEffect(() => {
+    const prev = prevOverlayRef.current; prevOverlayRef.current = overlay;
+    if (popHandledRef.current) { popHandledRef.current = false; return; }         // transizione causata dal back: storia già a posto
+    if (prev === null && overlay !== null) window.history.pushState({ bw: 1 }, ""); // apro un sottomenu: pianto la sentinella
+    else if (prev !== null && overlay === null) { try { window.history.back(); } catch (_) {} } // chiuso con la "<": consumo la sentinella
+  }, [overlay]);
+  useEffect(() => {
+    const onPop = () => {
+      const o = overlayNavRef.current;
+      if (o === null) return;                                                     // nulla di aperto: il browser fa il suo corso
+      popHandledRef.current = true;
+      const next = (typeof o === "object" && o !== null && "back" in o) ? (o.back || null) : null;
+      setOverlay(next);                                                           // stesso passo indietro della "<"
+      if (next !== null) window.history.pushState({ bw: 1 }, "");                 // ancora dentro: la sentinella resta di guardia
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [km, setKm] = useState(() => { try { const v = +localStorage.getItem("bw_km"); return v >= 1 && v <= 100 ? v : 10; } catch (_) { return 10; } });
   useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
