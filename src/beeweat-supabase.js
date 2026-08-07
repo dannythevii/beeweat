@@ -158,6 +158,12 @@ export async function subscribePlaceChat(place, onNew) {
   return () => supabase.removeChannel(ch);
 }
 
+// ── Amministrazione: eliminazione totale di un utente ────────────────────────
+export async function adminDeleteUser(userId) {
+  const { error } = await supabase.rpc("admin_delete_user", { target: userId });
+  if (error) throw error;
+}
+
 // ── Gruppi ────────────────────────────────────────────────────────────────────
 export async function getMyGroups() {
   const { data, error } = await supabase.from("groups").select("id, name, owner_id");

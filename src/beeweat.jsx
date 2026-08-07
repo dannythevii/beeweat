@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.5";
+const APP_VERSION = "2.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1117,11 +1117,39 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
-  const visible = events.filter(e => (!e.ends || e.ends >= today) && (e.dist <= km || km >= 25));
+  const [fCity, setFCity] = useState("Tutte");
+  const [fUser, setFUser] = useState("Tutti");
+  const [fCat, setFCat] = useState("Tutte");
+  const [evKm, setEvKm] = useState(km);
+  const [inf, setInf] = useState(false);
+  const alive = events.filter(e => !e.ends || e.ends >= today);
+  const cities = ["Tutte", ...new Set(alive.map(e => e.place).filter(Boolean))];
+  const users = ["Tutti", ...new Set(alive.map(e => e.user).filter(Boolean))];
+  const cats = ["Tutte", ...new Set(alive.map(e => e.cat).filter(Boolean))];
+  const visible = alive.filter(e =>
+    (inf || e.dist <= evKm) &&
+    (fCity === "Tutte" || e.place === fCity) &&
+    (fUser === "Tutti" || e.user === fUser) &&
+    (fCat === "Tutte" || e.cat === fCat));
+  const FSel = ({ v, set, opts }) => (
+    <select value={v} onChange={e => set(e.target.value)} style={{ flex: 1, minWidth: 0, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 10, padding: "8px 8px", fontSize: 12.5, color: TXT, outline: "none", fontFamily: "'Sora',sans-serif" }}>
+      {opts.map(o => <option key={o}>{o}</option>)}
+    </select>
+  );
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
-      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi segnalati nella zona</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <FSel v={fCity} set={setFCity} opts={cities} />
+        <FSel v={fUser} set={setFUser} opts={users} />
+        <FSel v={fCat} set={setFCat} opts={cats} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
+        <input type="range" min={1} max={100} value={evKm} disabled={inf} onChange={e => setEvKm(+e.target.value)} style={{ flex: 1, accentColor: ACCENT, opacity: inf ? .35 : 1 }} />
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: inf ? TXT2 : HBLUE, minWidth: 56, textAlign: "right" }}>{inf ? "mondo" : evKm + " km"}</span>
+        <button onClick={() => setInf(v => !v)} title="Tutti gli eventi, ovunque" style={{ width: 34, height: 34, borderRadius: 10, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
+      </div>
+      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</div>
       {visible.map(e => (
         <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -1153,12 +1181,17 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, onLoadAllPlaces }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
   const list = contacts.filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
-  const places = (nearPlaces || []).filter(p => p.dist <= km);
+  const [plInf, setPlInf] = useState(false);
+  const [allPl, setAllPl] = useState(null);
+  useEffect(() => {
+    if (plInf && allPl === null && onLoadAllPlaces) onLoadAllPlaces().then(setAllPl).catch(() => setAllPl([]));
+  }, [plInf]);
+  const places = plInf ? (allPl || []) : (nearPlaces || []).filter(p => p.dist <= km);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const favList = (people || []).filter(p => favs?.includes(p.id));
   const FavRow = ({ p }) => {
@@ -1218,9 +1251,12 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       </div>
 
       {/* luoghi vicini (chat pubbliche + eventi per luogo, in base al raggio) */}
-      {!ql && places.length > 0 && (
+      {!ql && (places.length > 0 || plInf || (nearPlaces || []).length >= 0) && (
         <div>
-          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Luoghi vicini</div>
+          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>{plInf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</span>
+            <button onClick={() => setPlInf(v => !v)} title="Tutti i luoghi, ovunque" style={{ width: 30, height: 30, borderRadius: 9, border: `1.5px solid ${plInf ? ACCENT : LINE}`, background: plInf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 15, fontWeight: 700, color: plInf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
+          </div>
           {places.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${LINE}` }}>
               <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -1663,7 +1699,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser }) {
   const mine = posts.filter(p => p.user === profile.name);
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1680,6 +1716,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
               {isAdmin && <button onClick={() => onBan && onBan(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${RED}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: RED }}>Ban</button>}
+              {isAdmin && <button onClick={() => onDeleteUser && onDeleteUser(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: RED, color: "#fff" }}>Elimina</button>}
               <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
             </div>
           </div>
@@ -2911,7 +2948,14 @@ export default function App() {
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
+    onDeleteUser={async u => {
+      if (!u.uid) { alert("Identificativo utente mancante."); return; }
+      if (!window.confirm(`ELIMINARE TOTALMENTE l'utente "${u.name}"?\nSpariranno account, post, messaggi, gruppi e notifiche. Irreversibile.`)) return;
+      if (!window.confirm("Seconda conferma: procedere davvero con l'eliminazione definitiva?")) return;
+      try { await sb.adminDeleteUser(u.uid); alert(`Utente "${u.name}" eliminato.`); setOverlay(null); setSocialTick(t => t + 1); loadFeed(); }
+      catch (e) { alert("Eliminazione non riuscita: " + (e?.message || e)); }
+    }} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
@@ -2984,7 +3028,15 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav}
+          onLoadAllPlaces={async () => {
+            const rows = await sb.searchCities("");
+            return rows.map(r => ({
+              id: "plr_" + r.city.trim().toLowerCase(), name: titleCase(r.city),
+              dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng })) : 0,
+              photos: r.count, users: [], events: 0,
+            })).sort((a, b) => a.dist - b.dist);
+          }} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
