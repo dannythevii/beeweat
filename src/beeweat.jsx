@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.6";
+const APP_VERSION = "2.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1181,17 +1181,18 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, onLoadAllPlaces }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, onLoadAllPlaces, contactDist }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
-  const list = contacts.filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
-  const [plInf, setPlInf] = useState(false);
+  const [inf, setInf] = useState(false);
   const [allPl, setAllPl] = useState(null);
   useEffect(() => {
-    if (plInf && allPl === null && onLoadAllPlaces) onLoadAllPlaces().then(setAllPl).catch(() => setAllPl([]));
-  }, [plInf]);
-  const places = plInf ? (allPl || []) : (nearPlaces || []).filter(p => p.dist <= km);
+    if (inf && allPl === null && onLoadAllPlaces) onLoadAllPlaces().then(setAllPl).catch(() => setAllPl([]));
+  }, [inf]);
+  const inRange = c => c.me || inf || (contactDist && contactDist[c.id] !== undefined && contactDist[c.id] <= km);
+  const list = contacts.filter(inRange).filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
+  const places = inf ? (allPl || []) : (nearPlaces || []).filter(p => p.dist <= km);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const favList = (people || []).filter(p => favs?.includes(p.id));
   const FavRow = ({ p }) => {
@@ -1245,18 +1246,16 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       <div style={{ padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: BODY, borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={17} color={TXT2} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca tra i contatti…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca tra i contatti…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
+          <button onClick={() => setInf(v => !v)} title="Utenti e luoghi di tutto il mondo" style={{ width: 32, height: 32, borderRadius: 9, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
         </div>
       </div>
 
       {/* luoghi vicini (chat pubbliche + eventi per luogo, in base al raggio) */}
-      {!ql && (places.length > 0 || plInf || (nearPlaces || []).length >= 0) && (
+      {!ql && (places.length > 0 || inf) && (
         <div>
-          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>{plInf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</span>
-            <button onClick={() => setPlInf(v => !v)} title="Tutti i luoghi, ovunque" style={{ width: 30, height: 30, borderRadius: 9, border: `1.5px solid ${plInf ? ACCENT : LINE}`, background: plInf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 15, fontWeight: 700, color: plInf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
-          </div>
+          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>{inf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</div>
           {places.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${LINE}` }}>
               <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -2226,7 +2225,7 @@ export default function App() {
   const [km, setKm] = useState(() => { try { const v = +localStorage.getItem("bw_km"); return v >= 1 && v <= 100 ? v : 10; } catch (_) { return 10; } });
   useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
-  const [events, setEvents] = useState(INITIAL_EVENTS);
+  const [events, setEvents] = useState([]);   // niente eventi demo: solo quelli reali degli utenti
   const [favs, setFavs] = useState([]);   // preferiti: si parte puliti, solo scelte reali
   const [contacts, setContacts] = useState([]);   // niente contatti demo: solo utenti reali
   const [groups, setGroups] = useState([]);
@@ -2664,6 +2663,18 @@ export default function App() {
     else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
     else if (!overlay?.user && !overlay?.place) setExtraPosts([]);
   }, [sb, overlay?.user?.uid, overlay?.place?.name]);
+  // distanza approssimata di ogni contatto: dal suo post più recente, o dalla sua città
+  const contactDist = useMemo(() => {
+    const m = {};
+    for (const p of allPosts) if (p.uid && (m[p.uid] === undefined || p.dist < m[p.uid])) m[p.uid] = p.dist;
+    const cityDist = {};
+    for (const pl of realPlaces) cityDist[pl.name.toLowerCase()] = pl.dist;
+    for (const c of contacts) {
+      if (m[c.id] === undefined && c.city && cityDist[c.city.toLowerCase()] !== undefined)
+        m[c.id] = cityDist[c.city.toLowerCase()];
+    }
+    return m;
+  }, [allPosts, realPlaces, contacts]);
   // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
   const allPosts = useMemo(() => {
     const ids = new Set(posts.map(p => p.id));
@@ -3028,7 +3039,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist}
           onLoadAllPlaces={async () => {
             const rows = await sb.searchCities("");
             return rows.map(r => ({
