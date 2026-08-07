@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.3";
+const APP_VERSION = "2.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -171,6 +171,19 @@ const playChime = () => {
       o.start(t + off); o.stop(t + off + 0.38);
     });
   } catch (_) {}
+};
+// Distanza (km) e direzione (gradi) tra due coordinate — matematica del grande cerchio
+const haversine = (a, b) => {
+  const R = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * R, dLng = (b.lng - a.lng) * R;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+};
+const bearingDeg = (a, b) => {
+  const R = Math.PI / 180;
+  const y = Math.sin((b.lng - a.lng) * R) * Math.cos(b.lat * R);
+  const x = Math.cos(a.lat * R) * Math.sin(b.lat * R) - Math.sin(a.lat * R) * Math.cos(b.lat * R) * Math.cos((b.lng - a.lng) * R);
+  return Math.round((Math.atan2(y, x) / R + 360) % 360);
 };
 // "capri" e "Capri" sono lo stesso posto: normalizzazione con iniziali maiuscole
 const titleCase = s => (s || "").trim().replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
@@ -789,7 +802,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
       </div>
 
       {/* DIDASCALIA troncata */}
-      {post.caption && <div style={{ fontSize: 14, color: TXT2, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{post.caption}</div>}
+      {post.caption && <div style={{ fontSize: 14, color: TXT2, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
     </div>
   );
 }
@@ -2028,13 +2041,21 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
 }
 
 // ─── RICERCA (persone, luoghi, eventi) ────────────────────────────────────────
-function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces }) {
+function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces, onRemotePlaces }) {
   const [q, setQ] = useState("");
+  const [remote, setRemote] = useState([]);
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
+  useEffect(() => {
+    if (!onRemotePlaces || q.trim().length < 3) { setRemote([]); return; }
+    const t = setTimeout(() => { onRemotePlaces(q.trim()).then(setRemote).catch(() => setRemote([])); }, 400);
+    return () => clearTimeout(t);
+  }, [q]);
   const ql = q.trim().toLowerCase();
   const match = s => s.toLowerCase().includes(ql);
-  const near = (nearPlaces || []).filter(p => p.dist <= km).filter(p => !ql || match(p.name));
+  const nearBase = (nearPlaces || []).filter(p => p.dist <= km);
+  const baseNames = new Set(nearBase.map(p => p.name.toLowerCase()));
+  const near = [...nearBase, ...remote.filter(r => !baseNames.has(r.name.toLowerCase()))].filter(p => !ql || match(p.name));
   const nearNames = new Set(near.map(p => p.name));
   const fp = people.filter(p => !ql || match(p.name) || match(p.city));
   const fpl = places.filter(c => !nearNames.has(c)).filter(c => !ql || match(c));
@@ -2600,6 +2621,12 @@ export default function App() {
     const rows = await sb.getPostsByCity(city);
     setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
   } catch (e) { console.warn("post città:", e?.message || e); } };
+  useEffect(() => {
+    if (!sb?.isConfigured) return;
+    if (overlay?.user?.uid) { setExtraPosts([]); loadUserPosts(overlay.user.uid); }
+    else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
+    else if (!overlay?.user && !overlay?.place) setExtraPosts([]);
+  }, [sb, overlay?.user?.uid, overlay?.place?.name]);
   // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
   const allPosts = useMemo(() => {
     const ids = new Set(posts.map(p => p.id));
@@ -2888,10 +2915,19 @@ export default function App() {
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
     return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}
+      onRemotePlaces={async qq => {
+        const rows = await sb.searchCities(qq);
+        return rows.map(r => ({
+          id: "plr_" + r.city.trim().toLowerCase(),
+          name: titleCase(r.city),
+          dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng })) : 0,
+          photos: r.count, users: [], events: 0,
+        }));
+      }}
       onClose={() => setOverlay(null)}
       onPerson={p => setOverlay({ chat: { id: "u_" + p.name, name: p.name, ava: p.ava } })}
       onEvent={e => setOverlay({ eventMap: e })}
