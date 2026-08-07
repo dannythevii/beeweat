@@ -333,6 +333,7 @@ const G = `
   .safe-top { padding-top: env(safe-area-inset-top, 0px); }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${TXT2}66; border-radius: 4px; }
+  #root, body { max-width: 100vw; overflow-x: hidden; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
   @keyframes pop { 0%{transform:scale(1)} 45%{transform:scale(1.55) rotate(-8deg)} 100%{transform:scale(1)} }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -2572,6 +2573,38 @@ export default function App() {
     const until = new Date(Date.now() + days * 86400000).toISOString();
     sb.banUser(profile.uid, until, reason).then(() => alert(`${profile.name} è stato bannato per ${days} giorni.`)).catch(e => alert("Errore: " + (e?.message || e)));
   };
+  // Post a lungo raggio (profili altrui e luoghi fuori dal feed)
+  const [extraPosts, setExtraPosts] = useState([]);
+  const mapRemoteRow = (r, auId) => {
+    const pr = r.profiles || {};
+    const dist = geo && r.lat != null ? haversine(geo, { lat: r.lat, lng: r.lng }) : 999;
+    return {
+      id: r.id, uid: r.user_id, user: pr.name || "Utente", ava: pr.avatar_url || null,
+      mine: !!auId && r.user_id === auId,
+      time: fmtPostTime(r.created_at), ts: r.created_at,
+      city: titleCase(r.city || pr.city || ""),
+      dist: Math.round(dist * 10) / 10,
+      bearing: geo && r.lat != null ? bearingDeg(geo, { lat: r.lat, lng: r.lng }) : 0,
+      img: r.image_url, caption: r.caption || "", cond: r.condition || "☀️ Sereno",
+      stars: r.stars_count || 0, starred: false, comments: r.comments_count || 0, views: r.views_count || 0,
+      camDir: r.cam_dir || null,
+    };
+  };
+  const loadUserPosts = async uid => { try {
+    const { data: { user: au } } = await sb.supabase.auth.getUser();
+    const rows = await sb.getPostsByUser(uid);
+    setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
+  } catch (e) { console.warn("post utente:", e?.message || e); } };
+  const loadCityPosts = async city => { try {
+    const { data: { user: au } } = await sb.supabase.auth.getUser();
+    const rows = await sb.getPostsByCity(city);
+    setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
+  } catch (e) { console.warn("post città:", e?.message || e); } };
+  // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
+  const allPosts = useMemo(() => {
+    const ids = new Set(posts.map(p => p.id));
+    return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
+  }, [posts, extraPosts]);
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
   const saveEdit = ({ caption, cond }) => {
@@ -2851,11 +2884,11 @@ export default function App() {
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={posts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)} />);
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={posts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name, ava: u.ava, city: overlay.place.name }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
     return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}

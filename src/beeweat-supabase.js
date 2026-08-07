@@ -10,6 +10,39 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Lungo raggio: post di un utente / di una città, ovunque nel mondo ────────
+export async function getPostsByUser(userId, limit = 30) {
+  const { data, error } = await supabase.from("posts")
+    .select("*, profiles(name, avatar_url, city)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+export async function getPostsByCity(city, limit = 30) {
+  const { data, error } = await supabase.from("posts")
+    .select("*, profiles(name, avatar_url, city)")
+    .ilike("city", city)
+    .order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+export async function searchCities(q, limit = 60) {
+  const { data, error } = await supabase.from("posts")
+    .select("city, lat, lng")
+    .ilike("city", "%" + q + "%")
+    .order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  const seen = {};
+  for (const r of data || []) {
+    const k = (r.city || "").trim().toLowerCase();
+    if (!k) continue;
+    if (!seen[k]) seen[k] = { city: r.city, lat: r.lat, lng: r.lng, count: 0 };
+    seen[k].count++;
+  }
+  return Object.values(seen);
+}
+
 // ── Modifica post (autore o amministratore) ──────────────────────────────────
 export async function updatePost(postId, { caption, condition }) {
   const patch = {};
