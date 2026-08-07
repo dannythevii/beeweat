@@ -11,21 +11,28 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── Lungo raggio: post di un utente / di una città, ovunque nel mondo ────────
+async function attachProfiles(rows) {
+  const ids = [...new Set((rows || []).map(r => r.user_id))];
+  if (ids.length) {
+    const { data: profs } = await supabase.from("profiles").select("id, name, avatar_url, city").in("id", ids);
+    const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    (rows || []).forEach(r => { r.profiles = pm[r.user_id] || null; });
+  }
+  return rows || [];
+}
 export async function getPostsByUser(userId, limit = 30) {
   const { data, error } = await supabase.from("posts")
-    .select("*, profiles(name, avatar_url, city)")
-    .eq("user_id", userId)
+    .select("*").eq("user_id", userId)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return data || [];
+  return attachProfiles(data);
 }
 export async function getPostsByCity(city, limit = 30) {
   const { data, error } = await supabase.from("posts")
-    .select("*, profiles(name, avatar_url, city)")
-    .ilike("city", city)
+    .select("*").ilike("city", city)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return data || [];
+  return attachProfiles(data);
 }
 export async function searchCities(q, limit = 60) {
   const { data, error } = await supabase.from("posts")
