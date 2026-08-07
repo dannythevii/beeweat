@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.7";
+const APP_VERSION = "2.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2663,6 +2663,11 @@ export default function App() {
     else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
     else if (!overlay?.user && !overlay?.place) setExtraPosts([]);
   }, [sb, overlay?.user?.uid, overlay?.place?.name]);
+  // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
+  const allPosts = useMemo(() => {
+    const ids = new Set(posts.map(p => p.id));
+    return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
+  }, [posts, extraPosts]);
   // distanza approssimata di ogni contatto: dal suo post più recente, o dalla sua città
   const contactDist = useMemo(() => {
     const m = {};
@@ -2675,11 +2680,6 @@ export default function App() {
     }
     return m;
   }, [allPosts, realPlaces, contacts]);
-  // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
-  const allPosts = useMemo(() => {
-    const ids = new Set(posts.map(p => p.id));
-    return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
-  }, [posts, extraPosts]);
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
   const saveEdit = ({ caption, cond }) => {
