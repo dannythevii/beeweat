@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.9";
+const APP_VERSION = "3.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -521,7 +521,7 @@ function AuthScreen({ onLogin, sb }) {
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 6 }}>Reimposta la password</div>
             <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Inserisci l'email del tuo account: ti invieremo un link sicuro per reimpostare la password.</div>
             <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none", marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
-            <button onClick={() => { if (recoverEmail.trim()) setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
+            <button onClick={async () => { if (!recoverEmail.trim()) return; try { if (sb?.isConfigured) await sb.resetPassword(recoverEmail.trim()); } catch (_) {} setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
           </>
         ) : (
           <>
@@ -1123,7 +1123,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
+function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const [fCity, setFCity] = useState("Tutte");
@@ -1156,7 +1156,7 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
         <input type="range" min={1} max={100} value={evKm} disabled={inf} onChange={e => setEvKm(+e.target.value)} style={{ flex: 1, accentColor: ACCENT, opacity: inf ? .35 : 1 }} />
         <span style={{ fontSize: 12.5, fontWeight: 700, color: inf ? TXT2 : HBLUE, minWidth: 56, textAlign: "right" }}>{inf ? "mondo" : evKm + " km"}</span>
-        <button onClick={() => setInf(v => !v)} title="Tutti gli eventi, ovunque" style={{ width: 34, height: 34, borderRadius: 10, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
+        <button onClick={() => setInf(v => !v)} title="Tutti gli eventi, ovunque" style={{ height: 32, padding: "0 11px", borderRadius: 10, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
       </div>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</div>
       {visible.map(e => (
@@ -1169,7 +1169,7 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
               <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
             </div>
             <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
-            {(isAdmin || e.user === userName) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
+            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           </div>
           {/* terzo rigo: localizzazione (tocca per la mappa) */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "9px 10px", background: HBLUE + "0E", borderRadius: 10 }}>
@@ -1494,7 +1494,7 @@ function CameraView({ onPost, onBack }) {
     try {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setErr({ kind: "unsupported", msg: "La fotocamera non è disponibile in questo contesto (richiede una connessione sicura HTTPS)." });
+        setErr({ kind: "unsupported", msg: "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri beeweat.vercel.app direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\")." });
         return;
       }
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
@@ -1507,7 +1507,15 @@ function CameraView({ onPost, onBack }) {
         setTorchAvail(!!caps.torch);
       } catch (_) { setZoomCaps(null); setTorchAvail(false); }
     } catch (e) {
-      const n = e && e.name;
+      const name = e?.name || "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError")
+        setErr({ kind: "denied", msg: "Permesso fotocamera negato (ora o in passato). Riattivalo: icona 🔒 nella barra dell'indirizzo → Autorizzazioni → Fotocamera → Consenti. Su iPhone: Impostazioni → Safari → Fotocamera → Consenti." });
+      else if (name === "NotFoundError")
+        setErr({ kind: "nocam", msg: "Nessuna fotocamera trovata su questo dispositivo." });
+      else if (name === "NotReadableError")
+        setErr({ kind: "busy", msg: "La fotocamera è occupata da un'altra app: chiudila e riprova." });
+      else
+        setErr({ kind: "err", msg: "Fotocamera non avviabile: " + (e?.message || name || "errore sconosciuto") });
       if (n === "NotAllowedError" || n === "SecurityError") setErr({ kind: "denied", msg: "Accesso alla fotocamera negato o bloccato." });
       else if (n === "NotFoundError" || n === "OverconstrainedError") setErr({ kind: "notfound", msg: "Nessuna fotocamera disponibile su questo dispositivo." });
       else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
@@ -2573,6 +2581,21 @@ export default function App() {
   const unreadCount = alerts.filter(a => !a.read).length;
   // Amministratore Beeweat? (colonna is_admin sul profilo)
   const [isAdmin, setIsAdmin] = useState(false);
+  const [myUid, setMyUid] = useState(null);
+  useEffect(() => { if (sb?.isConfigured && user) sb.supabase.auth.getUser().then(({ data }) => setMyUid(data?.user?.id || null)); }, [sb, user]);
+  useEffect(() => {
+    if (!sb?.isConfigured) return;
+    const { data: sub } = sb.supabase.auth.onAuthStateChange(ev => {
+      if (ev === "PASSWORD_RECOVERY") {
+        const p = window.prompt("Link di reimpostazione riconosciuto 🐝\nScegli la NUOVA password (minimo 6 caratteri):");
+        if (p && p.length >= 6) sb.supabase.auth.updateUser({ password: p })
+          .then(() => alert("Password aggiornata ✓ D'ora in poi accedi con quella nuova."))
+          .catch(e => alert("Aggiornamento non riuscito: " + (e?.message || e)));
+        else if (p !== null) alert("Password troppo corta: riapri il link e riprova.");
+      }
+    });
+    return () => sub?.subscription?.unsubscribe();
+  }, [sb]);
   useEffect(() => {
     if (!sb?.isConfigured || !user) { setIsAdmin(false); return; }
     (async () => { try {
@@ -2676,6 +2699,19 @@ export default function App() {
     const ids = new Set(posts.map(p => p.id));
     return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
   }, [posts, extraPosts]);
+  // Eventi reali dal database (persistenti e condivisi)
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    (async () => { try {
+      const rows = await sb.getEvents();
+      setEvents(rows.map(r => ({
+        id: r.id, uid: r.user_id, user: r.profiles?.name || "Utente", ava: r.profiles?.avatar_url || null,
+        type: r.type, cat: r.cat, title: r.title, place: r.place, sev: r.sev,
+        lat: r.lat, lng: r.lng, ends: r.ends, time: fmtPostTime(r.created_at),
+        dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng }) * 10) / 10 : 999,
+      })));
+    } catch (e) { console.warn("eventi:", e?.message || e); } })();
+  }, [sb, user, socialTick, geoKey]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
   const [worldPlaces, setWorldPlaces] = useState(null);
@@ -2929,25 +2965,37 @@ export default function App() {
     const e = editEventTarget; setEditEventTarget(null);
     if (!e) return;
     setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ...patch } : x));
+    const onDb = sb?.isConfigured && typeof e.id === "string" && e.id.includes("-");
+    let coords = null;
     if (patch.place && patch.place.trim().toLowerCase() !== (e.place || "").trim().toLowerCase()) {
-      const c = await geocodeCity(patch.place);                      // città cambiata → nuove coordinate
-      if (c) setEvents(ev => ev.map(x => x.id === e.id ? { ...x, lat: c.lat, lng: c.lng, dist: geo ? Math.round(haversine(geo, c) * 10) / 10 : x.dist } : x));
+      coords = await geocodeCity(patch.place);                       // città cambiata → nuove coordinate
+      if (coords) setEvents(ev => ev.map(x => x.id === e.id ? { ...x, lat: coords.lat, lng: coords.lng, dist: geo ? Math.round(haversine(geo, coords) * 10) / 10 : x.dist } : x));
     }
+    if (onDb) sb.updateEvent(e.id, { ...patch, ...(coords ? { lat: coords.lat, lng: coords.lng } : {}) })
+      .catch(err => { alert("Modifica non salvata: " + (err?.message || err)); setSocialTick(t => t + 1); });
   };
   const doDeleteEvent = () => {
     const e = editEventTarget; setEditEventTarget(null);
     if (!e) return;
     setEvents(ev => ev.filter(x => x.id !== e.id));
+    if (sb?.isConfigured && typeof e.id === "string" && e.id.includes("-"))
+      sb.deleteEvent(e.id).catch(err => { alert("Eliminazione non riuscita: " + (err?.message || err)); setSocialTick(t => t + 1); });
   };
   const addEvent = async e => {
-    const id = nextId; setNextId(n => n + 1); setOverlay(null);
+    setOverlay(null);
     let ee = { ...e };
     if (ee.place && locName && ee.place.trim().toLowerCase() !== locName.trim().toLowerCase()) {
       const c = await geocodeCity(ee.place);                         // città diversa da qui → coordinate della città
       if (c) { ee.lat = c.lat; ee.lng = c.lng; }
     }
+    if (sb?.isConfigured) {
+      try { await sb.createEvent(ee); setSocialTick(t => t + 1); }
+      catch (err) { alert("Evento non salvato: " + (err?.message || err)); }
+      return;
+    }
+    const id = nextId; setNextId(n => n + 1);
     const dist = geo && ee.lat != null ? Math.round(haversine(geo, { lat: ee.lat, lng: ee.lng }) * 10) / 10 : 1;
-    setEvents(ev => [{ id, dist, time: "adesso", ava: user.avatar, ...ee, dist }, ...ev]);
+    setEvents(ev => [{ id, dist, time: "adesso", ava: user.avatar, ...ee }, ...ev]);
   };
 
   if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
@@ -3072,7 +3120,7 @@ export default function App() {
         {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} worldOn={contactsWorld} onToggleWorld={() => setContactsWorld(v => !v)} worldPlaces={worldPlaces} />}
       </div>
 

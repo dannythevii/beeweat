@@ -10,6 +10,35 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Eventi (persistenti e condivisi) ─────────────────────────────────────────
+export async function getEvents(limit = 200) {
+  const { data, error } = await supabase.from("events")
+    .select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return attachProfiles(data || []);
+}
+export async function createEvent(ev) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("events").insert({
+    user_id: user.id, type: ev.type ?? null, cat: ev.cat ?? null, title: ev.title,
+    place: ev.place ?? null, sev: ev.sev ?? null, lat: ev.lat ?? null, lng: ev.lng ?? null,
+    ends: ev.ends ?? null,
+  }).select().single();
+  if (error) throw error; return data;
+}
+export async function updateEvent(id, patch) {
+  const allowed = {};
+  for (const k of ["type", "cat", "title", "place", "sev", "lat", "lng", "ends"])
+    if (patch[k] !== undefined) allowed[k] = patch[k];
+  const { error } = await supabase.from("events").update(allowed).eq("id", id);
+  if (error) throw error;
+}
+export async function deleteEvent(id) {
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ── Lungo raggio: post di un utente / di una città, ovunque nel mondo ────────
 async function attachProfiles(rows) {
   const ids = [...new Set((rows || []).map(r => r.user_id))];
@@ -369,7 +398,7 @@ export async function loginSocial(provider) {
 // Recupero password: invia l'email con il link sicuro (gestito da Supabase)
 export async function resetPassword(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: "https://IL-TUO-SITO/reset", // pagina dove l'utente imposta la nuova password
+    redirectTo: window.location.origin, // il link riporta all'app, che chiede la nuova password
   });
   if (error) throw error;
   return true;
@@ -458,18 +487,6 @@ export async function toggleStar(postId) {
 }
 
 // ============================================================================
-// EVENTI
-// ============================================================================
-export async function createEvent({ type, category, title, place, lat, lng, severity = "Media" }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Utente non autenticato");
-  const { data, error } = await supabase.from("events").insert({
-    user_id: user.id, type, category, title, place, lat, lng, severity,
-  }).select().single();
-  if (error) throw error;
-  return data;
-}
-
 export async function getEventsNearby({ lat, lng, radiusKm = 10 }) {
   // Esempio: filtro lato client se non crei una funzione dedicata.
   const { data, error } = await supabase.from("events").select("*").order("created_at", { ascending: false });
