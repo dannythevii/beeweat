@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.1";
+const APP_VERSION = "3.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -356,6 +356,7 @@ const G = `
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${TXT2}66; border-radius: 4px; }
   #root, body { max-width: 100vw; overflow-x: hidden; }
+  html, body { touch-action: pan-x pan-y; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
   @keyframes pop { 0%{transform:scale(1)} 45%{transform:scale(1.55) rotate(-8deg)} 100%{transform:scale(1)} }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -1792,7 +1793,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   const [title, setTitle] = useState("");
   const [place, setPlace] = useState(locName || user.city);
   const [sev, setSev] = useState("Media");
-  const [ends, setEnds] = useState(new Date().toISOString().slice(0, 10));   // scadenza: default oggi
+  const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));   // scadenza consigliata: un mese
   const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
   useEffect(() => { if (geo && !coords) setCoords({ lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) }); }, [geo]);   // posizione viva, subito
@@ -2568,6 +2569,13 @@ export default function App() {
     return () => { document.removeEventListener("visibilitychange", refreshA); clearInterval(ivA); try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   useEffect(() => {
+    const noZoom = e => e.preventDefault();
+    document.addEventListener("gesturestart", noZoom);           // pinch su iOS
+    const noPinch = e => { if (e.touches && e.touches.length > 1) e.preventDefault(); };
+    document.addEventListener("touchmove", noPinch, { passive: false });
+    return () => { document.removeEventListener("gesturestart", noZoom); document.removeEventListener("touchmove", noPinch); };
+  }, []);
+  useEffect(() => {
     const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind, e.data.from || null); };
     if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", h);
     try {
@@ -2911,7 +2919,7 @@ export default function App() {
     }
   };
   const chatUnsubRef = useRef(null);
-  const fmtTime = ts => new Date(ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const fmtTime = ts => fmtPostTime(ts);   // nelle chat: "oggi · 16:37", "ieri · 09:12", "31/07 · 18:45"
   const openChatFromPost = (post, back) => {
     const id = "post_" + post.id;
     const isReal = sb?.isConfigured && typeof post.id === "string" && post.id.includes("-");

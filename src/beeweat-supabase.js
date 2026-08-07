@@ -377,7 +377,14 @@ export async function registerEmail({ email, password, name, city }) {
     email, password,
     options: { data: { name, city } },
   });
-  if (error) throw error;
+  if (error) {
+    if (/already|registered|exists/i.test(error.message || ""))
+      throw new Error("Esiste già un account con questa email. Accedi, oppure usa \"Password dimenticata?\".");
+    throw error;
+  }
+  // con la conferma email attiva, Supabase non svela le email esistenti: le riconosciamo così
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+    throw new Error("Esiste già un account con questa email. Accedi, oppure usa \"Password dimenticata?\".");
   return data.user;
 }
 
