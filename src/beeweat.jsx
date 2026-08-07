@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.4";
+const APP_VERSION = "3.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1561,7 +1561,7 @@ function CameraView({ onPost, onBack }) {
       if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
       setAi(v);
       if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
-    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi(null); } });
+    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi({ error: true }); } });
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
   const [saved, setSaved] = useState(false);
@@ -1581,8 +1581,13 @@ function CameraView({ onPost, onBack }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || ai?.block || ai?.checking) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
-  const AiChip = () => !ai ? null : (
+  const publish = () => { if (!captured || !ai || ai.block || ai.checking || ai.error) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const AiChip = () => !ai ? null : ai.error ? (
+    <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
+      <span>Occhi AI non raggiungibili (serve la rete per il primo caricamento dei modelli). <b>Tocca qui per riprovare</b> — senza analisi la foto non può essere pubblicata.</span>
+    </div>
+  ) : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? HBLUE + "0E" : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? HBLUE : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HBLUE + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>{ai.checking ? "🐝" : ai.block ? "🚫" : "✅"}</span>
       <span>{ai.checking ? "Gli occhi dell'alveare stanno guardando la foto…" : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
@@ -1662,7 +1667,7 @@ function CameraView({ onPost, onBack }) {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || ai?.block || ai?.checking} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: ai?.block ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: ai?.block ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.block ? "Non pubblicabile" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || ai.error} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
