@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.2";
+const APP_VERSION = "3.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -264,6 +264,25 @@ const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "
 // scene da esterno riconosciute da MobileNet: cieli, mare, orizzonti, paesaggi
 const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef/i;
 
+// Frazione di pelle nell'inquadratura (firma cromatica degli incarnati)
+const skinRatio = canvas => {
+  try {
+    const w = 64, h = 64, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let skin = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      n++;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (r > 95 && g > 40 && b > 20 && mx - mn > 15 && Math.abs(r - g) > 15 && r > g && r > b) skin++;
+    }
+    return skin / n;
+  } catch (_) { return 0; }
+};
+
 const analyzePhoto = async canvas => {
   const { detector, nsfw, scenes } = await loadAIModels();
   const [dets, nsfwRes, preds] = await Promise.all([
@@ -274,6 +293,8 @@ const analyzePhoto = async canvas => {
                      .reduce((sm, x) => sm + x.probability, 0);
   if (bad > 0.6) return { block: true, reason: "Contenuto non adatto rilevato. Beeweat è per il cielo. 🌤️", cls: "nsfw", score: Math.round(bad * 100) / 100 };
   if (person) return { block: true, reason: "Persona rilevata nella foto: per la privacy, inquadra solo cielo e paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
+  const skin = skinRatio(canvas);
+  if (skin > 0.28) return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
   // È davvero una foto del cielo/paesaggio?
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
@@ -2758,7 +2779,9 @@ export default function App() {
   const doDeletePost = p => {
     setPosts(ps => ps.filter(x => x.id !== p.id));
     if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
-      sb.deletePost(p.id).catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+      sb.deletePost(p).then(() => loadFeed())
+        .catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+    else if (sb?.isConfigured) setTimeout(loadFeed, 800);   // post appena creato (id provvisorio): riallineo col database
   };
   // Cancellazione post (autore o admin)
   const deletePost = post => {
