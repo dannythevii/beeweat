@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.3";
+const APP_VERSION = "3.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1596,6 +1596,18 @@ function CameraView({ onPost, onBack }) {
           {!captured ? <>
             <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative", aspectRatio: format === "pano" ? "21 / 9" : format === "wide" ? "16 / 9" : undefined }}>
               <video ref={videoRef} playsInline muted style={{ width: "100%", height: format === "std" ? undefined : "100%", maxHeight: 360, objectFit: "cover", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
+              {streaming && (
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center", gap: 8, zIndex: 5 }}>
+                  {[1, 2, 3, ...(maxZoom >= 5 ? [5] : [])].map(zv => {
+                    const on = Math.abs(zoom - zv) < 0.2;
+                    return (
+                      <button key={zv} onClick={() => applyZoom(zv)} style={{ minWidth: 40, height: 32, padding: "0 10px", borderRadius: 16, border: "none", cursor: "pointer", background: on ? "rgba(20,28,40,.78)" : "rgba(20,28,40,.42)", color: on ? ACCENT : "#fff", fontWeight: 700, fontSize: on ? 13.5 : 12, fontFamily: "'Space Grotesk',sans-serif", backdropFilter: "blur(4px)" }}>
+                        {zv}{on ? "×" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {grid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {[1, 2].map(i => <div key={"v" + i} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 33.33}%`, width: 1, background: "rgba(255,255,255,.5)" }} />)}
                 {[1, 2].map(i => <div key={"h" + i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 33.33}%`, height: 1, background: "rgba(255,255,255,.5)" }} />)}
