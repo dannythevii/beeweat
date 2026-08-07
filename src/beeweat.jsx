@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "2.8";
+const APP_VERSION = "2.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -187,6 +187,15 @@ const bearingDeg = (a, b) => {
 };
 // "capri" e "Capri" sono lo stesso posto: normalizzazione con iniziali maiuscole
 const titleCase = s => (s || "").trim().replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+// Geocodifica diretta: nome città → coordinate (Open-Meteo, gratuita senza chiavi)
+const geocodeCity = async name => {
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=it&format=json`);
+    const j = await r.json();
+    const g = j?.results?.[0];
+    return g ? { lat: g.latitude, lng: g.longitude } : null;
+  } catch (_) { return null; }
+};
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
 
@@ -1181,18 +1190,17 @@ function EventiScreen({ events, km, onOpen, userName, isAdmin, onEditEnds }) {
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, onLoadAllPlaces, contactDist }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
-  const [inf, setInf] = useState(false);
-  const [allPl, setAllPl] = useState(null);
-  useEffect(() => {
-    if (inf && allPl === null && onLoadAllPlaces) onLoadAllPlaces().then(setAllPl).catch(() => setAllPl([]));
-  }, [inf]);
+  const inf = !!worldOn;
   const inRange = c => c.me || inf || (contactDist && contactDist[c.id] !== undefined && contactDist[c.id] <= km);
-  const list = contacts.filter(inRange).filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql));
-  const places = inf ? (allPl || []) : (nearPlaces || []).filter(p => p.dist <= km);
+  const list = contacts.filter(inRange)
+    .filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql))
+    .slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) || a.name.localeCompare(b.name, "it"));
+  const places = (inf ? (worldPlaces || []) : (nearPlaces || []).filter(p => p.dist <= km))
+    .slice().sort((a, b) => inf ? a.name.localeCompare(b.name, "it") : a.dist - b.dist);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const favList = (people || []).filter(p => favs?.includes(p.id));
   const FavRow = ({ p }) => {
@@ -1243,12 +1251,12 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       ) : (
         <>
       {/* campo cerca contatti */}
-      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${LINE}`, position: "sticky", top: 0, zIndex: 30, background: "#fff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: BODY, borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={17} color={TXT2} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca tra i contatti…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
-          <button onClick={() => setInf(v => !v)} title="Utenti e luoghi di tutto il mondo" style={{ width: 32, height: 32, borderRadius: 9, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "'Space Grotesk',sans-serif" }}>∞</button>
+          <button onClick={onToggleWorld} title="Utenti e luoghi di tutto il mondo" style={{ height: 30, padding: "0 11px", borderRadius: 9, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
         </div>
       </div>
 
@@ -2668,6 +2676,19 @@ export default function App() {
     const ids = new Set(posts.map(p => p.id));
     return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
   }, [posts, extraPosts]);
+  // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
+  const [contactsWorld, setContactsWorld] = useState(false);
+  const [worldPlaces, setWorldPlaces] = useState(null);
+  useEffect(() => { if (tab !== "contatti") setContactsWorld(false); }, [tab]);
+  useEffect(() => {
+    if (contactsWorld && worldPlaces === null && sb?.isConfigured) {
+      sb.searchCities("").then(rows => setWorldPlaces(rows.map(r => ({
+        id: "plr_" + r.city.trim().toLowerCase(), name: titleCase(r.city),
+        dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng })) : 0,
+        photos: r.count, users: [], events: 0,
+      })))).catch(() => setWorldPlaces([]));
+    }
+  }, [contactsWorld, sb]);
   // distanza approssimata di ogni contatto: dal suo post più recente, o dalla sua città
   const contactDist = useMemo(() => {
     const m = {};
@@ -2904,17 +2925,30 @@ export default function App() {
     }
   };
   const [editEventTarget, setEditEventTarget] = useState(null);
-  const saveEventEdit = patch => {
+  const saveEventEdit = async patch => {
     const e = editEventTarget; setEditEventTarget(null);
     if (!e) return;
     setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ...patch } : x));
+    if (patch.place && patch.place.trim().toLowerCase() !== (e.place || "").trim().toLowerCase()) {
+      const c = await geocodeCity(patch.place);                      // città cambiata → nuove coordinate
+      if (c) setEvents(ev => ev.map(x => x.id === e.id ? { ...x, lat: c.lat, lng: c.lng, dist: geo ? Math.round(haversine(geo, c) * 10) / 10 : x.dist } : x));
+    }
   };
   const doDeleteEvent = () => {
     const e = editEventTarget; setEditEventTarget(null);
     if (!e) return;
     setEvents(ev => ev.filter(x => x.id !== e.id));
   };
-  const addEvent = e => { setEvents(ev => [{ id: nextId, dist: 1, time: "adesso", ava: user.avatar, ...e }, ...ev]); setNextId(n => n + 1); setOverlay(null); };
+  const addEvent = async e => {
+    const id = nextId; setNextId(n => n + 1); setOverlay(null);
+    let ee = { ...e };
+    if (ee.place && locName && ee.place.trim().toLowerCase() !== locName.trim().toLowerCase()) {
+      const c = await geocodeCity(ee.place);                         // città diversa da qui → coordinate della città
+      if (c) { ee.lat = c.lat; ee.lng = c.lng; }
+    }
+    const dist = geo && ee.lat != null ? Math.round(haversine(geo, { lat: ee.lat, lng: ee.lng }) * 10) / 10 : 1;
+    setEvents(ev => [{ id, dist, time: "adesso", ava: user.avatar, ...ee, dist }, ...ev]);
+  };
 
   if (!user) return <Frame><AuthScreen sb={sb} onLogin={u => setUser({ ...u, mine: true, avatar: "🌤️" })} /></Frame>;
   if (banInfo) return (
@@ -3039,15 +3073,7 @@ export default function App() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist}
-          onLoadAllPlaces={async () => {
-            const rows = await sb.searchCities("");
-            return rows.map(r => ({
-              id: "plr_" + r.city.trim().toLowerCase(), name: titleCase(r.city),
-              dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng })) : 0,
-              photos: r.count, users: [], events: 0,
-            })).sort((a, b) => a.dist - b.dist);
-          }} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} worldOn={contactsWorld} onToggleWorld={() => setContactsWorld(v => !v)} worldPlaces={worldPlaces} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
