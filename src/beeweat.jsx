@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.8";
+const APP_VERSION = "3.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1607,10 +1607,10 @@ function CameraView({ onPost, onBack }) {
         <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza. 🐝</div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
-        <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#cdd", minHeight: 280, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
+        <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#0B1524", minHeight: format === "std" ? 280 : undefined, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
             <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative", aspectRatio: format === "pano" ? "21 / 9" : format === "wide" ? "16 / 9" : undefined }}>
-              <video ref={videoRef} playsInline muted style={{ width: "100%", height: format === "std" ? undefined : "100%", maxHeight: 360, objectFit: "cover", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
+              <video ref={videoRef} playsInline muted style={{ width: "100%", height: format === "std" ? undefined : "100%", maxHeight: format === "std" ? 360 : undefined, objectFit: "cover", display: "block", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
               {streaming && (
                 <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center", gap: 8, zIndex: 5 }}>
                   {[1, 2, 3, ...(maxZoom >= 5 ? [5] : [])].map(zv => {
