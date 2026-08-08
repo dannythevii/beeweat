@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.1";
+const APP_VERSION = "4.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -286,8 +286,17 @@ const skinRatio = canvas => {
   } catch (_) { return 0; }
 };
 
-const analyzePhoto = async canvas => {
+const analyzePhoto = async fullCanvas => {
   const { detector, nsfw, scenes } = await loadAIModels();
+  // miniatura di analisi: 384px bastano ai modelli, e i tempi crollano
+  const MAXW = 384;
+  let canvas = fullCanvas;
+  if (fullCanvas.width > MAXW) {
+    const k = MAXW / fullCanvas.width;
+    canvas = document.createElement("canvas");
+    canvas.width = MAXW; canvas.height = Math.max(1, Math.round(fullCanvas.height * k));
+    canvas.getContext("2d").drawImage(fullCanvas, 0, 0, canvas.width, canvas.height);
+  }
   const [dets, nsfwRes, preds] = await Promise.all([
     detector.detect(canvas), nsfw.classify(canvas), scenes.classify(canvas, 7),
   ]);
@@ -1578,6 +1587,7 @@ function CameraView({ onPost, onBack }) {
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
     try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (_) {}
+    loadAIModels().catch(() => {});   // pre-riscaldamento: gli occhi AI si preparano mentre inquadri
     return () => { try { screen.orientation?.unlock?.(); } catch (_) {} };
   }, []);
   const [saved, setSaved] = useState(false);
