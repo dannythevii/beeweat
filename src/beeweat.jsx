@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.0";
+const APP_VERSION = "4.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1554,7 +1554,9 @@ function CameraView({ onPost, onBack }) {
     }
   }, [facing]);
   useEffect(() => { start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing]);
+  const [flash, setFlash] = useState(false);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
+    setFlash(true); setTimeout(() => setFlash(false), 140);
     const dz = zoomCaps ? 1 : zoom;               // zoom digitale: ritaglio reale del fotogramma
     let sw = v.videoWidth / dz, sh = v.videoHeight / dz;
     const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
@@ -1610,6 +1612,7 @@ function CameraView({ onPost, onBack }) {
   return (
     <>
       <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: "#fff", opacity: .85, pointerEvents: "none" }} />}
       <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
         <span style={{ fontSize: 44 }}>📱</span>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
@@ -1677,7 +1680,7 @@ function CameraView({ onPost, onBack }) {
           {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
             <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
             {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : HBLUE} sw={1.7} /></button>}
-            {streaming && <button onClick={capture} style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55` }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
+            {streaming && <button onPointerDown={e => { e.preventDefault(); capture(); }} style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55`, touchAction: "none" }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
             {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
