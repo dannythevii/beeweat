@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.6";
+const APP_VERSION = "3.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2567,6 +2567,7 @@ export default function App() {
   const pendingNotifRef = useRef(null);
   const routeNotifTap = (kind, from) => {
     if (!user) { pendingNotifRef.current = { kind, from }; return; }
+    if (kind === "nudge") { setOverlay("post"); return; }        // il verso del poeta apre la fotocamera
     if (kind === "direct" && from) {
       openDirectChat({ id: from, name: nameOf(from), ava: (contacts.find(c => c.id === from) || {}).ava || null });
       return;
@@ -2833,6 +2834,7 @@ export default function App() {
   const openAlertChat = a => {
     markAlertRead(a);
     if (a.type === "alert") { setOverlay(null); setTab("beecast"); return; }
+    if (a.type === "nudge") { setOverlay("post"); return; }
     if (a.type === "follow" && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); if (c) setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -3074,10 +3076,12 @@ export default function App() {
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
         : alerts.map(a => (
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: a.type === "alert" ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "nudge" ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14.5, color: TXT }}>{a.type === "alert"
                 ? <b style={{ color: HBLUE }}>Allerta BeeCast</b>
+                : a.type === "nudge"
+                ? <b style={{ color: HBLUE }}>Il cielo ti chiama</b>
                 : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : "ti ha scritto"}</>}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
