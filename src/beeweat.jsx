@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.7";
+const APP_VERSION = "3.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -378,6 +378,7 @@ const G = `
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${TXT2}66; border-radius: 4px; }
   #root, body { max-width: 100vw; overflow-x: hidden; }
   html, body { touch-action: pan-x pan-y; }
+  @media (orientation: landscape) and (max-height: 520px) { .bw-rotate-guard { display: flex !important; } }
   @keyframes fadeUp { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
   @keyframes pop { 0%{transform:scale(1)} 45%{transform:scale(1.55) rotate(-8deg)} 100%{transform:scale(1)} }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -1148,20 +1149,20 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
-  const [fCity, setFCity] = useState("Tutte");
-  const [fUser, setFUser] = useState("Tutti");
-  const [fCat, setFCat] = useState("Tutte");
+  const [fCity, setFCity] = useState("Luogo");
+  const [fUser, setFUser] = useState("Ape");
+  const [fCat, setFCat] = useState("Evento");
   const [evKm, setEvKm] = useState(km);
   const [inf, setInf] = useState(false);
   const alive = events.filter(e => !e.ends || e.ends >= today);
-  const cities = ["Tutte", ...new Set(alive.map(e => e.place).filter(Boolean))];
-  const users = ["Tutti", ...new Set(alive.map(e => e.user).filter(Boolean))];
-  const cats = ["Tutte", ...new Set(alive.map(e => e.cat).filter(Boolean))];
+  const cities = ["Luogo", ...new Set(alive.map(e => e.place).filter(Boolean))];
+  const users = ["Ape", ...new Set(alive.map(e => e.user).filter(Boolean))];
+  const cats = ["Evento", ...new Set(alive.map(e => e.cat).filter(Boolean))];
   const visible = alive.filter(e =>
     (inf || e.dist <= evKm) &&
-    (fCity === "Tutte" || e.place === fCity) &&
-    (fUser === "Tutti" || e.user === fUser) &&
-    (fCat === "Tutte" || e.cat === fCat));
+    (fCity === "Luogo" || e.place === fCity) &&
+    (fUser === "Ape" || e.user === fUser) &&
+    (fCat === "Evento" || e.cat === fCat));
   const FSel = ({ v, set, opts }) => (
     <select value={v} onChange={e => set(e.target.value)} style={{ flex: 1, minWidth: 0, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 10, padding: "8px 8px", fontSize: 12.5, color: TXT, outline: "none", fontFamily: "'Sora',sans-serif" }}>
       {opts.map(o => <option key={o}>{o}</option>)}
@@ -1564,6 +1565,10 @@ function CameraView({ onPost, onBack }) {
     }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi({ error: true }); } });
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
+  useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
+    try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (_) {}
+    return () => { try { screen.orientation?.unlock?.(); } catch (_) {} };
+  }, []);
   const [saved, setSaved] = useState(false);
   const savePhoto = async () => {
     try {
@@ -1596,6 +1601,11 @@ function CameraView({ onPost, onBack }) {
   return (
     <>
       <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
+        <span style={{ fontSize: 44 }}>📱</span>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
+        <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza. 🐝</div>
+      </div>
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#cdd", minHeight: 280, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
@@ -3154,7 +3164,11 @@ export default function App() {
   );
 
   function wrap(content) {
-    return <Frame>{content}{reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}</Frame>;
+    return <Frame>{content}
+      {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} />}
+      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
+    </Frame>;
   }
 
   return (
