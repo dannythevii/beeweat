@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "3.9";
+const APP_VERSION = "4.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -262,7 +262,10 @@ const classifySky = canvas => {
 // oggetti che tradiscono un interno o un soggetto ravvicinato: non è meteo
 const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "fork", "knife", "spoon", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "book", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "vase", "scissors", "teddy bear", "potted plant", "clock"];
 // scene da esterno riconosciute da MobileNet: cieli, mare, orizzonti, paesaggi
-const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef/i;
+const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef|dome|bell cote|mosque|stupa|triumphal/i;
+// schermi e display: la loro foto non è mai cielo vero
+const SCREEN_RX = /television|monitor|screen|home theater|desktop computer|laptop|notebook computer|cellular telephone|ipod|oscilloscope|projector/i;
+const SCREEN_OBJECTS = ["tv", "laptop", "cell phone"];
 
 // Frazione di pelle nell'inquadratura (firma cromatica degli incarnati)
 const skinRatio = canvas => {
@@ -288,34 +291,40 @@ const analyzePhoto = async canvas => {
   const [dets, nsfwRes, preds] = await Promise.all([
     detector.detect(canvas), nsfw.classify(canvas), scenes.classify(canvas, 7),
   ]);
-  const person = dets.find(x => x.class === "person" && x.score > 0.55);
   const bad = nsfwRes.filter(x => ["Porn", "Hentai", "Sexy"].includes(x.className))
                      .reduce((sm, x) => sm + x.probability, 0);
   if (bad > 0.6) return { block: true, reason: "Contenuto non adatto rilevato. Beeweat è per il cielo. 🌤️", cls: "nsfw", score: Math.round(bad * 100) / 100 };
-  if (person) return { block: true, reason: "Persona rilevata nella foto: per la privacy, inquadra solo cielo e paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
+  // Persone: bloccano solo se RICONOSCIBILI (vicine); i passanti lontani nel paesaggio sono benvenuti
+  const areaOf = x => (x.bbox ? (x.bbox[2] * x.bbox[3]) / (canvas.width * canvas.height) : 1);
+  const person = dets.find(x => x.class === "person" && x.score > 0.55 && areaOf(x) > 0.07);
+  if (person) return { block: true, reason: "Persona in primo piano rilevata: per la privacy, le persone vanno bene solo da lontano, come parte del paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
   const skin = skinRatio(canvas);
   if (skin > 0.28) return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
-  // È davvero una foto del cielo/paesaggio?
+  // Schermi e display: sempre bocciati (il cielo in TV non è il tuo cielo)
+  const screenObj = dets.find(x => SCREEN_OBJECTS.includes(x.class) && x.score > 0.45);
+  const screenPred = preds.slice(0, 3).find(p => SCREEN_RX.test(p.className) && p.probability > 0.15);
+  if (screenObj || screenPred) {
+    const what = screenObj ? screenObj.class : screenPred.className.split(",")[0];
+    return { block: true, reason: `Sembra la foto di uno schermo (rilevato: ${what}) 📺 — su Beeweat va il cielo vero, visto coi tuoi occhi.`, cls: "screen", score: Math.round((screenObj?.score || screenPred.probability) * 100) / 100 };
+  }
+  // È davvero una foto del cielo/paesaggio? Il cielo AUTENTICO assolve case, cupole e terrazze.
+  const sky = classifySky(canvas);
+  const st = sky?.stats;
+  const skyEvidence = st && (
+    st.blue > 0.30 ||
+    (st.grey > 0.45 && st.meanLum > 165) ||
+    (st.warm > 0.35 && st.meanLum > 150) ||
+    st.dark > 0.65
+  );
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
   const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
-  if (indoorObj || confidentNotOutdoor) {
+  if (!skyEvidence && (indoorObj || confidentNotOutdoor)) {
     const what = indoorObj ? indoorObj.class : preds[0].className.split(",")[0];
     return { block: true, reason: `Questa non sembra una foto del cielo (rilevato: ${what}). Inquadra cielo, orizzonte o paesaggio. 🌤️`, cls: "not_sky", score: Math.round((indoorObj?.score || preds[0].probability) * 100) / 100 };
   }
-  const sky = classifySky(canvas);
-  if (!outdoorHit) {
-    // nessuna scena da esterno riconosciuta: la foto deve DIMOSTRARE di essere cielo.
-    // I cieli veri sono luminosi (anche il coperto: è retroilluminato); il grigio da interni no.
-    const st = sky?.stats;
-    const skyEvidence = st && (
-      st.blue > 0.30 ||                       // azzurro franco
-      (st.grey > 0.45 && st.meanLum > 165) || // coperto ma LUMINOSO
-      (st.warm > 0.35 && st.meanLum > 150) || // alba/tramonto
-      st.dark > 0.65                          // notte o temporale nero
-    );
-    if (!skyEvidence) return { block: true, reason: "Questa non sembra una foto del cielo: nessun cielo riconoscibile nell'inquadratura. Punta verso l'alto o verso l'orizzonte. 🌤️", cls: "not_sky", score: sky?.score || null };
-  }
+  if (!outdoorHit && !skyEvidence)
+    return { block: true, reason: "Questa non sembra una foto del cielo: nessun cielo riconoscibile nell'inquadratura. Punta verso l'alto o verso l'orizzonte. 🌤️", cls: "not_sky", score: sky?.score || null };
   return { block: false, reason: null, cls: sky?.cls || null, score: sky?.score || null, suggest: sky?.cls || null };
 };
 
