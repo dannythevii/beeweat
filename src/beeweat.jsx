@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.6";
+const APP_VERSION = "4.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -312,11 +312,15 @@ const skyBand = (canvas, frac) => {
     ctx.drawImage(canvas, 0, 0, canvas.width, Math.max(1, Math.round(canvas.height * frac)), 0, 0, w, h);
     const d = ctx.getImageData(0, 0, w, h).data;
     let blue = 0, grey = 0, dark = 0, warm = 0, bright = 0, lumSum = 0, n = 0;
+    let roughSum = 0, rn = 0, prevLum = null;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2];
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
       const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx;
       n++; lumSum += lum;
+      const col = (i / 4) % w;
+      if (col > 0 && prevLum !== null) { roughSum += Math.abs(lum - prevLum); rn++; }
+      prevLum = lum;
       if (lum > 190) bright++;
       if (lum < 60) dark++;
       if (b > r + 18 && b > g + 6 && lum > 90) blue++;
@@ -324,16 +328,16 @@ const skyBand = (canvas, frac) => {
       if (r > b + 25 && lum > 100) warm++;
     }
     const p = x => x / n;
-    return { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum: lumSum / n };
+    return { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum: lumSum / n, rough: rn ? roughSum / rn : 0 };
   } catch (_) { return null; }
 };
 // Le firme autentiche del cielo (azzurro, coperto luminoso, alba/tramonto, notte, pallido lattiginoso)
 const hasSkySignature = st => !!st && (
-  st.blue > 0.30 ||
-  (st.grey > 0.45 && st.meanLum > 165) ||
-  (st.warm > 0.35 && st.meanLum > 150) ||
+  (st.blue > 0.30 && st.rough < 16) ||
+  (st.grey > 0.45 && st.meanLum > 165 && st.rough < 11) ||
+  (st.warm > 0.35 && st.meanLum > 150 && st.rough < 11) ||
   st.dark > 0.65 ||
-  st.bright > 0.35
+  (st.bright > 0.35 && st.rough < 10)
 );
 
 const analyzePhoto = async fullCanvas => {
@@ -368,7 +372,7 @@ const analyzePhoto = async fullCanvas => {
   }
   // È davvero una foto del cielo/paesaggio? Il cielo AUTENTICO assolve case, cupole e terrazze.
   const sky = classifySky(canvas);
-  const skyEvidence = hasSkySignature(sky?.stats) || hasSkySignature(skyBand(canvas, 0.22));
+  const skyEvidence = hasSkySignature(skyBand(canvas, 0.45)) || hasSkySignature(skyBand(canvas, 0.22));
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
   const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
@@ -376,8 +380,8 @@ const analyzePhoto = async fullCanvas => {
     const what = indoorObj ? indoorObj.class : preds[0].className.split(",")[0];
     return { block: true, reason: `Questa non sembra una foto del cielo (rilevato: ${what}). Inquadra cielo, orizzonte o paesaggio. 🌤️`, cls: "not_sky", score: Math.round((indoorObj?.score || preds[0].probability) * 100) / 100 };
   }
-  if (!outdoorHit && !skyEvidence)
-    return { block: true, reason: "Questa non sembra una foto del cielo: nessun cielo riconoscibile nell'inquadratura. Punta verso l'alto o verso l'orizzonte. 🌤️", cls: "not_sky", score: sky?.score || null };
+  if (!skyEvidence)
+    return { block: true, reason: "Non vedo cielo nell'inquadratura: alza un po' l'obiettivo e fai entrare più cielo nella foto. 🌤️", cls: "not_sky", score: sky?.score || null };
   return { block: false, reason: null, cls: sky?.cls || null, score: sky?.score || null, suggest: sky?.cls || null };
 };
 
