@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.8";
+const APP_VERSION = "4.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2605,7 +2605,15 @@ export default function App() {
       const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${geo.lat}&longitude=${geo.lng}&localityLanguage=it`);
       const j = await r.json();
       const name = j.locality || j.city || j.principalSubdivision || null;
-      if (name) setLocName(name);
+      if (name) {
+        setLocName(name);
+        // la città del profilo segue la realtà: addio "Sorrento" di fabbrica
+        if (user && user.city !== name) {
+          setUser(u => u ? { ...u, city: name } : u);
+          if (sb?.isConfigured && myUid)
+            sb.supabase.from("profiles").update({ city: name }).eq("id", myUid).then(() => {}, () => {});
+        }
+      }
     } catch (_) {} })();
   }, [geo]);
   const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
