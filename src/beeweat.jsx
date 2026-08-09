@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "5.0";
+const APP_VERSION = "5.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -187,6 +187,14 @@ const bearingDeg = (a, b) => {
 };
 // "capri" e "Capri" sono lo stesso posto: normalizzazione con iniziali maiuscole
 const titleCase = s => (s || "").trim().replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+// Geocodifica inversa: coordinate → nome città (per battezzare i post col posto vero)
+const reverseCity = async (lat, lng) => {
+  try {
+    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=it`);
+    const j = await r.json();
+    return j.locality || j.city || j.principalSubdivision || null;
+  } catch (_) { return null; }
+};
 // Geocodifica diretta: nome città → coordinate (Open-Meteo, gratuita senza chiavi)
 const geocodeCity = async name => {
   try {
@@ -1835,7 +1843,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar }) {
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1880,7 +1888,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         <div style={{ padding: 16 }}>
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
-            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
+            : mine.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
       </div>
     </>
@@ -2229,7 +2237,7 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
     return () => clearTimeout(t);
   }, [q]);
   const ql = q.trim().toLowerCase();
-  const match = s => s.toLowerCase().includes(ql);
+  const match = s => (s || "").toLowerCase().includes(ql);
   const nearBase = (nearPlaces || []).filter(p => p.dist <= km);
   const baseNames = new Set(nearBase.map(p => p.name.toLowerCase()));
   const near = [...nearBase, ...remote.filter(r => !baseNames.has(r.name.toLowerCase()))].filter(p => !ql || match(p.name));
@@ -2330,7 +2338,7 @@ function Frame({ children }) {
 }
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
   const [sb, setSb] = useState(null);           // modulo Supabase (se presente e configurato)
   useEffect(() => {
     import("./beeweat-supabase.js")
@@ -2833,8 +2841,9 @@ export default function App() {
     if (!sb?.isConfigured) return;
     if (overlay?.user?.uid) { setExtraPosts([]); loadUserPosts(overlay.user.uid); }
     else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
-    else if (!overlay?.user && !overlay?.place) setExtraPosts([]);
-  }, [sb, overlay?.user?.uid, overlay?.place?.name]);
+    else if (overlay === "profile" && myUid) { setExtraPosts([]); loadUserPosts(myUid); }   // il MIO profilo: tutti i miei post, da ovunque
+    else if (!overlay?.user && !overlay?.place && overlay !== "profile") setExtraPosts([]);
+  }, [sb, overlay?.user?.uid, overlay?.place?.name, overlay === "profile" ? myUid : null]);
   // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
   const allPosts = useMemo(() => {
     const ids = new Set(posts.map(p => p.id));
@@ -3024,7 +3033,11 @@ export default function App() {
     } catch (e) { /* ignora in ambienti senza document */ }
   }, []);
 
-  const onStar = id => { setPosts(ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p)); if (sb?.isConfigured) sb.toggleStar(id).catch(() => {}); };
+  const onStar = id => {
+    const flip = ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p);
+    setPosts(flip); setExtraPosts(flip);   // il cuoricino vale anche sui post a lungo raggio
+    if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
+  };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
     const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
@@ -3032,7 +3045,8 @@ export default function App() {
       (async () => {
         try {
           const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
-          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore });
+          const postCity = locName || await reverseCity(geo.lat, geo.lng) || user.city;   // il posto VERO dello scatto
+          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
           await loadFeed();
         } catch (e) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
       })();
@@ -3158,7 +3172,7 @@ export default function App() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={allPosts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
@@ -3202,7 +3216,7 @@ export default function App() {
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
-    onOpenPhoto={openPhoto} onDeleteUser={async u => {
+    onOpenPhoto={openPhoto} onStar={onStar} onDeleteUser={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       if (!window.confirm(`ELIMINARE TOTALMENTE l'utente "${u.name}"?\nSpariranno account, post, messaggi, gruppi e notifiche. Irreversibile.`)) return;
       if (!window.confirm("Seconda conferma: procedere davvero con l'eliminazione definitiva?")) return;
@@ -3226,7 +3240,7 @@ export default function App() {
         }));
       }}
       onClose={() => setOverlay(null)}
-      onPerson={p => setOverlay({ chat: { id: "u_" + p.name, name: p.name, ava: p.ava } })}
+      onPerson={p => setOverlay({ user: { name: p.name, ava: p.ava, city: p.city, uid: p.uid || p.id }, back: "search" })}
       onEvent={e => setOverlay({ eventMap: e })}
       onPlace={() => { setTab("vicini"); setOverlay(null); }}
       onOpenNearPlace={p => setOverlay({ place: p })}
@@ -3300,3 +3314,25 @@ export default function App() {
     </Frame>
   );
 }
+
+
+// ── Paracadute globale: qualsiasi errore diventa una schermata leggibile ──────
+class BeeBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) return (
+      <div style={{ minHeight: "100vh", background: "#EAF2FA", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 18, padding: 24, maxWidth: 420, width: "100%", boxShadow: "0 10px 34px rgba(27,78,150,.18)", textAlign: "center" }}>
+          <div style={{ fontSize: 40 }}>🐝</div>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: "#22467A", margin: "8px 0 6px" }}>Ops, l'alveare è inciampato</div>
+          <div style={{ fontSize: 13, color: "#5B7397", marginBottom: 12 }}>Fai uno screenshot di questo messaggio e mandalo agli sviluppatori:</div>
+          <pre style={{ textAlign: "left", background: "#F2F6FB", borderRadius: 10, padding: 10, fontSize: 11, color: "#C43C41", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflowY: "auto" }}>{String(this.state.err?.message || this.state.err)}</pre>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 12, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2E6BB8,#1B4E96)", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Ricarica Beeweat</button>
+        </div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+export default function App() { return <BeeBoundary><AppInner /></BeeBoundary>; }
