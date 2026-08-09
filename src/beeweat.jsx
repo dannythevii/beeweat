@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.7";
+const APP_VERSION = "4.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1759,7 +1759,7 @@ function CameraView({ onPost, onBack }) {
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto }) {
   const [followTab, setFollowTab] = useState(null);
-  const mine = posts.filter(p => p.mine);
+  const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const stars = mine.reduce((s, p) => s + p.stars, 0);
   const [editing, setEditing] = useState(false);
   return (
@@ -1834,7 +1834,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
 function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto }) {
-  const mine = posts.filter(p => p.user === profile.name);
+  const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
@@ -1994,11 +1994,15 @@ function AvatarEditor({ current, onPick, onClose }) {
 // ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
 // ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
 function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit, onOpenPhoto }) {
-  const placeAuthors = place.users && place.users.length ? place.users : [];
-  const users = placeAuthors.length ? placeAuthors : people;
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const evCount = events.filter(e => e.place === place.name).length || place.events;
-  const placePosts = (posts || []).filter(p => p.city === place.name);
+  const placePosts = (posts || []).filter(p => p.city === place.name)
+    .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  // le api del luogo: chi ci ha scattato post, o chi ci abita (città del profilo)
+  const authorIds = new Set(placePosts.map(p => p.uid).filter(Boolean));
+  const authorNames = new Set(placePosts.map(p => p.user).filter(Boolean));
+  const users = (place.users && place.users.length) ? place.users
+    : (people || []).filter(c => authorIds.has(c.id) || authorNames.has(c.name) || (c.city || "").toLowerCase() === place.name.toLowerCase());
   return (
     <>
       <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
@@ -2028,7 +2032,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         </div>
 
         {/* utenti collegati al luogo */}
-        <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Utenti a {place.name}</div>
+        <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Api a {place.name} 🐝</div>
         {users.map(u => (
           <div key={u.uid || u.id || u.name} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: "#fff", cursor: "pointer" }}>
             <UserAvatar src={u.ava} size={50} />
@@ -3211,7 +3215,7 @@ export default function App() {
   const feedTitle = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <NavIcon name="pin" size={18} color="#fff" sw={2} />
-      {locName || user.city}
+      {locName || "…"}
     </span>
   );
   const titles = { vicini: "Vicini", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "Contatti" };
