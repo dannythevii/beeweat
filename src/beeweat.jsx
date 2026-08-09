@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "4.2";
+const APP_VERSION = "4.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -251,7 +251,24 @@ const classifySky = canvas => {
     if (p(dark) > 0.5) { cls = "⛈️ Temporale"; score = p(dark); }
     else if (p(blue) > 0.45) { cls = "☀️ Sereno"; score = p(blue); }
     else if (p(warm) > 0.3) { cls = "☀️ Sereno"; score = p(warm); }
-    else if (p(grey) > 0.55) { cls = p(bright) > 0.25 ? "🌫️ Nebbia" : "🌧️ Pioggia"; score = p(grey); }
+    else if (p(grey) > 0.55) {
+      cls = p(bright) > 0.25 ? "🌫️ Nebbia" : "🌧️ Pioggia"; score = p(grey);
+      if (cls === "🌫️ Nebbia") {
+        // controprova sul terreno (metà bassa): la nebbia mangia ombre e colori, il controluce no
+        const w2 = 64, h2 = 32, c2 = document.createElement("canvas");
+        c2.width = w2; c2.height = h2;
+        c2.getContext("2d").drawImage(canvas, 0, Math.round(canvas.height * 0.5), canvas.width, Math.round(canvas.height * 0.5), 0, 0, w2, h2);
+        const d2 = c2.getContext("2d").getImageData(0, 0, w2, h2).data;
+        let dk = 0, sat = 0, n2 = 0;
+        for (let i = 0; i < d2.length; i += 4) {
+          const r = d2[i], g = d2[i + 1], b = d2[i + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          n2++; if (lum < 70) dk++; if (mx > 0 && (mx - mn) / mx > 0.35) sat++;
+        }
+        if (dk / n2 > 0.12 || sat / n2 > 0.18) { cls = "☀️ Sereno"; score = 0.55; }   // ombre dure o colori vivi = sole in controluce
+      }
+    }
     else if (p(blue) > 0.18) { cls = "⛅ Poco nuvoloso"; score = 0.5 + p(blue) / 2; }
     else { cls = "⛅ Poco nuvoloso"; score = 0.4; }
     return { cls, score: Math.min(0.95, Math.round(score * 100) / 100),
@@ -260,7 +277,7 @@ const classifySky = canvas => {
 };
 
 // oggetti che tradiscono un interno o un soggetto ravvicinato: non è meteo
-const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "fork", "knife", "spoon", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "book", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "vase", "scissors", "teddy bear", "potted plant", "clock"];
+const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "fork", "knife", "spoon", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "book", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "vase", "scissors", "teddy bear", "clock"];
 // scene da esterno riconosciute da MobileNet: cieli, mare, orizzonti, paesaggi
 const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef|dome|bell cote|mosque|stupa|triumphal/i;
 // schermi e display: la loro foto non è mai cielo vero
@@ -285,6 +302,39 @@ const skinRatio = canvas => {
     return skin / n;
   } catch (_) { return 0; }
 };
+
+// Statistiche cromatiche di una fascia alta dell'immagine (frazione dell'altezza)
+const skyBand = (canvas, frac) => {
+  try {
+    const w = 64, h = 64, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, canvas.width, Math.max(1, Math.round(canvas.height * frac)), 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let blue = 0, grey = 0, dark = 0, warm = 0, bright = 0, lumSum = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx;
+      n++; lumSum += lum;
+      if (lum > 190) bright++;
+      if (lum < 60) dark++;
+      if (b > r + 18 && b > g + 6 && lum > 90) blue++;
+      if (sat < 0.16 && lum >= 60 && lum <= 190) grey++;
+      if (r > b + 25 && lum > 100) warm++;
+    }
+    const p = x => x / n;
+    return { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum: lumSum / n };
+  } catch (_) { return null; }
+};
+// Le firme autentiche del cielo (azzurro, coperto luminoso, alba/tramonto, notte, pallido lattiginoso)
+const hasSkySignature = st => !!st && (
+  st.blue > 0.30 ||
+  (st.grey > 0.45 && st.meanLum > 165) ||
+  (st.warm > 0.35 && st.meanLum > 150) ||
+  st.dark > 0.65 ||
+  st.bright > 0.35
+);
 
 const analyzePhoto = async fullCanvas => {
   const { detector, nsfw, scenes } = await loadAIModels();
@@ -318,13 +368,7 @@ const analyzePhoto = async fullCanvas => {
   }
   // È davvero una foto del cielo/paesaggio? Il cielo AUTENTICO assolve case, cupole e terrazze.
   const sky = classifySky(canvas);
-  const st = sky?.stats;
-  const skyEvidence = st && (
-    st.blue > 0.30 ||
-    (st.grey > 0.45 && st.meanLum > 165) ||
-    (st.warm > 0.35 && st.meanLum > 150) ||
-    st.dark > 0.65
-  );
+  const skyEvidence = hasSkySignature(sky?.stats) || hasSkySignature(skyBand(canvas, 0.22));
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
   const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
@@ -1709,7 +1753,7 @@ function CameraView({ onPost, onBack }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine);
   const stars = mine.reduce((s, p) => s + p.stars, 0);
@@ -1776,7 +1820,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
-          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} />)}
+          {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -1785,7 +1829,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto }) {
   const mine = posts.filter(p => p.user === profile.name);
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1830,7 +1874,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         <div style={{ padding: 16 }}>
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
-            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} />)}
+            : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
       </div>
     </>
@@ -1945,7 +1989,7 @@ function AvatarEditor({ current, onPick, onClose }) {
 
 // ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
 // ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
-function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit }) {
+function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit, onOpenPhoto }) {
   const placeAuthors = place.users && place.users.length ? place.users : [];
   const users = placeAuthors.length ? placeAuthors : people;
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
@@ -1976,7 +2020,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         <div style={{ padding: "8px 14px 0" }}>
           {placePosts.length === 0
             ? <div style={{ background: "#fff", borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
-            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} />)}
+            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
 
         {/* utenti collegati al luogo */}
@@ -3095,8 +3139,9 @@ export default function App() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
-  if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(null)} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={posts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
+  const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
+  if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
     <div style={{ background: BODY, minHeight: "100%" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -3126,7 +3171,7 @@ export default function App() {
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
-    onDeleteUser={async u => {
+    onOpenPhoto={openPhoto} onDeleteUser={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       if (!window.confirm(`ELIMINARE TOTALMENTE l'utente "${u.name}"?\nSpariranno account, post, messaggi, gruppi e notifiche. Irreversibile.`)) return;
       if (!window.confirm("Seconda conferma: procedere davvero con l'eliminazione definitiva?")) return;
@@ -3136,7 +3181,7 @@ export default function App() {
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
     return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}
@@ -3205,7 +3250,7 @@ export default function App() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={p => setOverlay({ photo: { src: p.img, caption: p.caption } })} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
