@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "5.8";
+const APP_VERSION = "5.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2229,25 +2229,37 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
 }
 
 // ─── RICERCA (persone, luoghi, eventi) ────────────────────────────────────────
-function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces, onRemotePlaces }) {
+function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces, onRemotePlaces, contactDist }) {
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState([]);
+  const [worldOn, setWorldOn] = useState(false);
+  const [worldAll, setWorldAll] = useState(null);
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
   useEffect(() => {
-    if (!onRemotePlaces || q.trim().length < 3) { setRemote([]); return; }
+    if (worldOn && worldAll === null && onRemotePlaces)
+      onRemotePlaces("").then(setWorldAll).catch(() => setWorldAll([]));   // Mondo: tutte le città con post
+  }, [worldOn]);
+  useEffect(() => {
+    if (worldOn || !onRemotePlaces || q.trim().length < 3) { setRemote([]); return; }
     const t = setTimeout(() => { onRemotePlaces(q.trim()).then(setRemote).catch(() => setRemote([])); }, 400);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, worldOn]);
   const ql = q.trim().toLowerCase();
   const match = s => (s || "").toLowerCase().includes(ql);
   const nearBase = (nearPlaces || []).filter(p => p.dist <= km);
   const baseNames = new Set(nearBase.map(p => p.name.toLowerCase()));
-  const near = [...nearBase, ...remote.filter(r => !baseNames.has(r.name.toLowerCase()))].filter(p => !ql || match(p.name));
+  const near = (worldOn
+    ? (worldAll || []).slice().sort((a, b) => a.name.localeCompare(b.name, "it"))
+    : [...nearBase, ...remote.filter(r => !baseNames.has(r.name.toLowerCase()))]
+  ).filter(p => !ql || match(p.name));
   const nearNames = new Set(near.map(p => p.name));
-  const fp = people.filter(p => !ql || match(p.name) || match(p.city));
-  const fpl = places.filter(c => !nearNames.has(c)).filter(c => !ql || match(c));
-  const fe = events.filter(e => !ql || match(e.title) || match(e.place));
+  const inRange = p => worldOn || !contactDist || contactDist[p.id] === undefined || contactDist[p.id] <= km;
+  const fp = people.filter(inRange)
+    .filter(p => !ql || match(p.name) || match(p.city))
+    .slice().sort((a, b) => a.name.localeCompare(b.name, "it"));
+  const fpl = worldOn ? [] : places.filter(c => !nearNames.has(c)).filter(c => !ql || match(c));
+  const fe = events.filter(e => (worldOn || e.dist <= km) && (!ql || match(e.title) || match(e.place)));
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const Section = ({ label, children, count }) => count === 0 ? null : (
     <div style={{ marginBottom: 18 }}>
@@ -2273,8 +2285,9 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "#ffffff", borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={18} color={TXT2} />
-          <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca persone, luoghi, eventi…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+          <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
+          <button onClick={() => setWorldOn(v => !v)} title="Utenti e luoghi di tutto il mondo" style={{ height: 30, padding: "0 11px", borderRadius: 9, border: `1.5px solid ${worldOn ? ACCENT : LINE}`, background: worldOn ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: worldOn ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingTop: 14 }}>
@@ -3240,7 +3253,7 @@ function AppInner() {
   if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
-    return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km}
+    return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km} contactDist={contactDist}
       onRemotePlaces={async qq => {
         const rows = await sb.searchCities(qq);
         return rows.map(r => ({
