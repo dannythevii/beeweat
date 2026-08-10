@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "5.9";
+const APP_VERSION = "6.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2229,7 +2229,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
 }
 
 // ─── RICERCA (persone, luoghi, eventi) ────────────────────────────────────────
-function SearchView({ people, events, places, km, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces, onRemotePlaces, contactDist }) {
+function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPlace, onOpenNearPlace, onEvent, nearPlaces, onRemotePlaces, contactDist }) {
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState([]);
   const [worldOn, setWorldOn] = useState(false);
@@ -3254,7 +3254,7 @@ function AppInner() {
   if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
-    return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km} contactDist={contactDist}
+    return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km} setKm={setKm} contactDist={contactDist}
       onRemotePlaces={async qq => {
         const rows = await sb.searchCities(qq);
         return rows.map(r => ({
