@@ -1511,7 +1511,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 }
 
 // ─── CAMERA / POST ────────────────────────────────────────────────────────────
-function CameraView({ onPost, onBack }) {
+function CameraView({ onPost, onBack, geoReal }) {
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
@@ -3173,7 +3173,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} />);
+  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={allPosts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
