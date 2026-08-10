@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "5.4";
+const APP_VERSION = "5.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -543,7 +543,6 @@ function AuthScreen({ onLogin, sb }) {
   const [recoverEmail, setRecoverEmail] = useState("");
   const [recoverSent, setRecoverSent] = useState(false);
   const inp = (ph, k, type = "text") => <input type={type} placeholder={ph} value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />;
-  const social = prov => { if (!accepted) { setWarn(true); return; } onLogin({ name: prov === "fb" ? "Utente Facebook" : prov === "apple" ? "Utente Apple" : "Utente Google", city: CITY }); };
   const handleEmail = async () => {
     if (mode === "register" && !accepted) { setWarn(true); return; }
     if (!form.email || !form.password) return;
@@ -596,9 +595,6 @@ function AuthScreen({ onLogin, sb }) {
         <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
       </div>
       <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
-        <button onClick={() => social("apple")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#000", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><AppleIcon /> Accedi con Apple</button>
-        <button onClick={() => social("fb")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#3B5998", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><FacebookIcon /> Entra con Facebook</button>
-        <button onClick={() => social("g")} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: `1.5px solid #E2E8F0`, cursor: "pointer", background: "#fff", color: "#5F6368", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><GoogleIcon /> Entra con Google</button>
         <button onClick={() => { setView("email"); setMode("register"); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: "#E07B43", color: "#fff", fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><MailIcon /> Entra usando la tua Email</button>
         <div style={{ fontSize: 11.5, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
       </div>
@@ -3048,7 +3044,7 @@ function AppInner() {
           const postCity = locName || await reverseCity(geo.lat, geo.lng) || user.city;   // il posto VERO dello scatto
           await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
           await loadFeed();
-        } catch (e) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
+        } catch (e) { if (!sessionLost(e)) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); } }
       })();
     } else localAdd();
     setOverlay(null); setTab("feed");
@@ -3139,6 +3135,13 @@ function AppInner() {
     if (sb?.isConfigured && typeof e.id === "string" && e.id.includes("-"))
       sb.deleteEvent(e.id).catch(err => { alert("Eliminazione non riuscita: " + (err?.message || err)); setSocialTick(t => t + 1); });
   };
+  const sessionLost = err => {
+    if (!/autenticat|jwt|token|session/i.test(String(err?.message || err))) return false;
+    alert("La tua sessione non è più valida: accedi di nuovo per continuare. 🐝");
+    if (sb?.isConfigured) sb.logout().catch(() => {});
+    setUser(null);
+    return true;
+  };
   const addEvent = async e => {
     setOverlay(null);
     let ee = { ...e };
@@ -3148,7 +3151,7 @@ function AppInner() {
     }
     if (sb?.isConfigured) {
       try { await sb.createEvent(ee); setSocialTick(t => t + 1); }
-      catch (err) { alert("Evento non salvato: " + (err?.message || err)); }
+      catch (err) { if (!sessionLost(err)) alert("Evento non salvato: " + (err?.message || err)); }
       return;
     }
     const id = nextId; setNextId(n => n + 1);
