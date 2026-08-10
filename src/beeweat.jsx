@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "5.6";
+const APP_VERSION = "5.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1659,7 +1659,13 @@ function CameraView({ onPost, onBack, geoReal }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || !ai || ai.block || ai.checking || ai.error) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const publish = () => { if (!captured || !ai || ai.block || ai.checking || ai.error || !geoReal) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const GeoChip = () => geoReal ? null : (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
+      <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero. Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</span>
+    </div>
+  );
   const AiChip = () => !ai ? null : ai.error ? (
     <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
@@ -1747,11 +1753,12 @@ function CameraView({ onPost, onBack, geoReal }) {
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
-            <AiChip />
+            <GeoChip />
+      <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || ai.error} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || ai.error || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2495,11 +2502,12 @@ function AppInner() {
   const [nextId, setNextId] = useState(1000);
   // Posizione reale dell'utente (fallback: coordinate base)
   const [geo, setGeo] = useState(BASE_COORDS);
+  const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
   useEffect(() => {
     if (!navigator.geolocation) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
     const id = navigator.geolocation.watchPosition(
-      p => setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      p => { setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoReal(true); },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
   }, []);
