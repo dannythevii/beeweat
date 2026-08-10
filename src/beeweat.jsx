@@ -2313,6 +2313,7 @@ function SearchView({ people, events, places, km, onClose, onPerson, onPlace, on
           </>
         )}
       </div>
+      {!worldOn && setKm && <RadarBar km={km} setKm={setKm} />}
     </div>
   );
 }
