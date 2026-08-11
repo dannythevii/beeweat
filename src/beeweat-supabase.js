@@ -10,6 +10,31 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Feed mondiale: gli ultimi cieli di tutto il pianeta ──────────────────────
+export async function getWorldFeed(limit = 100) {
+  const { data, error } = await supabase.from("posts")
+    .select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return attachProfiles(data || []);
+}
+// ── Amministrazione: correzione nome/città di un'ape ─────────────────────────
+export async function adminUpdateProfile(userId, { name, city }) {
+  const patch = {};
+  if (name !== undefined) patch.name = name;
+  if (city !== undefined) patch.city = city;
+  const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
+  if (error) throw error;
+}
+// ── Gruppi: rinomina ed eliminazione (proprietario o amministratore) ─────────
+export async function updateGroup(groupId, { name }) {
+  const { error } = await supabase.from("groups").update({ name }).eq("id", groupId);
+  if (error) throw error;
+}
+export async function deleteGroup(groupId) {
+  const { error } = await supabase.from("groups").delete().eq("id", groupId);
+  if (error) throw error;
+}
+
 // ── Eventi (persistenti e condivisi) ─────────────────────────────────────────
 export async function getEvents(limit = 200) {
   const { data, error } = await supabase.from("events")

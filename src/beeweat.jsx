@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.1";
+const APP_VERSION = "6.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -910,11 +910,14 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading }) {
-  const visible = posts.filter(p => p.dist <= km);
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld }) {
+  const visible = worldOn ? posts : posts.filter(p => p.dist <= km);
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
-      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post entro {km} km</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${visible.length} post da tutto il mondo` : `${visible.length} post entro ${km} km`}</span>
+        {onToggleWorld && <button onClick={onToggleWorld} title="I cieli di tutto il mondo" style={{ height: 28, padding: "0 10px", borderRadius: 9, border: `1.5px solid ${worldOn ? ACCENT : LINE}`, background: worldOn ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: worldOn ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>}
+      </div>
       {visible.length === 0
         ? (loading
             ? <div style={{ textAlign: "center", padding: "56px 20px", color: TXT2 }}>
@@ -1283,7 +1286,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup }) {
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
@@ -1331,13 +1334,16 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           {(!groups || groups.length === 0)
             ? <div style={{ padding: "26px 16px", color: TXT2, fontSize: 14, textAlign: "center" }}>Nessun gruppo ancora.<br />Creane uno con l'icona 👥+ in alto!</div>
             : groups.map(g => (
-              <div key={g.id} onClick={() => onOpenGroup(g)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer" }}>
+              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: `1px solid ${LINE}` }}>
+                {(isAdminG || g.mine) && <button onClick={() => onEditGroup(g)} title="Modifica gruppo" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
+                <div onClick={() => onOpenGroup(g)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, cursor: "pointer", minWidth: 0 }}>
                 <div style={{ width: 50, height: 50, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={HBLUE} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
                   <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).map(id => ((contacts || []).find(c => c.id === id) || {}).name || "").filter(Boolean).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
                 </div>
                 <NavIcon name="chevron" size={18} color={TXT2} sw={2} />
+              </div>
               </div>
             ))}
         </>
@@ -1768,7 +1774,7 @@ function CameraView({ onPost, onBack, geoReal }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const stars = mine.reduce((s, p) => s + p.stars, 0);
@@ -1788,7 +1794,9 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8 }}>{user.name}
             {onRename && <button onClick={onRename} title="Modifica nome" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
+            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={13} color={HBLUE} sw={1.9} /></button>}
+          </div>
         </div>
         <div style={{ display: "flex", margin: "16px 16px 0", background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 12px ${HBLUE}10` }}>
           {[{ l: "Post", v: mine.length, i: "camera" }, { l: "Stelle", v: stars, i: "starFill" }, { l: "Giorni", v: 7, i: "feed" }].map((s, i) => (
@@ -1846,7 +1854,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit }) {
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -1862,6 +1870,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
+              {isAdmin && <button onClick={() => onAdminEdit && onAdminEdit(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE }}>Modifica</button>}
               {isAdmin && <button onClick={() => onBan && onBan(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${RED}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: RED }}>Ban</button>}
               {isAdmin && <button onClick={() => onDeleteUser && onDeleteUser(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: RED, color: "#fff" }}>Elimina</button>}
               <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
@@ -2636,7 +2645,8 @@ function AppInner() {
       if (name) {
         setLocName(name);
         // la città del profilo segue la realtà: addio "Sorrento" di fabbrica
-        if (user && user.city !== name) {
+        let cityManual = false; try { cityManual = localStorage.getItem("bw_city_manual") === "1"; } catch (_) {}
+        if (user && user.city !== name && !cityManual) {
           setUser(u => u ? { ...u, city: name } : u);
           if (sb?.isConfigured && myUid)
             sb.supabase.from("profiles").update({ city: name }).eq("id", myUid).then(() => {}, () => {});
@@ -2880,6 +2890,24 @@ function AppInner() {
       })));
     } catch (e) { console.warn("eventi:", e?.message || e); } })();
   }, [sb, user, socialTick, geoKey]);
+  // "Mondo" nel Feed: gli ultimi cieli del pianeta
+  const [feedWorld, setFeedWorld] = useState(false);
+  const [worldFeedPosts, setWorldFeedPosts] = useState([]);
+  useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
+  useEffect(() => {
+    if (!feedWorld || !sb?.isConfigured) { setWorldFeedPosts([]); return; }
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const rows = await sb.getWorldFeed();
+      setWorldFeedPosts(rows.map(r => mapRemoteRow(r, au?.id)));
+    } catch (e) { console.warn("feed mondo:", e?.message || e); } })();
+  }, [feedWorld, sb, socialTick]);
+  const feedShown = useMemo(() => {
+    if (!feedWorld) return posts;
+    const ids = new Set(posts.map(p => p.id));
+    return [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
+      .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  }, [feedWorld, posts, worldFeedPosts]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
   const [worldPlaces, setWorldPlaces] = useState(null);
@@ -3210,6 +3238,18 @@ function AppInner() {
         try { await sb.supabase.from("profiles").update({ name }).eq("id", myUid); setSocialTick(t => t + 1); }
         catch (e) { alert("Nome non salvato: " + (e?.message || e)); setUser(u => u ? { ...u, name: old } : u); }
       }
+    }}
+    onRenameCity={async () => {
+      const v = window.prompt("La tua città su Beeweat:", user.city || "");
+      if (v === null) return;
+      const city = v.trim();
+      if (!city) { alert("La città non può essere vuota."); return; }
+      try { localStorage.setItem("bw_city_manual", "1"); } catch (_) {}
+      setUser(u => u ? { ...u, city } : u);
+      if (sb?.isConfigured && myUid) {
+        try { await sb.supabase.from("profiles").update({ city }).eq("id", myUid); setSocialTick(t => t + 1); }
+        catch (e) { alert("Città non salvata: " + (e?.message || e)); }
+      }
     }} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
@@ -3241,7 +3281,17 @@ function AppInner() {
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
-    onOpenPhoto={openPhoto} onStar={onStar} onDeleteUser={async u => {
+    onOpenPhoto={openPhoto} onStar={onStar}
+    onAdminEdit={async u => {
+      if (!u.uid) { alert("Identificativo utente mancante."); return; }
+      const name = window.prompt("Nome dell'ape:", u.name); if (name === null) return;
+      const city = window.prompt("Città dell'ape:", u.city || ""); if (city === null) return;
+      try {
+        await sb.adminUpdateProfile(u.uid, { name: name.trim() || u.name, city: city.trim() });
+        alert("Profilo aggiornato ✓"); setSocialTick(t => t + 1);
+        setOverlay(o => o?.user ? { ...o, user: { ...o.user, name: name.trim() || u.name, city: city.trim() } } : o);
+      } catch (e) { alert("Aggiornamento non riuscito: " + (e?.message || e)); }
+    }} onDeleteUser={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       if (!window.confirm(`ELIMINARE TOTALMENTE l'utente "${u.name}"?\nSpariranno account, post, messaggi, gruppi e notifiche. Irreversibile.`)) return;
       if (!window.confirm("Seconda conferma: procedere davvero con l'eliminazione definitiva?")) return;
@@ -3320,11 +3370,21 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={posts} km={km} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={feedShown} km={km} worldOn={feedWorld} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} worldOn={contactsWorld} onToggleWorld={() => setContactsWorld(v => !v)} worldPlaces={worldPlaces} />}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin}
+          onEditGroup={async g => {
+            const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
+            if (name === null) return;
+            if (name.trim() === "") {
+              if (!window.confirm(`Eliminare il gruppo "${g.name}" per tutti i membri?`)) return;
+              try { await sb.deleteGroup(g.id); setSocialTick(t => t + 1); } catch (e) { alert("Eliminazione non riuscita: " + (e?.message || e)); }
+              return;
+            }
+            try { await sb.updateGroup(g.id, { name: name.trim() }); setSocialTick(t => t + 1); } catch (e) { alert("Modifica non riuscita: " + (e?.message || e)); }
+          }} worldOn={contactsWorld} onToggleWorld={() => setContactsWorld(v => !v)} worldPlaces={worldPlaces} />}
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
