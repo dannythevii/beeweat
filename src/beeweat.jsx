@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.3";
+const APP_VERSION = "6.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -698,6 +698,19 @@ function WeatherPanel({ commentCount, wx }) {
 }
 
 // ─── RADAR SLIDER ─────────────────────────────────────────────────────────────
+const GlobeIcon = ({ size = 14, color = "#fff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+    <circle cx="12" cy="12" r="9" />
+    <ellipse cx="12" cy="12" rx="4" ry="9" />
+    <path d="M3.5 9h17M3.5 15h17" />
+  </svg>
+);
+const WorldBtn = ({ on, onClick, h = 30 }) => (
+  <button onClick={onClick} title="Tutto il mondo" style={{ height: h, padding: "0 12px", borderRadius: 10, border: "none", background: on ? ACCENT : HBLUE, cursor: "pointer", fontSize: 12, fontWeight: 700, color: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `0 2px 10px ${ACCENT}88` : `0 2px 8px ${HBLUE}44`, transition: "background .15s, color .15s" }}>
+    <GlobeIcon size={13.5} color={on ? HBLUE : "#fff"} /> Mondo
+  </button>
+);
+
 function RadarBar({ km, setKm }) {
   const pct = ((km - 1) / 99) * 100;
   return (
@@ -916,7 +929,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${visible.length} post da tutto il mondo` : `${visible.length} post entro ${km} km`}</span>
-        {onToggleWorld && <button onClick={onToggleWorld} title="I cieli di tutto il mondo" style={{ height: 28, padding: "0 10px", borderRadius: 9, border: `1.5px solid ${worldOn ? ACCENT : LINE}`, background: worldOn ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: worldOn ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>}
+        {onToggleWorld && <WorldBtn on={worldOn} onClick={onToggleWorld} h={28} />}
       </div>
       {visible.length === 0
         ? (loading
@@ -1252,7 +1265,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
       <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
         <input type="range" min={1} max={100} value={evKm} disabled={inf} onChange={e => setEvKm(+e.target.value)} style={{ flex: 1, accentColor: ACCENT, opacity: inf ? .35 : 1 }} />
         <span style={{ fontSize: 12.5, fontWeight: 700, color: inf ? TXT2 : HBLUE, minWidth: 56, textAlign: "right" }}>{inf ? "mondo" : evKm + " km"}</span>
-        <button onClick={() => setInf(v => !v)} title="Tutti gli eventi, ovunque" style={{ height: 32, padding: "0 11px", borderRadius: 10, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
+        <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={32} />
       </div>
       <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</div>
       {visible.map(e => (
@@ -1355,7 +1368,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           <NavIcon name="search" size={17} color={TXT2} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca tra i contatti…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
-          <button onClick={onToggleWorld} title="Utenti e luoghi di tutto il mondo" style={{ height: 30, padding: "0 11px", borderRadius: 9, border: `1.5px solid ${inf ? ACCENT : LINE}`, background: inf ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: inf ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
+          <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
         </div>
       </div>
 
@@ -2296,7 +2309,7 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
           <NavIcon name="search" size={18} color={TXT2} />
           <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
-          <button onClick={() => setWorldOn(v => !v)} title="Utenti e luoghi di tutto il mondo" style={{ height: 30, padding: "0 11px", borderRadius: 9, border: `1.5px solid ${worldOn ? ACCENT : LINE}`, background: worldOn ? ACCENT + "26" : "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: worldOn ? "#8A5A12" : TXT2, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, fontFamily: "'Sora',sans-serif" }}>🌍 Mondo</button>
+          <WorldBtn on={worldOn} onClick={() => setWorldOn(v => !v)} h={30} />
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", paddingTop: 14 }}>
