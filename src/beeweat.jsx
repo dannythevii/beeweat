@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.4";
+const APP_VERSION = "6.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3415,6 +3415,35 @@ function AppInner() {
 }
 
 
+// ── Postino delle versioni: avvisa quando c'è una Beeweat più fresca ──────────
+function UpdateBanner() {
+  const [nv, setNv] = useState(null);
+  useEffect(() => {
+    let stop = false;
+    const check = async () => {
+      try {
+        const r = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
+        const j = await r.json();
+        if (!stop && j?.v && j.v !== APP_VERSION) setNv(j.v);
+      } catch (_) {}
+    };
+    check();
+    const iv = setInterval(check, 5 * 60 * 1000);
+    const onVis = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { stop = true; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+  if (!nv) return null;
+  return (
+    <div onClick={() => { window.location.href = window.location.pathname + "?u=" + Date.now(); }}
+      style={{ position: "fixed", top: 10, left: 12, right: 12, zIndex: 600, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 14, padding: "12px 16px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", boxShadow: "0 8px 26px rgba(224,163,21,.45)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+      <span style={{ fontSize: 18 }}>🐝</span>
+      <span style={{ flex: 1 }}>È pronta <b>Beeweat v{nv}</b> — tocca qui per aggiornare</span>
+      <span style={{ fontSize: 16 }}>🔄</span>
+    </div>
+  );
+}
+
 // ── Paracadute globale: qualsiasi errore diventa una schermata leggibile ──────
 class BeeBoundary extends React.Component {
   constructor(p) { super(p); this.state = { err: null }; }
@@ -3434,4 +3463,4 @@ class BeeBoundary extends React.Component {
     return this.props.children;
   }
 }
-export default function App() { return <BeeBoundary><AppInner /></BeeBoundary>; }
+export default function App() { return <BeeBoundary><UpdateBanner /><AppInner /></BeeBoundary>; }
