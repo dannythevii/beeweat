@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.6";
+const APP_VERSION = "6.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -873,7 +873,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     return () => io.disconnect();
   }, []);
   const emoji = post.cond.split(" ")[0];
-  const like = e => { e.stopPropagation(); setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
+  const like = e => { e.stopPropagation(); if (post.mine) return; setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
   const Stat = ({ icon, count, color, onClick, active }) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: onClick ? "pointer" : "default", padding: 0 }}>
       <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 18, color: TXT }}>{count}</span>
@@ -911,7 +911,8 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 
       {/* CONTATORI: chat · like (cuore) · visualizzazioni */}
       <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", padding: "12px 4px 8px" }}>
-        <Stat icon={post.starred ? "heartFill" : "heart"} count={post.stars} color={post.starred ? "#EF4D6A" : HBLUE} onClick={like} active={anim} />
+        <Stat icon="comment" count={post.comments} color={HBLUE} onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} />
+        <Stat icon={post.starred ? "heartFill" : "heart"} count={post.stars} color={post.mine ? TXT2 + "88" : post.starred ? "#EF4D6A" : HBLUE} onClick={post.mine ? undefined : like} active={anim} />
         <Stat icon="eye" count={post.views} color={HBLUE} />
       </div>
 
@@ -2182,7 +2183,63 @@ function Toggle({ on, onChange }) {
 }
 
 // ─── IMPOSTAZIONI NOTIFICHE ───────────────────────────────────────────────────
-function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush }) {
+// ── Permessi del telefono: stato + richiesta ripetibile ──────────────────────
+function PermissionsPanel({ onGeoGranted }) {
+  const [st, setSt] = useState({ geo: "?", cam: "?", ntf: typeof Notification !== "undefined" ? Notification.permission : "unsupported" });
+  const refresh = async () => {
+    const next = { ...st };
+    try { next.geo = (await navigator.permissions.query({ name: "geolocation" })).state; } catch (_) {}
+    try { next.cam = (await navigator.permissions.query({ name: "camera" })).state; } catch (_) {}
+    if (typeof Notification !== "undefined") next.ntf = Notification.permission;
+    setSt(next);
+  };
+  useEffect(() => { refresh(); }, []);
+  const deniedHelp = () => alert("Il sistema ha memorizzato il rifiuto e non rimostra la domanda.\nSblocca a mano: icona 🔒 nella barra dell'indirizzo → Autorizzazioni → Consenti, poi ricarica.\nSu iPhone: Impostazioni → Safari → (Posizione / Fotocamera) → Consenti.");
+  const askGeo = () => {
+    if (!navigator.geolocation) { alert("GPS non disponibile in questo browser."); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => { onGeoGranted && onGeoGranted({ lat: p.coords.latitude, lng: p.coords.longitude }); alert("Posizione consentita ✓"); refresh(); },
+      e => { if (e.code === 1) deniedHelp(); else alert("Posizione non ottenuta: " + e.message); refresh(); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+  const askCam = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) { alert("Fotocamera non disponibile in questo browser (se sei in WhatsApp/Instagram: apri in Safari o Chrome)."); return; }
+    try { const t = await navigator.mediaDevices.getUserMedia({ video: true }); t.getTracks().forEach(x => x.stop()); alert("Fotocamera consentita ✓"); }
+    catch (e) { if (e?.name === "NotAllowedError") deniedHelp(); else alert("Fotocamera non ottenuta: " + (e?.message || e)); }
+    refresh();
+  };
+  const askNtf = async () => {
+    if (typeof Notification === "undefined") { alert("Notifiche non supportate in questo browser."); return; }
+    const r = await Notification.requestPermission();
+    if (r === "granted") alert("Notifiche consentite ✓"); else if (r === "denied") deniedHelp();
+    refresh();
+  };
+  const Row = ({ emoji, label, state, onAsk }) => {
+    const ok = state === "granted";
+    const no = state === "denied";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${LINE}` }}>
+        <span style={{ fontSize: 18, width: 26, textAlign: "center" }}>{emoji}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>{label}</div>
+          <div style={{ fontSize: 11.5, color: ok ? "#2C7A57" : no ? "#C43C41" : TXT2 }}>{ok ? "Consentito ✓" : no ? "Negato dal sistema" : "Da richiedere"}</div>
+        </div>
+        {!ok && <button onClick={onAsk} style={{ padding: "7px 12px", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Richiedi</button>}
+      </div>
+    );
+  };
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, padding: "6px 16px 4px", marginTop: 14, boxShadow: `0 2px 12px ${HBLUE}14` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", padding: "10px 0 4px" }}>Permessi del telefono</div>
+      <Row emoji="📍" label="Posizione" state={st.geo} onAsk={askGeo} />
+      <Row emoji="📷" label="Fotocamera" state={st.cam} onAsk={askCam} />
+      <div style={{ borderBottom: "none" }}><Row emoji="🔔" label="Notifiche" state={st.ntf} onAsk={askNtf} /></div>
+    </div>
+  );
+}
+
+function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted }) {
   const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const set = (k, v) => onChange({ ...settings, [k]: v });
   const enableMaster = async v => {
@@ -2244,6 +2301,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
         <div style={{ padding: "16px", fontSize: 12, color: TXT2, lineHeight: 1.5 }}>
           Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche push reali funzionano solo con l'app installata dallo store; in anteprima questa è una simulazione delle impostazioni.
         </div>
+        <PermissionsPanel onGeoGranted={onGeoGranted} />
       </div>
     </div>
   );
@@ -3292,7 +3350,7 @@ function AppInner() {
         ))}
     </div>
   );
-  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} />);
+  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
     onOpenPhoto={openPhoto} onStar={onStar}
     onAdminEdit={async u => {
