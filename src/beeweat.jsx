@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.5";
+const APP_VERSION = "6.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -672,7 +672,7 @@ function Header({ title, left, right }) {
 }
 
 // ─── WEATHER PANEL ────────────────────────────────────────────────────────────
-function WeatherPanel({ commentCount, wx }) {
+function WeatherPanel({ commentCount, wx, onOpenChat }) {
   const W = wx || WEATHER;
   const M = ({ icon, children }) => <div style={{ display: "flex", alignItems: "center", gap: 5 }}><WIcon name={icon} size={21} color={HBLUE} sw={1.7} /><span style={{ fontSize: 13.5, fontWeight: 500 }}>{children}</span></div>;
   return (
@@ -680,7 +680,7 @@ function WeatherPanel({ commentCount, wx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif", lineHeight: 1.05 }}>{new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5 }}><span>{commentCount}</span><WIcon name="chat" size={14} color={HBLUE} sw={1.8} /></div>
+          <button onClick={onOpenChat} title="Chat pubblica del posto" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, background: HBLUE + "12", border: "none", borderRadius: 9, padding: "3px 8px", cursor: "pointer", color: "inherit", fontFamily: "'Sora',sans-serif" }}><span>{commentCount}</span><WIcon name="chat" size={14} color={HBLUE} sw={1.8} /></button>
         </div>
         <span style={{ fontSize: 28, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
         <div style={{ textAlign: "right" }}>
@@ -911,7 +911,6 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 
       {/* CONTATORI: chat · like (cuore) · visualizzazioni */}
       <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", padding: "12px 4px 8px" }}>
-        <Stat icon="comment" count={post.comments} color={HBLUE} onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} />
         <Stat icon={post.starred ? "heartFill" : "heart"} count={post.stars} color={post.starred ? "#EF4D6A" : HBLUE} onClick={like} active={anim} />
         <Stat icon="eye" count={post.views} color={HBLUE} />
       </div>
@@ -3095,7 +3094,7 @@ function AppInner() {
 
   const onStar = id => {
     const flip = ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p);
-    setPosts(flip); setExtraPosts(flip);   // il cuoricino vale anche sui post a lungo raggio
+    setPosts(flip); setExtraPosts(flip); setWorldFeedPosts(flip);   // il cuoricino vale ovunque: vicino, lungo raggio e Mondo
     if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
   };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
@@ -3381,7 +3380,7 @@ function AppInner() {
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
       )}
-      {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} />}
+      {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={feedShown} km={km} worldOn={feedWorld} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
