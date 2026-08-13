@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.9";
+const APP_VERSION = "7.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -955,6 +955,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: HBLUE, fontSize: 15, flexWrap: "wrap" }}>
             <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}</span>
             <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
+            {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#8A5A12", background: ACCENT + "33", borderRadius: 8, padding: "2px 7px" }}>🎒 in attesa di rete</span>}
             {post.dir && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><WIcon name="compass" size={16} color={HBLUE} sw={2} /><span>{post.dir.label}</span></span>}
             {onFollow && !post.mine && (
               <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ marginLeft: 4, fontSize: 12, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "3px 12px", borderRadius: 20, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
@@ -3221,16 +3222,74 @@ function AppInner() {
     if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
   };
   const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
+  // ── Zaino offline: i post senza rete si salvano e partono da soli ────────────
+  const OUTBOX_KEY = "bw_outbox";
+  const loadOutbox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch (_) { return []; } };
+  const saveOutbox = box => { try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(box)); return true; } catch (_) { return false; } };
+  const isNetErr = e => !navigator.onLine || /fetch|network|internet|connessione|timeout|load failed/i.test(String(e?.message || e));
+  const flushingRef = useRef(false);
+  const flushOutbox = async () => {
+    if (flushingRef.current || !sb?.isConfigured || !navigator.onLine) return;
+    const box = loadOutbox();
+    if (!box.length) return;
+    flushingRef.current = true;
+    const remain = [];
+    let sent = 0;
+    for (const it of box) {
+      try {
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore });
+        sent++;
+      } catch (e) {
+        if (sessionLost(e)) { remain.push(it); break; }
+        it.tries = (it.tries || 0) + 1;
+        if (it.tries < 10) remain.push(it);                       // dopo 10 tentativi falliti si arrende
+      }
+    }
+    saveOutbox(remain);
+    flushingRef.current = false;
+    if (sent) { setPosts(ps => ps.filter(p => !p.pending)); await loadFeed(); }
+  };
+  useEffect(() => {
+    const go = () => { flushOutbox(); };
+    window.addEventListener("online", go);
+    const iv = setInterval(go, 60 * 1000);
+    go();                                                          // anche all'avvio: consegna gli arretrati
+    return () => { window.removeEventListener("online", go); clearInterval(iv); };
+  }, [sb]);
+  // all'avvio, i post ancora nello zaino ricompaiono nel feed come "in attesa"
+  useEffect(() => {
+    if (!user) return;
+    const box = loadOutbox();
+    if (!box.length) return;
+    setPosts(ps => {
+      const have = new Set(ps.filter(p => p.pending).map(p => p.id));
+      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true }));
+      return cards.length ? [...cards, ...ps] : ps;
+    });
+  }, [user]);
+
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
-    const localAdd = () => { setPosts(ps => [{ id: nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true }, ...ps]); setNextId(n => n + 1); };
+    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
+    const pendTs = Date.now();
+    const toOutbox = () => {
+      const box = loadOutbox();
+      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, tries: 0 });
+      if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
+      localAdd(true);
+      alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
+    };
     if (sb?.isConfigured) {
-      (async () => {
+      if (!navigator.onLine) { toOutbox(); }
+      else (async () => {
         try {
           const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
           const postCity = locName || await reverseCity(geo.lat, geo.lng) || user.city;   // il posto VERO dello scatto
           await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
           await loadFeed();
-        } catch (e) { if (!sessionLost(e)) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); } }
+        } catch (e) {
+          if (isNetErr(e)) toOutbox();
+          else if (!sessionLost(e)) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
+        }
       })();
     } else localAdd();
     setOverlay(null); setTab("feed");
