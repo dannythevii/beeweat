@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "6.8";
+const APP_VERSION = "6.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -339,6 +339,66 @@ const skyBand = (canvas, frac) => {
     return { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum: lumSum / n, rough: rn ? roughSum / rn : 0 };
   } catch (_) { return null; }
 };
+// Maschera del cielo: partendo dal bordo alto, mi espando dove il colore scorre liscio.
+// Trova il cielo anche in uno spicchio tra i palazzi, e il meteo si legge SOLO lì.
+const skyMask = canvas => {
+  try {
+    const w = 96, h = 72, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const lum = new Float32Array(w * h), R = new Uint8Array(w * h), G = new Uint8Array(w * h), B = new Uint8Array(w * h);
+    for (let i = 0, px = 0; i < d.length; i += 4, px++) {
+      R[px] = d[i]; G[px] = d[i + 1]; B[px] = d[i + 2];
+      lum[px] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    }
+    const mask = new Uint8Array(w * h);
+    const queue = [];
+    for (let x = 0; x < w; x++) { mask[x] = 1; queue.push(x); }   // semi: tutta la prima riga
+    const TOL_L = 15, TOL_C = 20;
+    const similar = (a, b) => Math.abs(lum[a] - lum[b]) < TOL_L &&
+      Math.abs(R[a] - R[b]) < TOL_C && Math.abs(G[a] - G[b]) < TOL_C && Math.abs(B[a] - B[b]) < TOL_C;
+    while (queue.length) {
+      const p = queue.pop();
+      const x = p % w, y = (p / w) | 0;
+      const nb = [];
+      if (x > 0) nb.push(p - 1);
+      if (x < w - 1) nb.push(p + 1);
+      if (y < h - 1) nb.push(p + w);
+      if (y > 0) nb.push(p - w);
+      for (const q of nb) if (!mask[q] && similar(p, q)) { mask[q] = 1; queue.push(q); }
+    }
+    // statistiche SOLO sui pixel del cielo trovato
+    let n = 0, blue = 0, cloud = 0, warm = 0, dark = 0, bright = 0, lumSum = 0;
+    for (let p = 0; p < w * h; p++) {
+      if (!mask[p]) continue;
+      n++;
+      const r = R[p], g = G[p], b = B[p], L = lum[p];
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx;
+      lumSum += L;
+      if (L > 190) bright++;
+      if (L < 60) dark++;
+      if (b > r + 14 && b >= g && L > 85) blue++;
+      if (sat < 0.18 && L > 150) cloud++;                          // nuvole: chiare e sbiancate
+      if (r > b + 22 && L > 110) warm++;
+    }
+    if (!n) return null;
+    const frac = n / (w * h), pp = x => x / n;
+    return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n };
+  } catch (_) { return null; }
+};
+// Il meteo letto dentro la maschera del cielo
+const classifyFromMask = m => {
+  if (!m) return null;
+  if (m.dark > 0.6) return { cls: "⛈️ Temporale", score: Math.min(0.95, m.dark) };
+  if (m.warm > 0.4) return { cls: "☀️ Sereno", score: 0.7 };                       // alba/tramonto
+  if (m.blue > 0.6 && m.cloud < 0.25) return { cls: "☀️ Sereno", score: Math.min(0.95, m.blue) };
+  if (m.blue > 0.2) return { cls: "⛅ Poco nuvoloso", score: 0.55 + m.cloud / 3 };
+  if (m.cloud > 0.55) return { cls: m.meanLum > 200 ? "🌫️ Nebbia" : "🌧️ Pioggia", score: Math.min(0.9, m.cloud) };
+  return { cls: "⛅ Poco nuvoloso", score: 0.45 };
+};
+
 // Le firme autentiche del cielo (azzurro, coperto luminoso, alba/tramonto, notte, pallido lattiginoso)
 const hasSkySignature = st => !!st && (
   (st.blue > 0.30 && st.rough < 16) ||
@@ -380,7 +440,9 @@ const analyzePhoto = async fullCanvas => {
   }
   // È davvero una foto del cielo/paesaggio? Il cielo AUTENTICO assolve case, cupole e terrazze.
   const sky = classifySky(canvas);
-  const skyEvidence = hasSkySignature(skyBand(canvas, 0.45)) || hasSkySignature(skyBand(canvas, 0.22));
+  const mask = skyMask(canvas);
+  const maskGood = mask && mask.frac >= 0.05;                       // cielo trovato: basta il 5% dell'inquadratura
+  const skyEvidence = maskGood || hasSkySignature(skyBand(canvas, 0.45)) || hasSkySignature(skyBand(canvas, 0.22));
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
   const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
@@ -390,7 +452,10 @@ const analyzePhoto = async fullCanvas => {
   }
   if (!skyEvidence)
     return { block: true, reason: "Non vedo cielo nell'inquadratura: alza un po' l'obiettivo e fai entrare più cielo nella foto. 🌤️", cls: "not_sky", score: sky?.score || null };
-  return { block: false, reason: null, cls: sky?.cls || null, score: sky?.score || null, suggest: sky?.cls || null };
+  const fine = maskGood ? classifyFromMask(mask) : null;            // il giudizio fine, se il cielo è stato trovato
+  const cls = fine?.cls || sky?.cls || null;
+  const score = fine?.score || sky?.score || null;
+  return { block: false, reason: null, cls, score, suggest: cls };
 };
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
