@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.2";
+const APP_VERSION = "7.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2540,6 +2540,7 @@ function Frame({ children }) {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 function AppInner() {
   const [sb, setSb] = useState(null);           // modulo Supabase (se presente e configurato)
+  const [myUid, setMyUid] = useState(null);
   useEffect(() => {
     import("./beeweat-supabase.js")
       .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️" }); }).catch(() => {}); })
@@ -2954,7 +2955,6 @@ function AppInner() {
   const unreadCount = alerts.filter(a => !a.read).length;
   // Amministratore Beeweat? (colonna is_admin sul profilo)
   const [isAdmin, setIsAdmin] = useState(false);
-  const [myUid, setMyUid] = useState(null);
   useEffect(() => { if (sb?.isConfigured && user) sb.supabase.auth.getUser().then(({ data }) => setMyUid(data?.user?.id || null)); }, [sb, user]);
   useEffect(() => {
     if (!sb?.isConfigured) return;
