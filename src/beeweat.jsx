@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.0";
+const APP_VERSION = "7.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1596,7 +1596,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 }
 
 // ─── CAMERA / POST ────────────────────────────────────────────────────────────
-function CameraView({ onPost, onBack, geoReal }) {
+function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
@@ -1711,14 +1711,45 @@ function CameraView({ onPost, onBack, geoReal }) {
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setTimeout(runAI, 60); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
+  const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
   const runAI = () => {
     const c = canvasRef.current; if (!c) return;
     const my = ++aiSeqRef.current;                     // ogni analisi ha il suo numero
     setAi({ checking: true });
-    analyzePhoto(c).then(v => {
+    analyzePhoto(c).then(async v => {
       if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
-      setAi(v);
-      if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
+      // ── CASCATA: sui casi incerti si chiede il secondo parere a Bee-Eye ──
+      const uncertain = onCloudCheck && (
+        (v.block && v.cls === "not_sky") ||            // bocciata per "niente cielo": forse l'occhio fine si sbaglia
+        (!v.block && (!v.score || v.score < 0.6))      // approvata ma con poca convinzione
+      );
+      if (!uncertain) {
+        setAi(v);
+        if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
+        return;
+      }
+      setAi({ ...v, checking: true, secondOpinion: true });
+      try {
+        const t = document.createElement("canvas");
+        const k = Math.min(1, 384 / c.width);
+        t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
+        t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+        const verdict = await onCloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls });
+        if (aiSeqRef.current !== my) return;
+        if (!verdict) { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return; }
+        if (verdict.persone_in_primo_piano)
+          setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
+        else if (verdict.schermo_o_foto_di_foto)
+          setAi({ block: true, reason: "Bee-Eye 👁️: sembra uno schermo o una foto ri-fotografata. Serve il cielo vero. 📵", cls: "screen" });
+        else if (verdict.cielo_visibile || verdict.esterno) {
+          const cls = CLOUD_MAP[verdict.condizione] || v.cls || "⛅ Poco nuvoloso";
+          setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
+          if (CONDITIONS.includes(cls)) setCond(cls);
+        } else
+          setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. Alza l'obiettivo. 🌤️"), cls: "not_sky" });
+      } catch (_) {
+        if (aiSeqRef.current === my) { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
+      }
     }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi({ error: true }); } });
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
@@ -1751,6 +1782,11 @@ function CameraView({ onPost, onBack, geoReal }) {
       <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero. Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</span>
     </div>
   );
+  const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, background: HBLUE + "12", color: HBLUE, border: `1px solid ${HBLUE}33` }}>
+      <span style={{ fontSize: 15 }}>👁️</span><span>Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</span>
+    </div>
+  ) : null;
   const AiChip = () => !ai ? null : ai.error ? (
     <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
@@ -1839,6 +1875,7 @@ function CameraView({ onPost, onBack, geoReal }) {
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
             <GeoChip />
+      <AiChip0 />
       <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
@@ -2832,9 +2869,31 @@ function AppInner() {
   const [notifToast, setNotifToast] = useState(null);
   const toastTimerRef = useRef(null);
   const pendingNotifRef = useRef(null);
+  // Chi segui ti avvisa: ascolto in tempo reale dei nuovi post delle tue api
+  useEffect(() => {
+    if (!sb?.isConfigured || !followingIds.length) return;
+    const ch = sb.supabase.channel("follow-posts")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, payload => {
+        const r = payload?.new;
+        if (!r || r.user_id === myUid || !followingIds.includes(r.user_id)) return;
+        const who = contacts.find(c => c.id === r.user_id);
+        const name = who?.name || "Un'ape che segui";
+        const text = `${name} ha pubblicato un nuovo cielo${r.city ? " da " + r.city : ""} 📸`;
+        setNotifToast({ kind: "followPost", text, from: { uid: r.user_id, name, ava: who?.ava || null, city: who?.city || r.city } });
+        setTimeout(() => setNotifToast(t => (t?.kind === "followPost" && t.text === text) ? null : t), 6500);
+        try {
+          if (document.visibilityState === "hidden" && typeof Notification !== "undefined" && Notification.permission === "granted")
+            new Notification("Beeweat 🐝", { body: text });
+        } catch (_) {}
+        loadFeed();                                                // il cielo nuovo entra subito nel feed
+      }).subscribe();
+    return () => { try { sb.supabase.removeChannel(ch); } catch (_) {} };
+  }, [sb, followingIds, myUid, contacts]);
+
   const routeNotifTap = (kind, from) => {
     if (!user) { pendingNotifRef.current = { kind, from }; return; }
     if (kind === "nudge") { setOverlay("post"); return; }        // il verso del poeta apre la fotocamera
+    if (kind === "followPost" && from?.uid) { setOverlay({ user: { name: from.name, ava: from.ava, city: from.city, uid: from.uid } }); return; }
     if (kind === "direct" && from) {
       openDirectChat({ id: from, name: nameOf(from), ava: (contacts.find(c => c.id === from) || {}).ava || null });
       return;
@@ -3418,7 +3477,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} />);
+  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={allPosts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
@@ -3558,7 +3617,7 @@ function AppInner() {
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
       )}

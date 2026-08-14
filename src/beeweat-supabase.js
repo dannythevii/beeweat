@@ -10,6 +10,14 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Bee-Eye: il secondo parere in cloud sui casi incerti ─────────────────────
+export async function beeEye(imageDataUrl, hints) {
+  const { data, error } = await supabase.functions.invoke("bee-eye", { body: { image: imageDataUrl, hints } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data?.verdict || null;
+}
+
 // ── Feed mondiale: gli ultimi cieli di tutto il pianeta ──────────────────────
 export async function getWorldFeed(limit = 100) {
   const { data, error } = await supabase.from("posts")
