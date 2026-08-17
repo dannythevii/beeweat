@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.4";
+const APP_VERSION = "7.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -192,7 +192,14 @@ const reverseCity = async (lat, lng) => {
   try {
     const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=it`);
     const j = await r.json();
-    return j.locality || j.city || j.principalSubdivision || null;
+    const name = j.locality || j.city || j.principalSubdivision || null;
+    if (name) return name;
+  } catch (_) {}
+  try {   // traduttore di riserva: se il primo tace, parla il secondo
+    const r2 = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=it`);
+    const j2 = await r2.json();
+    const p = j2?.features?.[0]?.properties;
+    return p?.city || p?.town || p?.village || p?.name || null;
   } catch (_) { return null; }
 };
 // Geocodifica diretta: nome città → coordinate (Open-Meteo, gratuita senza chiavi)
@@ -2813,10 +2820,10 @@ function AppInner() {
   const [locName, setLocName] = useState(null);
   useEffect(() => {
     if (!geo) return;
-    (async () => { try {
-      const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${geo.lat}&longitude=${geo.lng}&localityLanguage=it`);
-      const j = await r.json();
-      const name = j.locality || j.city || j.principalSubdivision || null;
+    let stop = false, timer = null;
+    const attempt = async () => {
+      const name = await reverseCity(geo.lat, geo.lng);
+      if (stop) return;
       if (name) {
         setLocName(name);
         // la città del profilo segue la realtà: addio "Sorrento" di fabbrica
@@ -2826,8 +2833,10 @@ function AppInner() {
           if (sb?.isConfigured && myUid)
             sb.supabase.from("profiles").update({ city: name }).eq("id", myUid).then(() => {}, () => {});
         }
-      }
-    } catch (_) {} })();
+      } else timer = setTimeout(attempt, 30 * 1000);   // niente nome? si riprova tra 30s, finché serve
+    };
+    attempt();
+    return () => { stop = true; if (timer) clearTimeout(timer); };
   }, [geo]);
   const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
   const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
