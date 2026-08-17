@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.5";
+const APP_VERSION = "7.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -199,7 +199,14 @@ const reverseCity = async (lat, lng) => {
     const r2 = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=it`);
     const j2 = await r2.json();
     const p = j2?.features?.[0]?.properties;
-    return p?.city || p?.town || p?.village || p?.name || null;
+    const n2 = p?.city || p?.town || p?.village || p?.name || null;
+    if (n2) return n2;
+  } catch (_) {}
+  try {   // terzo motore: OpenStreetMap
+    const r3 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=it`);
+    const j3 = await r3.json();
+    const a = j3?.address || {};
+    return a.city || a.town || a.village || a.municipality || a.county || null;
   } catch (_) { return null; }
 };
 // Geocodifica diretta: nome città → coordinate (Open-Meteo, gratuita senza chiavi)
@@ -2646,6 +2653,7 @@ function AppInner() {
   };
   const openUser = post => setOverlay({ user: { name: post.user, ava: post.ava, city: post.city, uid: post.uid } });
   // Luoghi vicini reali: le località dei post nel raggio
+  const placesRef = useRef([]);
   const realPlaces = useMemo(() => {
     const map = {};
     posts.forEach(p => {
@@ -2664,6 +2672,8 @@ function AppInner() {
     });
     return list;
   }, [posts, events]);
+  placesRef.current = realPlaces;
+
   const openGroupChat = g => {
     const id = "g_" + g.id;
     setOverlay({ chat: { id, name: g.name, ava: "👥", group: true }, groupId: g.id });
@@ -2822,8 +2832,12 @@ function AppInner() {
     if (!geo) return;
     let stop = false, timer = null;
     const attempt = async () => {
-      const name = await reverseCity(geo.lat, geo.lng);
+      let name = await reverseCity(geo.lat, geo.lng);
       if (stop) return;
+      if (!name) {   // tutti i traduttori tacciono? l'alveare conosce già i suoi posti
+        const near = placesRef.current && placesRef.current[0];
+        if (near && near.dist <= 25 && near.name) name = near.name;
+      }
       if (name) {
         setLocName(name);
         // la città del profilo segue la realtà: addio "Sorrento" di fabbrica
