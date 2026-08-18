@@ -19,11 +19,38 @@ export async function beeEye(imageDataUrl, hints) {
 }
 
 // ── Feed mondiale: gli ultimi cieli di tutto il pianeta ──────────────────────
+// Arricchisce righe-post con i conteggi veri (stelle, occhi, commenti, mia stella)
+async function enrichCounts(rows) {
+  const ids = (rows || []).map(r => r.id);
+  if (!ids.length) return rows || [];
+  const [st, vw, cm, me] = await Promise.all([
+    supabase.from("stars").select("post_id").in("post_id", ids),
+    supabase.from("post_views").select("post_id").in("post_id", ids),
+    supabase.from("messages").select("post_id").eq("scope", "post").in("post_id", ids),
+    supabase.auth.getUser(),
+  ]);
+  const tally = q => (q?.data || []).reduce((m, r) => (m[r.post_id] = (m[r.post_id] || 0) + 1, m), {});
+  const sc = tally(st), vc = tally(vw), cc = tally(cm);
+  let mine = new Set();
+  const uid = me?.data?.user?.id;
+  if (uid) {
+    const { data: ms } = await supabase.from("stars").select("post_id").eq("user_id", uid).in("post_id", ids);
+    mine = new Set((ms || []).map(r => r.post_id));
+  }
+  rows.forEach(r => { r.stars_count = sc[r.id] || 0; r.views_count = vc[r.id] || 0; r.comments_count = cc[r.id] || 0; r.starred_by_me = mine.has(r.id); });
+  return rows;
+}
 export async function getWorldFeed(limit = 100) {
   const { data, error } = await supabase.from("posts")
     .select("*").order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return attachProfiles(data || []);
+  return attachProfiles(await enrichCounts(data || []));
+}
+// Il censimento dell'alveare: quanti cieli in tutto il mondo
+export async function getWorldCount() {
+  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count || 0;
 }
 // ── Amministrazione: correzione nome/città di un'ape ─────────────────────────
 export async function adminUpdateProfile(userId, { name, city }) {
@@ -87,14 +114,14 @@ export async function getPostsByUser(userId, limit = 30) {
     .select("*").eq("user_id", userId)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return attachProfiles(data);
+  return attachProfiles(await enrichCounts(data));
 }
 export async function getPostsByCity(city, limit = 30) {
   const { data, error } = await supabase.from("posts")
     .select("*").ilike("city", city)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return attachProfiles(data);
+  return attachProfiles(await enrichCounts(data));
 }
 export async function searchCities(q, limit = 60) {
   const { data, error } = await supabase.from("posts")
