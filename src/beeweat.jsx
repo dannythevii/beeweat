@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.6";
+const APP_VERSION = "7.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1003,12 +1003,12 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount }) {
   const visible = worldOn ? posts : posts.filter(p => p.dist <= km);
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${visible.length} post da tutto il mondo` : `${visible.length} post entro ${km} km`}</span>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${worldCount ?? visible.length} post da tutto il mondo` : `${visible.length} post entro ${km} km`}</span>
         {onToggleWorld && <WorldBtn on={worldOn} onClick={onToggleWorld} h={28} />}
       </div>
       {visible.length === 0
@@ -1984,7 +1984,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView }) {
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
@@ -2030,7 +2030,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         <div style={{ padding: 16 }}>
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
-            : mine.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
+            : mine.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
         </div>
       </div>
     </>
@@ -2145,7 +2145,7 @@ function AvatarEditor({ current, onPick, onClose }) {
 
 // ─── EVENT MAP (cartina con il punto) ─────────────────────────────────────────
 // ─── PAGINA LUOGO (utenti collegati + chat + eventi) ──────────────────────────
-function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit, onOpenPhoto }) {
+function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, onEvents, onOpenUser, onStar, following, onFollow, onReport, reported, isAdmin, onEdit, onOpenPhoto, onView }) {
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const evCount = events.filter(e => e.place === place.name).length || place.events;
   const placePosts = (posts || []).filter(p => p.city === place.name)
@@ -2180,7 +2180,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         <div style={{ padding: "8px 14px 0" }}>
           {placePosts.length === 0
             ? <div style={{ background: "#fff", borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
-            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
+            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
         </div>
 
         {/* utenti collegati al luogo */}
@@ -3070,7 +3070,7 @@ function AppInner() {
       dist: Math.round(dist * 10) / 10,
       bearing: geo && r.lat != null ? bearingDeg(geo, { lat: r.lat, lng: r.lng }) : 0,
       img: r.image_url, caption: r.caption || "", cond: r.condition || "☀️ Sereno",
-      stars: r.stars_count || 0, starred: false, comments: r.comments_count || 0, views: r.views_count || 0,
+      stars: r.stars_count || 0, starred: !!r.starred_by_me, comments: r.comments_count || 0, views: r.views_count || 0,
       camDir: r.cam_dir || null,
     };
   };
@@ -3112,6 +3112,7 @@ function AppInner() {
   // "Mondo" nel Feed: gli ultimi cieli del pianeta
   const [feedWorld, setFeedWorld] = useState(false);
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
+  const [worldCount, setWorldCount] = useState(null);
   useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
   useEffect(() => {
     if (!feedWorld || !sb?.isConfigured) { setWorldFeedPosts([]); return; }
@@ -3119,6 +3120,7 @@ function AppInner() {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const rows = await sb.getWorldFeed();
       setWorldFeedPosts(rows.map(r => mapRemoteRow(r, au?.id)));
+      sb.getWorldCount().then(setWorldCount).catch(() => {});
     } catch (e) { console.warn("feed mondo:", e?.message || e); } })();
   }, [feedWorld, sb, socialTick]);
   const feedShown = useMemo(() => {
@@ -3181,9 +3183,10 @@ function AppInner() {
   const onView = pid => {
     if (!sb?.isConfigured || typeof pid !== "string" || !pid.includes("-") || seenRef.current.has(pid)) return;
     seenRef.current.add(pid);
-    const target = posts.find(p => p.id === pid);
+    const target = posts.find(p => p.id === pid) || extraPosts.find(p => p.id === pid) || worldFeedPosts.find(p => p.id === pid);
     if (!target || target.mine) return;
-    setPosts(ps => ps.map(p => p.id === pid ? { ...p, views: (p.views || 0) + 1 } : p));
+    const bump = ps => ps.map(p => p.id === pid ? { ...p, views: (p.views || 0) + 1 } : p);
+    setPosts(bump); setExtraPosts(bump); setWorldFeedPosts(bump);   // l'occhio vede ovunque
     sb.registerView(pid).catch(() => {});
   };
   const markAlertRead = a => {
@@ -3558,7 +3561,7 @@ function AppInner() {
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
-    onOpenPhoto={openPhoto} onStar={onStar}
+    onOpenPhoto={openPhoto} onStar={onStar} onView={onView}
     onAdminEdit={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       const name = window.prompt("Nome dell'ape:", u.name); if (name === null) return;
@@ -3578,7 +3581,7 @@ function AppInner() {
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
-  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
+  if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} onView={onView} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
     const places = [...new Set([...posts.map(p => p.city), ...events.map(e => e.place)])].filter(Boolean).sort();
     return wrap(<SearchView nearPlaces={realPlaces} people={contacts.filter(c => !c.me)} events={events} places={places} km={km} setKm={setKm} contactDist={contactDist} tab={tab} onTab={t => { setOverlay(null); setTab(t); }}
@@ -3647,7 +3650,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={feedShown} km={km} worldOn={feedWorld} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={feedShown} km={km} worldOn={feedWorld} worldCount={worldCount} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
