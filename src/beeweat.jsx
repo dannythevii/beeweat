@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.7";
+const APP_VERSION = "7.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1904,7 +1904,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const stars = mine.reduce((s, p) => s + p.stars, 0);
@@ -1970,6 +1970,14 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
+          {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: "#fff", border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Messaggio all'alveare</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>Invia un avviso a tutte le api (solo admin)</div>
+            </div>
+            <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
+          </button>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
           <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
@@ -3530,6 +3538,15 @@ function AppInner() {
         try { await sb.supabase.from("profiles").update({ city }).eq("id", myUid); setSocialTick(t => t + 1); }
         catch (e) { alert("Città non salvata: " + (e?.message || e)); }
       }
+    }} isAdmin={isAdmin}
+    onBroadcast={async () => {
+      const text = window.prompt("📣 Messaggio a TUTTE le api dell'alveare:");
+      if (text === null || !text.trim()) return;
+      if (!window.confirm(`Inviare a tutti gli utenti Beeweat?\n\n«${text.trim()}»`)) return;
+      try {
+        const n = await sb.adminBroadcast(text.trim());
+        alert(`📣 Messaggio consegnato a ${n} api dell'alveare ✓`);
+      } catch (e) { alert("Invio non riuscito: " + (e?.message || e)); }
     }} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
@@ -3543,12 +3560,14 @@ function AppInner() {
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
         : alerts.map(a => (
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "broadcast" ? <span style={{ fontSize: 20 }}>📣</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14.5, color: TXT }}>{a.type === "alert"
                 ? <b style={{ color: HBLUE }}>Allerta BeeCast</b>
                 : a.type === "nudge"
                 ? <b style={{ color: HBLUE }}>Il cielo ti chiama</b>
+                : a.type === "broadcast"
+                ? <b style={{ color: HBLUE }}>Messaggio dall'alveare 📣</b>
                 : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : "ti ha scritto"}</>}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
@@ -3643,7 +3662,7 @@ function AppInner() {
       <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
       )}

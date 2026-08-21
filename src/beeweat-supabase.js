@@ -60,6 +60,13 @@ export async function adminUpdateProfile(userId, { name, city }) {
   const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
   if (error) throw error;
 }
+// ── Megafono: messaggio degli admin a tutte le api ───────────────────────────
+export async function adminBroadcast(text) {
+  const { data, error } = await supabase.rpc("admin_broadcast", { p_text: text });
+  if (error) throw error;
+  return data || 0;
+}
+
 // ── Gruppi: rinomina ed eliminazione (proprietario o amministratore) ─────────
 export async function updateGroup(groupId, { name }) {
   const { error } = await supabase.from("groups").update({ name }).eq("id", groupId);
