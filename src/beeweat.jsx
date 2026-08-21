@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.8";
+const APP_VERSION = "7.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1729,6 +1729,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
   const runAI = () => {
     const c = canvasRef.current; if (!c) return;
     const my = ++aiSeqRef.current;                     // ogni analisi ha il suo numero
+    if (!navigator.onLine) { setAi({ offline: true }); return; }   // senza rete: si pubblica nello zaino, controllo al rientro
     setAi({ checking: true });
     analyzePhoto(c).then(async v => {
       if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
@@ -1764,7 +1765,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
       } catch (_) {
         if (aiSeqRef.current === my) { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
       }
-    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi({ error: true }); } });
+    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi(navigator.onLine ? { error: true } : { offline: true }); } });
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
@@ -1789,13 +1790,19 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || !ai || ai.block || ai.checking || ai.error || !geoReal) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
   const GeoChip = () => geoReal ? null : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
       <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero. Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</span>
     </div>
   );
+  const OfflineChip = () => ai?.offline ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ACCENT + "22", color: "#8A5A12", border: `1px solid ${ACCENT}66` }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>🎒</span>
+      <span><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</span>
+    </div>
+  ) : null;
   const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, background: HBLUE + "12", color: HBLUE, border: `1px solid ${HBLUE}33` }}>
       <span style={{ fontSize: 15 }}>👁️</span><span>Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</span>
@@ -1889,12 +1896,13 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
             <GeoChip />
+      <OfflineChip />
       <AiChip0 />
       <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || ai.error || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.offline ? "Metti nello zaino 🎒" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -3328,8 +3336,20 @@ function AppInner() {
     flushingRef.current = true;
     const remain = [];
     let sent = 0;
+    const rejected = [];
     for (const it of box) {
       try {
+        if (it.needsCheck) {   // il controllo rimandato: ora che c'è rete, gli occhi si aprono
+          try {
+            const imgEl = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = it.img; });
+            const cnv = document.createElement("canvas");
+            cnv.width = imgEl.naturalWidth; cnv.height = imgEl.naturalHeight;
+            cnv.getContext("2d").drawImage(imgEl, 0, 0);
+            const v = await analyzePhoto(cnv);
+            if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }   // scartata: non parte
+            it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
+          } catch (_) { /* controllo non riuscito: si ritenta al prossimo giro */ it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+        }
         await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore });
         sent++;
       } catch (e) {
@@ -3340,7 +3360,8 @@ function AppInner() {
     }
     saveOutbox(remain);
     flushingRef.current = false;
-    if (sent) { setPosts(ps => ps.filter(p => !p.pending)); await loadFeed(); }
+    if (sent || rejected.length) { setPosts(ps => ps.filter(p => !p.pending)); await loadFeed(); }
+    if (rejected.length) alert(`🎒 ${rejected.length} foto dello zaino non ${rejected.length === 1 ? "ha" : "hanno"} superato il controllo e non ${rejected.length === 1 ? "è stata pubblicata" : "sono state pubblicate"}:\n· ` + rejected.join("\n· "));
   };
   useEffect(() => {
     const go = () => { flushOutbox(); };
@@ -3366,7 +3387,7 @@ function AppInner() {
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
-      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, tries: 0 });
+      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
