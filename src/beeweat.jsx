@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "7.9";
+const APP_VERSION = "8.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1315,39 +1315,18 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
-  const [fCity, setFCity] = useState("Luogo");
-  const [fUser, setFUser] = useState("Ape");
-  const [fCat, setFCat] = useState("Evento");
-  const [evKm, setEvKm] = useState(km);
   const [inf, setInf] = useState(false);
   const alive = events.filter(e => !e.ends || e.ends >= today);
-  const cities = ["Luogo", ...new Set(alive.map(e => e.place).filter(Boolean))];
-  const users = ["Ape", ...new Set(alive.map(e => e.user).filter(Boolean))];
-  const cats = ["Evento", ...new Set(alive.map(e => e.cat).filter(Boolean))];
   const visible = alive.filter(e =>
-    (inf || e.dist <= evKm) &&
-    (fCity === "Luogo" || e.place === fCity) &&
-    (fUser === "Ape" || e.user === fUser) &&
-    (fCat === "Evento" || e.cat === fCat));
-  const FSel = ({ v, set, opts }) => (
-    <select value={v} onChange={e => set(e.target.value)} style={{ flex: 1, minWidth: 0, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 10, padding: "8px 8px", fontSize: 12.5, color: TXT, outline: "none", fontFamily: "'Sora',sans-serif" }}>
-      {opts.map(o => <option key={o}>{o}</option>)}
-    </select>
-  );
+    (inf || e.dist <= km) &&
+    true);
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <FSel v={fCity} set={setFCity} opts={cities} />
-        <FSel v={fUser} set={setFUser} opts={users} />
-        <FSel v={fCat} set={setFCat} opts={cats} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</span>
+        <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
-        <input type="range" min={1} max={100} value={evKm} disabled={inf} onChange={e => setEvKm(+e.target.value)} style={{ flex: 1, accentColor: ACCENT, opacity: inf ? .35 : 1 }} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: inf ? TXT2 : HBLUE, minWidth: 56, textAlign: "right" }}>{inf ? "mondo" : evKm + " km"}</span>
-        <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={32} />
-      </div>
-      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</div>
       {visible.map(e => (
         <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -3643,7 +3622,7 @@ function AppInner() {
   }
 
   const showWeather = tab === "feed" || tab === "vicini";
-  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast";
+  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast" || tab === "eventi";
   const feedTitle = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <NavIcon name="pin" size={18} color="#fff" sw={2} />
