@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.4";
+const APP_VERSION = "8.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -487,7 +487,11 @@ const analyzePhoto = async fullCanvas => {
   const fine = maskGood ? classifyFromMask(mask) : null;            // il giudizio fine, se il cielo è stato trovato
   const cls = fine?.cls || sky?.cls || null;
   const score = fine?.score || sky?.score || null;
-  return { block: false, reason: null, cls, score, suggest: cls };
+  // CONFLITTO: la maschera dice "cielo" ma la scena grida "interno" (TV, quadri, mobili)
+  // → niente fiducia cieca: il caso va al secondo parere; senza Bee-Eye vince la prudenza
+  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor));
+  return { block: false, reason: null, cls, score, suggest: cls, conflict,
+    conflictWhat: conflict ? (indoorObj ? indoorObj.class : preds[0]?.className?.split(",")[0]) : null };
 };
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
@@ -1741,9 +1745,14 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
       // ── CASCATA: sui casi incerti si chiede il secondo parere a Bee-Eye ──
       const uncertain = onCloudCheck && (
         (v.block && v.cls === "not_sky") ||            // bocciata per "niente cielo": forse l'occhio fine si sbaglia
-        (!v.block && (!v.score || v.score < 0.6))      // approvata ma con poca convinzione
+        (!v.block && (!v.score || v.score < 0.6)) ||   // approvata ma con poca convinzione
+        (!v.block && v.conflict)                       // cielo E interno insieme: serve un giudice che capisca la scena
       );
       if (!uncertain) {
+        if (!v.block && v.conflict) {                  // conflitto ma niente giudice: vince la prudenza
+          setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" });
+          return;
+        }
         setAi(v);
         if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
         return;
@@ -1756,7 +1765,10 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
         t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
         const verdict = await onCloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls });
         if (aiSeqRef.current !== my) return;
-        if (!verdict) { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return; }
+        if (!verdict) {
+          if (v.conflict) { setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" }); return; }
+          setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return;
+        }
         if (verdict.persone_in_primo_piano)
           setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
         else if (verdict.schermo_o_foto_di_foto)
@@ -1769,7 +1781,10 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
         } else
           setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. Alza l'obiettivo. 🌤️"), cls: "not_sky" });
       } catch (_) {
-        if (aiSeqRef.current === my) { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
+        if (aiSeqRef.current === my) {
+          if (v.conflict) setAi({ block: true, reason: "Questa sembra una scena d'interni. Inquadra il cielo vero. 🌤️", cls: "not_sky" });
+          else { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
+        }
       }
     }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi(navigator.onLine ? { error: true } : { offline: true }); } });
   };
