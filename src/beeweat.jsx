@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.5";
+const APP_VERSION = "8.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -420,6 +420,37 @@ const skyMask = canvas => {
     return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n, microRough };
   } catch (_) { return null; }
 };
+// Punti-luce artificiali: conta gli abbagli piccoli e separati (faretti, lampade, flare)
+const pointLights = canvas => {
+  try {
+    const w = 96, h = 72, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const hot = new Uint8Array(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++)
+      if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] > 246) hot[p] = 1;
+    const seen = new Uint8Array(w * h);
+    let clusters = 0, maxSize = 0;
+    for (let p = 0; p < w * h; p++) {
+      if (!hot[p] || seen[p]) continue;
+      let size = 0; const q = [p]; seen[p] = 1;
+      while (q.length) {
+        const u = q.pop(); size++;
+        const x = u % w, y = (u / w) | 0;
+        for (const v of [u - 1, u + 1, u - w, u + w]) {
+          if (v < 0 || v >= w * h) continue;
+          const vx = v % w;
+          if (Math.abs(vx - x) > 1) continue;
+          if (hot[v] && !seen[v]) { seen[v] = 1; q.push(v); }
+        }
+      }
+      clusters++; if (size > maxSize) maxSize = size;
+    }
+    return { clusters, maxSize };
+  } catch (_) { return { clusters: 0, maxSize: 0 }; }
+};
 // Il meteo letto dentro la maschera del cielo
 const classifyFromMask = m => {
   if (!m) return null;
@@ -487,11 +518,20 @@ const analyzePhoto = async fullCanvas => {
   const fine = maskGood ? classifyFromMask(mask) : null;            // il giudizio fine, se il cielo è stato trovato
   const cls = fine?.cls || sky?.cls || null;
   const score = fine?.score || sky?.score || null;
-  // CONFLITTO: la maschera dice "cielo" ma la scena grida "interno" (TV, quadri, mobili)
-  // → niente fiducia cieca: il caso va al secondo parere; senza Bee-Eye vince la prudenza
-  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor));
-  return { block: false, reason: null, cls, score, suggest: cls, conflict,
-    conflictWhat: conflict ? (indoorObj ? indoorObj.class : preds[0]?.className?.split(",")[0]) : null };
+  // CONFLITTO: la maschera dice "cielo" ma la scena grida "interno" (TV, quadri, mobili),
+  // oppure la LUCE tradisce: più punti abbaglianti separati = faretti/lampade (il sole è uno solo),
+  // o un "cielo luminoso" a notte fonda = assurdo d'orologio.
+  const lights = pointLights(canvas);
+  const artificialLight = lights.clusters >= 2 && lights.maxSize <= 55;
+  const hourNow = new Date().getHours();
+  const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
+  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright));
+  const conflictWhat = !conflict ? null
+    : indoorObj ? indoorObj.class
+    : artificialLight ? "luci artificiali"
+    : nightBright ? "cielo troppo luminoso per quest'ora"
+    : preds[0]?.className?.split(",")[0];
+  return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat };
 };
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
