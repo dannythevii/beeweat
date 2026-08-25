@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.0";
+const APP_VERSION = "8.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1250,13 +1250,20 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
   }, []);
 
   const EMERG = /🌧|⛈|❄|🌨|🌫|🌬/;
-  const visible = posts.filter(p => p.dist <= km && EMERG.test(p.cond || ""));   // sul radar solo il maltempo (+ eventi)
-  const evVisible = (events || []).filter(e => e.dist <= km);
+  const [view, setView] = useState("meteo");                                     // Meteo | Eventi: il radar mostra una cosa alla volta
+  const allWeather = posts.filter(p => p.dist <= km && EMERG.test(p.cond || ""));
+  const allEvents = (events || []).filter(e => e.dist <= km);
+  const visible = view === "meteo" ? allWeather : [];
+  const evVisible = view === "eventi" ? allEvents : [];
   const R = 150, cx = 160, cy = 160;
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
-      <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{visible.length} post · {evVisible.length} eventi entro {km} km</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {[["meteo", `🌦️ Meteo (${allWeather.length})`], ["eventi", `📌 Eventi (${allEvents.length})`]].map(([id, label]) => (
+          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: view === id ? "none" : `1.5px solid ${LINE}`, background: view === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", transition: "background .15s" }}>{label}</button>
+        ))}
+      </div>
       <div style={{ position: "relative", background: `radial-gradient(circle at center, #DCEBF7, #C2DCF0)`, borderRadius: 18, padding: 10, border: `2px solid ${HBLUE}33`, boxShadow: `0 2px 12px ${HBLUE}18`, overflow: "hidden" }}>
         <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", display: "block", touchAction: "none", cursor: zoomed ? "grab" : "default" }}>
           {[0.33, 0.66, 1].map((f, i) => <circle key={i} cx={cx} cy={cy} r={R * f} fill="none" stroke={HBLUE + "33"} strokeWidth="1.5" />)}
@@ -1295,8 +1302,8 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
       </div>
       {/* legenda */}
       <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 10, fontSize: 11, color: TXT2 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Maltempo</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #E5484D", background: "#fff", display: "inline-block" }} /> Eventi</span>
+        {view === "meteo" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Maltempo</span>}
+        {view === "eventi" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #E5484D", background: "#fff", display: "inline-block" }} /> Eventi</span>}
       </div>
       <div style={{ textAlign: "center", color: TXT2, fontSize: 11, marginTop: 6 }}>Pizzica per zoomare · trascina per spostarti</div>
       {sel
