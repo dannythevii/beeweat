@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.3";
+const APP_VERSION = "8.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -399,7 +399,25 @@ const skyMask = canvas => {
     }
     if (!n) return null;
     const frac = n / (w * h), pp = x => x / n;
-    return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n };
+    // tastometro fine: la trama (tessuti, intonaci) si sente ad alta risoluzione, il cielo resta liscio
+    let microRough = 0;
+    try {
+      const W2 = 224, H2 = 168, c2 = document.createElement("canvas");
+      c2.width = W2; c2.height = H2;
+      const x2 = c2.getContext("2d");
+      x2.drawImage(canvas, 0, 0, W2, H2);
+      const d2 = x2.getImageData(0, 0, W2, H2).data;
+      let rs = 0, rn2 = 0, prev = null;
+      for (let y2 = 0; y2 < H2; y2++) for (let x = 0; x < W2; x++) {
+        const mp = ((y2 / H2 * h) | 0) * w + ((x / W2 * w) | 0);
+        const i2 = (y2 * W2 + x) * 4;
+        const L2 = 0.299 * d2[i2] + 0.587 * d2[i2 + 1] + 0.114 * d2[i2 + 2];
+        if (x > 0 && prev !== null && mask[mp]) { rs += Math.abs(L2 - prev); rn2++; }
+        prev = L2;
+      }
+      microRough = rn2 ? rs / rn2 : 0;
+    } catch (_) {}
+    return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n, microRough };
   } catch (_) { return null; }
 };
 // Il meteo letto dentro la maschera del cielo
@@ -455,7 +473,7 @@ const analyzePhoto = async fullCanvas => {
   // È davvero una foto del cielo/paesaggio? Il cielo AUTENTICO assolve case, cupole e terrazze.
   const sky = classifySky(canvas);
   const mask = skyMask(canvas);
-  const maskGood = mask && mask.frac >= 0.05;                       // cielo trovato: basta il 5% dell'inquadratura
+  const maskGood = mask && mask.frac >= 0.05 && mask.microRough < 10;   // cielo trovato: liscio anche da vicino (le trame tradiscono)
   const skyEvidence = maskGood || hasSkySignature(skyBand(canvas, 0.45)) || hasSkySignature(skyBand(canvas, 0.22));
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
@@ -804,7 +822,7 @@ function RadarBar({ km, setKm }) {
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
 function BottomNav({ tab, setTab }) {
   const tabs = [
-    { id: "vicini", icon: "vicini", label: "Vicini" },
+    { id: "vicini", icon: "vicini", label: "Radar" },
     { id: "beecast", icon: "beecast", label: "BeeCast" },
     { id: "feed", icon: "feed", label: "Feed" },
     { id: "eventi", icon: "eventi", label: "Eventi" },
@@ -1747,6 +1765,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
           const cls = CLOUD_MAP[verdict.condizione] || v.cls || "⛅ Poco nuvoloso";
           setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
           if (CONDITIONS.includes(cls)) setCond(cls);
+          if (verdict.mare_visibile && verdict.stato_mare) setCaption(c => c || `Mare ${verdict.stato_mare}`);   // l'occhio che legge le onde
         } else
           setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. Alza l'obiettivo. 🌤️"), cls: "not_sky" });
       } catch (_) {
