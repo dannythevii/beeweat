@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.1";
+const APP_VERSION = "8.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -970,6 +970,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
             <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}</span>
             <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
             {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#8A5A12", background: ACCENT + "33", borderRadius: 8, padding: "2px 7px" }}>🎒 in attesa di rete</span>}
+            {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: HBLUE, background: HBLUE + "14", borderRadius: 8, padding: "2px 7px" }}>⏫ pubblicazione…</span>}
             {post.dir && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><WIcon name="compass" size={16} color={HBLUE} sw={2} /><span>{post.dir.label}</span></span>}
             {onFollow && !post.mine && (
               <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ marginLeft: 4, fontSize: 12, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "3px 12px", borderRadius: 20, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
@@ -1260,7 +1261,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {[["meteo", `🌦️ Meteo (${allWeather.length})`], ["eventi", `📌 Eventi (${allEvents.length})`]].map(([id, label]) => (
+        {[["meteo", `Meteo (${allWeather.length})`], ["eventi", `Eventi (${allEvents.length})`]].map(([id, label]) => (
           <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: view === id ? "none" : `1.5px solid ${LINE}`, background: view === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", transition: "background .15s" }}>{label}</button>
         ))}
       </div>
@@ -3368,6 +3369,23 @@ function AppInner() {
     });
   }, [user]);
 
+  const shrinkImage = (dataUrl, maxW = 1600, q = 0.82) => new Promise(res => {
+    try {
+      const im = new Image();
+      im.onload = () => {
+        try {
+          const k = Math.min(1, maxW / im.naturalWidth);
+          if (k >= 1) { res(dataURLtoBlob(dataUrl)); return; }
+          const c = document.createElement("canvas");
+          c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          c.toBlob(b => res(b || dataURLtoBlob(dataUrl)), "image/jpeg", q);
+        } catch (_) { res(dataURLtoBlob(dataUrl)); }
+      };
+      im.onerror = () => res(dataURLtoBlob(dataUrl));
+      im.src = dataUrl;
+    } catch (_) { res(dataURLtoBlob(dataUrl)); }
+  });
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
@@ -3381,12 +3399,18 @@ function AppInner() {
     if (sb?.isConfigured) {
       if (!navigator.onLine) { toOutbox(); }
       else (async () => {
+        // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
+        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
+        const clearTemp = () => setPosts(ps => ps.filter(p => p.id !== "tx_" + pendTs));
         try {
-          const file = img.startsWith("data:") ? dataURLtoBlob(img) : await (await fetch(img)).blob();
-          const postCity = locName || await reverseCity(geo.lat, geo.lng) || user.city;   // il posto VERO dello scatto
+          const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
+            img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
+            (async () => locName || await reverseCity(geo.lat, geo.lng) || user.city)(),
+          ]);
           await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
-          await loadFeed();
+          await loadFeed();                                                              // il feed vero rimpiazza la card provvisoria
         } catch (e) {
+          clearTemp();
           if (isNetErr(e)) toOutbox();
           else if (!sessionLost(e)) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
         }
