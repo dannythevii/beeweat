@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.1";
+const APP_VERSION = "9.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1342,7 +1342,8 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
   const SIX_H = 6 * 3600 * 1000;
   const nowMs = Date.now();
   const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
-  const allEvents = (events || []).filter(e => e.dist <= km);
+  const nowIso = new Date().toISOString();
+  const allEvents = (events || []).filter(e => e.dist <= km && (!e.ends || e.ends >= nowIso));   // niente allerte scadute sul radar
   const visible = view === "meteo" ? allWeather : [];
   const evVisible = view === "eventi" ? allEvents : [];
   const R = 150, cx = 160, cy = 160;
@@ -3207,6 +3208,7 @@ function AppInner() {
     const ids = new Set(posts.map(p => p.id));
     return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
   }, [posts, extraPosts]);
+  const [eventsTick, setEventsTick] = useState(0);
   // Eventi reali dal database (persistenti e condivisi)
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -3219,7 +3221,16 @@ function AppInner() {
         dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng }) * 10) / 10 : 999,
       })));
     } catch (e) { console.warn("eventi:", e?.message || e); } })();
-  }, [sb, user, socialTick, geoKey]);
+  }, [sb, user, socialTick, geoKey, eventsTick]);
+  // battito eventi: si rinfrescano da soli (allerte altrui, scadenze) e al ritorno in primo piano
+  useEffect(() => {
+    if (!sb?.isConfigured || !user) return;
+    const beat = () => setEventsTick(t => t + 1);
+    const iv = setInterval(beat, 90 * 1000);
+    const onVis = () => { if (document.visibilityState === "visible") beat(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, [sb, user]);
   // "Mondo" nel Feed: gli ultimi cieli del pianeta
   const [feedWorld, setFeedWorld] = useState(false);
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
