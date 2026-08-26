@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.6";
+const APP_VERSION = "8.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -522,8 +522,13 @@ const analyzePhoto = async fullCanvas => {
   // oppure la LUCE tradisce: più punti abbaglianti separati = faretti/lampade (il sole è uno solo),
   // o un "cielo luminoso" a notte fonda = assurdo d'orologio.
   const lights = pointLights(canvas);
-  const artificialLight = lights.clusters >= 2 && lights.maxSize <= 55;
   const hourNow = new Date().getHours();
+  const isDaytime = hourNow >= 6 && hourNow <= 20;
+  // i riflessi del sole di giorno su foglie/vetri imitano i faretti: non è luce artificiale
+  // la flaggo solo se è buio O se la scena non è esterna (outdoorHit la disinnesca di giorno)
+  const artificialLight = lights.clusters >= 2 && lights.maxSize <= 55
+    && !(isDaytime && outdoorHit)           // scena esterna di giorno → flare solare, non lampade
+    && !(isDaytime && mask && mask.blue > 0.15); // cielo azzurro visibile → sole, non faretti
   const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
   const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright));
   const conflictWhat = !conflict ? null
@@ -1314,7 +1319,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 
   const EMERG = /🌧|⛈|❄|🌨|🌫|🌬/;
   const [view, setView] = useState("meteo");                                     // Meteo | Eventi: il radar mostra una cosa alla volta
-  const allWeather = posts.filter(p => p.dist <= km && EMERG.test(p.cond || ""));
+  const allWeather = posts.filter(p => p.dist <= km);   // tutti i post meteo, non solo il maltempo
   const allEvents = (events || []).filter(e => e.dist <= km);
   const visible = view === "meteo" ? allWeather : [];
   const evVisible = view === "eventi" ? allEvents : [];
