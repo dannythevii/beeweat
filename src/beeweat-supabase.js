@@ -388,7 +388,20 @@ export async function subscribeNotifications(myId, onEvent) {
 // ── Profili e chat dirette ────────────────────────────────────────────────────
 export async function getProfiles() {
   const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").order("name");
-  if (error) throw error; return data || [];
+  if (error) throw error;
+  const profs = data || [];
+  try {                                   // le stelle: quanti post vivi ha ciascuna ape
+    const { data: rows } = await supabase.from("posts").select("user_id");
+    const tally = (rows || []).reduce((m, r) => (m[r.user_id] = (m[r.user_id] || 0) + 1, m), {});
+    profs.forEach(p => { p.posts_count = tally[p.id] || 0; });
+  } catch (_) {}
+  return profs;
+}
+// Post vivi di una singola ape (per il grado sul profilo)
+export async function getUserPostCount(userId) {
+  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if (error) throw error;
+  return count || 0;
 }
 export async function getDirectMessages(otherId) {
   const { data: { user } } = await supabase.auth.getUser();

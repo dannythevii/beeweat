@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "8.8";
+const APP_VERSION = "9.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -114,9 +114,29 @@ const MailIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0
 const AppleIcon = ({ size = 20 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff"><path d="M16.36 12.78c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.71-3.19-1.73-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.71.71 2.88.69 1.19-.02 1.94-1.08 2.67-2.15.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.53zM14.13 6.13c.61-.74 1.02-1.77.91-2.79-.88.04-1.94.59-2.57 1.32-.56.65-1.06 1.7-.93 2.7.98.08 1.98-.5 2.59-1.23z" /></svg>;
 
 // ─── AVATAR (emoji o immagine) ────────────────────────────────────────────────
-function UserAvatar({ src, size = 44, ring = true }) {
+// ── Gradi dell'alveare: una stella ogni 20 post vivi ─────────────────────────
+const STAR_STEP = 20;
+const beeStars = n => Math.min(5, Math.floor((n || 0) / STAR_STEP));
+const BEE_RANKS = ["New Bee", "Scout Bee", "Worker Bee", "Guard Bee", "Royal Bee", "Queen Bee"];
+const beeRank = n => BEE_RANKS[beeStars(n)];
+
+function UserAvatar({ src, size = 44, ring = true, stars = 0 }) {
   const isImg = typeof src === "string" && (src.startsWith("data:") || src.startsWith("http"));
   const common = { width: size, height: size, borderRadius: "50%", flexShrink: 0, border: ring ? `2px solid ${LINE}` : "none" };
+  if (stars > 0) {
+    const inner = isImg
+      ? <img src={src} alt="" style={{ ...common, objectFit: "cover", display: "block" }} />
+      : <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#DCEBF7,#fff)" }}>{src}</div>;
+    return (
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        {inner}
+        <div title={`${beeRank(stars * STAR_STEP)} · ${stars} ${stars === 1 ? "stella" : "stelle"}`}
+          style={{ position: "absolute", right: -2, bottom: -2, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 9, padding: size >= 56 ? "1px 6px" : "0 4px", fontSize: Math.max(8.5, size * 0.2), fontWeight: 800, lineHeight: 1.5, border: "1.5px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.2)", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
+          ⭐{stars}
+        </div>
+      </div>
+    );
+  }
   if (isImg) return <img src={src} alt="" style={{ ...common, objectFit: "cover", display: "block" }} />;
   return <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#DCEBF7,#fff)" }}>{src || <NavIcon name="contatti" size={size * 0.55} color={HBLUE} />}</div>;
 }
@@ -875,7 +895,7 @@ function BottomNav({ tab, setTab }) {
     { id: "beecast", icon: "beecast", label: "BeeCast" },
     { id: "feed", icon: "feed", label: "Feed" },
     { id: "eventi", icon: "eventi", label: "Eventi" },
-    { id: "contatti", icon: "contatti", label: "Contatti" },
+    { id: "contatti", icon: "contatti", label: "BeeWorld" },
   ];
   return (
     <div style={{ display: "flex", background: NAV, minHeight: 64, paddingBottom: "env(safe-area-inset-bottom, 0px)", flexShrink: 0 }}>
@@ -1030,7 +1050,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     <div ref={cardRef} className="fade-up" style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: `0 2px 10px ${HBLUE}0D` }}>
       {/* HEADER */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-        <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} /></div>
+        <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} stars={post.stars_rank || 0} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 500, fontSize: 21, color: HBLUE, lineHeight: 1.15, cursor: onOpenUser && !post.mine ? "pointer" : "default", display: "inline-block" }}>{post.user}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: HBLUE, fontSize: 15, flexWrap: "wrap" }}>
@@ -1530,12 +1550,12 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
         </div>
       )}
 
-      {!ql && <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Contatti</div>}
+      {!ql && <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>BeeWorld</div>}
       {list.length === 0
         ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
         : list.map(c => (
           <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: c.me ? HBLUE + "08" : "transparent" }}>
-            <UserAvatar src={c.ava} size={56} />
+            <UserAvatar src={c.ava} size={56} stars={beeStars(c.postsCount)} />
             <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name}{c.me && <span style={{ fontSize: 13.5, color: TXT2, fontWeight: 500 }}>(tu)</span>} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{titleCase(c.city)}</span></div>
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
@@ -1998,6 +2018,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8 }}>{user.name}
             {onRename && <button onClick={onRename} title="Modifica nome" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
           </div>
+          {beeStars(posts.filter(p => p.mine).length) > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>{"⭐".repeat(beeStars(posts.filter(p => p.mine).length))} {beeRank(posts.filter(p => p.mine).length)}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
             {onRenameCity && <button onClick={onRenameCity} title="Modifica città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={13} color={HBLUE} sw={1.9} /></button>}
           </div>
@@ -2068,6 +2089,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
 function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView }) {
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  const rankStars = beeStars(profile.postsCount ?? mine.length);
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
@@ -2076,10 +2098,11 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
       <Header title={(profile.name || "Utente").split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ background: "#fff", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, color: HBLUE, borderBottom: `1px solid ${LINE}` }}>
-          <UserAvatar src={profile.ava} size={56} ring />
+          <UserAvatar src={profile.ava} size={56} ring stars={rankStars} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left" }}>
             <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 17, lineHeight: 1.15 }}>{profile.name}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
+            {rankStars > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 4, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "2px 8px", fontSize: 11.5, fontWeight: 700 }}>{"⭐".repeat(rankStars)} {BEE_RANKS[rankStars]}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
               {isAdmin && <button onClick={() => onAdminEdit && onAdminEdit(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE }}>Modifica</button>}
@@ -3168,7 +3191,11 @@ function AppInner() {
   } catch (e) { console.warn("post città:", e?.message || e); } };
   useEffect(() => {
     if (!sb?.isConfigured) return;
-    if (overlay?.user?.uid) { setExtraPosts([]); loadUserPosts(overlay.user.uid); }
+    if (overlay?.user?.uid) {
+      setExtraPosts([]); loadUserPosts(overlay.user.uid);
+      if (sb?.isConfigured && sb.getUserPostCount)
+        sb.getUserPostCount(overlay.user.uid).then(n => setOverlay(o => o?.user?.uid === overlay.user.uid ? { ...o, user: { ...o.user, postsCount: n } } : o)).catch(() => {});
+    }
     else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
     else if (overlay === "profile" && myUid) { setExtraPosts([]); loadUserPosts(myUid); }   // il MIO profilo: tutti i miei post, da ovunque
     else if (!overlay?.user && !overlay?.place && overlay !== "profile") setExtraPosts([]);
@@ -3205,6 +3232,12 @@ function AppInner() {
       sb.getWorldCount().then(setWorldCount).catch(() => {});
     } catch (e) { console.warn("feed mondo:", e?.message || e); } })();
   }, [feedWorld, sb, socialTick]);
+  const rankOf = useMemo(() => {
+    const m = {};
+    (contacts || []).forEach(c => { if (c.id) m[c.id] = beeStars(c.postsCount); if (c.name) m[c.name] = beeStars(c.postsCount); });
+    return m;
+  }, [contacts]);
+  const withRank = list => (list || []).map(p => ({ ...p, stars_rank: rankOf[p.uid] ?? rankOf[p.user] ?? 0 }));
   const feedShown = useMemo(() => {
     if (!feedWorld) return posts;
     const ids = new Set(posts.map(p => p.id));
@@ -3299,7 +3332,7 @@ function AppInner() {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const profs = await sb.getProfiles();
       setContacts(profs
-        .map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null, me: !!au && p.id === au.id }))
+        .map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null, me: !!au && p.id === au.id, postsCount: p.posts_count || 0 }))
         .sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0)));
     } catch (e) { console.warn("contatti:", e?.message || e); } })();
   }, [sb, user, socialTick]);
@@ -3739,7 +3772,7 @@ function AppInner() {
       {locName || "…"}
     </span>
   );
-  const titles = { vicini: "Vicini", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "Contatti" };
+  const titles = { vicini: "Radar", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "BeeWorld" };
   const action = tab === "contatti"
     ? <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <button onClick={() => setOverlay("createGroup")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="groups" size={23} color="#fff" sw={2} /></button>
@@ -3779,7 +3812,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={feedShown} km={km} worldOn={feedWorld} worldCount={worldCount} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
