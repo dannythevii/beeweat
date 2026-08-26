@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.0";
+const APP_VERSION = "9.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -131,8 +131,8 @@ function UserAvatar({ src, size = 44, ring = true, stars = 0 }) {
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         {inner}
         <div title={`${beeRank(stars * STAR_STEP)} · ${stars} ${stars === 1 ? "stella" : "stelle"}`}
-          style={{ position: "absolute", right: -2, bottom: -2, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 9, padding: size >= 56 ? "1px 6px" : "0 4px", fontSize: Math.max(8.5, size * 0.2), fontWeight: 800, lineHeight: 1.5, border: "1.5px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.2)", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>
-          ⭐{stars}
+          style={{ position: "absolute", right: -2, bottom: -2, background: "#fff", color: HBLUE, borderRadius: 9, padding: size >= 56 ? "1px 6px" : "0 4px", fontSize: Math.max(8.5, size * 0.2), fontWeight: 800, lineHeight: 1.5, border: `1.5px solid ${HBLUE}`, boxShadow: "0 1px 4px rgba(0,0,0,.18)", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 1 }}>
+          <span style={{ color: ACCENT }}>★</span>{stars}
         </div>
       </div>
     );
@@ -1339,7 +1339,9 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 
   const EMERG = /🌧|⛈|❄|🌨|🌫|🌬/;
   const [view, setView] = useState("meteo");                                     // Meteo | Eventi: il radar mostra una cosa alla volta
-  const allWeather = posts.filter(p => p.dist <= km);   // tutti i post meteo, non solo il maltempo
+  const SIX_H = 6 * 3600 * 1000;
+  const nowMs = Date.now();
+  const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
   const allEvents = (events || []).filter(e => e.dist <= km);
   const visible = view === "meteo" ? allWeather : [];
   const evVisible = view === "eventi" ? allEvents : [];
@@ -1348,7 +1350,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {[["meteo", `Meteo (${allWeather.length})`], ["eventi", `Eventi (${allEvents.length})`]].map(([id, label]) => (
+        {[["meteo", `Meteo 6h (${allWeather.length})`], ["eventi", `Eventi (${allEvents.length})`]].map(([id, label]) => (
           <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: view === id ? "none" : `1.5px solid ${LINE}`, background: view === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", transition: "background .15s" }}>{label}</button>
         ))}
       </div>
@@ -3520,6 +3522,14 @@ function AppInner() {
             (async () => locName || await reverseCity(geo.lat, geo.lng) || user.city)(),
           ]);
           await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
+          // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
+          if (/temporale|tempesta/i.test(cond || "")) {
+            try {
+              const ends = new Date(Date.now() + 3 * 3600 * 1000).toISOString();          // vive 3 ore
+              await sb.createEvent({ type: "⛈️", cat: "Meteo", title: `Temporale segnalato a ${postCity}`, place: postCity, sev: "Alta", lat: geo.lat, lng: geo.lng, ends });
+              setSocialTick(t => t + 1);                                                  // gli eventi si ricaricano da soli
+            } catch (er) { console.warn("allerta temporale:", er?.message || er); }
+          }
           await loadFeed();                                                              // il feed vero rimpiazza la card provvisoria
         } catch (e) {
           clearTemp();
