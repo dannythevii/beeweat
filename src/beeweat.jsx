@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.3";
+const APP_VERSION = "9.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -437,8 +437,37 @@ const skyMask = canvas => {
       }
       microRough = rn2 ? rs / rn2 : 0;
     } catch (_) {}
-    return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n, microRough };
+    // gradiente verticale: il cielo schiarisce (o scurisce) verso l'orizzonte, un muro resta piatto
+    let topSum = 0, topN = 0, botSum = 0, botN = 0;
+    for (let p = 0; p < w * h; p++) {
+      if (!mask[p]) continue;
+      const y = (p / w) | 0;
+      if (y < h * 0.25) { topSum += lum[p]; topN++; }
+      else if (y > h * 0.6) { botSum += lum[p]; botN++; }
+    }
+    const gradient = (topN && botN) ? Math.abs(topSum / topN - botSum / botN) : 99;
+    return { frac, blue: pp(blue), cloud: pp(cloud), warm: pp(warm), dark: pp(dark), bright: pp(bright), meanLum: lumSum / n, microRough, gradient };
   } catch (_) { return null; }
+};
+// Grana dell'intera immagine ad alta risoluzione: asfalto, ghiaia, intonaco tradiscono qui
+const fineRough = canvas => {
+  try {
+    const W = 224, H = 168, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const x = c.getContext("2d");
+    x.drawImage(canvas, 0, 0, W, H);
+    const d = x.getImageData(0, 0, W, H).data;
+    let sum = 0, n = 0, prev = null;
+    for (let y = 0; y < H; y++) { prev = null;
+      for (let i = 0; i < W; i++) {
+        const k = (y * W + i) * 4;
+        const L = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+        if (prev !== null) { sum += Math.abs(L - prev); n++; }
+        prev = L;
+      }
+    }
+    return n ? sum / n : 0;
+  } catch (_) { return 0; }
 };
 // Punti-luce artificiali: conta gli abbagli piccoli e separati (faretti, lampade, flare)
 const pointLights = canvas => {
@@ -483,6 +512,14 @@ const classifyFromMask = m => {
 };
 
 // Le firme autentiche del cielo (azzurro, coperto luminoso, alba/tramonto, notte, pallido lattiginoso)
+// versione severa: il buio vale come "notte" solo se è davvero notte
+const hasSkySignatureStrict = (st, isNight) => !!st && (
+  (st.blue > 0.30 && st.rough < 16) ||
+  (st.grey > 0.45 && st.meanLum > 165 && st.rough < 11) ||
+  (st.warm > 0.35 && st.meanLum > 150 && st.rough < 11) ||
+  (st.dark > 0.65 && isNight && st.rough < 12) ||
+  (st.bright > 0.35 && st.rough < 10)
+);
 const hasSkySignature = st => !!st && (
   (st.blue > 0.30 && st.rough < 16) ||
   (st.grey > 0.45 && st.meanLum > 165 && st.rough < 11) ||
@@ -525,7 +562,14 @@ const analyzePhoto = async fullCanvas => {
   const sky = classifySky(canvas);
   const mask = skyMask(canvas);
   const maskGood = mask && mask.frac >= 0.05 && mask.microRough < 10;   // cielo trovato: liscio anche da vicino (le trame tradiscono)
-  const skyEvidence = maskGood || hasSkySignature(skyBand(canvas, 0.45)) || hasSkySignature(skyBand(canvas, 0.22));
+  const grain = fineRough(canvas);                                      // grana di tutta la foto: asfalto/ghiaia/intonaco
+  const hourN = new Date().getHours();
+  const isNightNow = hourN >= 21 || hourN <= 5;
+  const bandOk = grain < 12 && (
+    hasSkySignatureStrict(skyBand(canvas, 0.45), isNightNow) ||
+    hasSkySignatureStrict(skyBand(canvas, 0.22), isNightNow)
+  );
+  const skyEvidence = maskGood || bandOk;
   const indoorObj = dets.find(x => INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   const outdoorHit = preds.some(p => OUTDOOR_RX.test(p.className));
   const confidentNotOutdoor = !outdoorHit && preds[0] && preds[0].probability > 0.25;
@@ -550,11 +594,14 @@ const analyzePhoto = async fullCanvas => {
     && !(isDaytime && outdoorHit)           // scena esterna di giorno → flare solare, non lampade
     && !(isDaytime && mask && mask.blue > 0.15); // cielo azzurro visibile → sole, non faretti
   const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
-  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright));
+  // muro/superficie uniforme: riempie tutto, senza azzurro e senza il gradiente naturale del cielo
+  const uniformWall = !!(mask && mask.frac > 0.8 && mask.blue < 0.12 && mask.gradient < 6);
+  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright || uniformWall));
   const conflictWhat = !conflict ? null
     : indoorObj ? indoorObj.class
     : artificialLight ? "luci artificiali"
     : nightBright ? "cielo troppo luminoso per quest'ora"
+    : uniformWall ? "superficie uniforme, non un cielo"
     : preds[0]?.className?.split(",")[0];
   return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat };
 };
