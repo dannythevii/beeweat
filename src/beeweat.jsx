@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.2";
+const APP_VERSION = "9.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1457,6 +1457,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
 function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup }) {
+  const [favQ, setFavQ] = useState("");
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
   const ql = q.trim().toLowerCase();
@@ -1493,10 +1494,17 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
 
       {sub === "preferiti" ? (
         <>
+          <div style={{ padding: "10px 16px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", borderRadius: 12, padding: "9px 12px", border: `1px solid ${LINE}` }}>
+              <NavIcon name="search" size={17} color={TXT2} />
+              <input value={favQ} onChange={e => setFavQ(e.target.value)} placeholder="Cerca tra le api…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+              {favQ && <button onClick={() => setFavQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
+            </div>
+          </div>
           <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi preferiti ({favList.length})</div>
           {favList.length === 0 ? <div style={{ padding: "20px 16px", color: TXT2, fontSize: 14 }}>Nessun preferito ancora — aggiungili dalla lista sotto ⭐</div> : favList.map(p => <FavRow key={p.id} p={p} />)}
           <div style={{ padding: "18px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Tutti gli utenti</div>
-          {(people || []).map(p => <FavRow key={p.id} p={p} />)}
+          {(people || []).filter(p => !favQ.trim() || (p.name || "").toLowerCase().includes(favQ.trim().toLowerCase()) || (p.city || "").toLowerCase().includes(favQ.trim().toLowerCase())).map(p => <FavRow key={p.id} p={p} />)}
         </>
       ) : sub === "gruppi" ? (
         <>
@@ -2698,7 +2706,9 @@ function AppInner() {
   useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
   const [events, setEvents] = useState([]);   // niente eventi demo: solo quelli reali degli utenti
-  const [favs, setFavs] = useState([]);   // preferiti: si parte puliti, solo scelte reali
+  const [favs, setFavs] = useState(() => {   // preferiti: restano anche dopo la chiusura
+    try { return JSON.parse(localStorage.getItem("bw_favs") || "[]"); } catch (_) { return []; }
+  });
   const [contacts, setContacts] = useState([]);   // niente contatti demo: solo utenti reali
   const [groups, setGroups] = useState([]);
   const [notif, setNotif] = useState({ enabled: false, radiusKm: 10, posts: true, eventi: true, allerte: true, messaggi: true, quiet: false });
@@ -3434,7 +3444,11 @@ function AppInner() {
     setPosts(flip); setExtraPosts(flip); setWorldFeedPosts(flip);   // il cuoricino vale ovunque: vicino, lungo raggio e Mondo
     if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
   };
-  const toggleFav = id => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
+  const toggleFav = id => setFavs(f => {
+    const next = f.includes(id) ? f.filter(x => x !== id) : [...f, id];
+    try { localStorage.setItem("bw_favs", JSON.stringify(next)); } catch (_) {}
+    return next;
+  });
   // ── Zaino offline: i post senza rete si salvano e partono da soli ────────────
   const OUTBOX_KEY = "bw_outbox";
   const loadOutbox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch (_) { return []; } };
@@ -3511,6 +3525,23 @@ function AppInner() {
       im.src = dataUrl;
     } catch (_) { res(dataURLtoBlob(dataUrl)); }
   });
+  // le congratulazioni quando l'ape sale di grado
+  const celebrateRank = n => {
+    const st = beeStars(n);
+    if (st < 1) return;
+    if (n % STAR_STEP !== 0) return;                       // solo sul post che fa scattare il grado
+    let last = 0; try { last = +localStorage.getItem("bw_rank") || 0; } catch (_) {}
+    if (st <= last) return;
+    try { localStorage.setItem("bw_rank", String(st)); } catch (_) {}
+    const frasi = {
+      1: "Hai preso il volo! 🐝 La prima stella è tua: l'alveare ha un'osservatrice in più.",
+      2: "Il tuo ronzio si sente lontano! Due stelle: i tuoi cieli fanno ormai parte del tempo di tutti.",
+      3: "Sentinella dell'alveare! Tre stelle: quando guardi il cielo, gli altri sanno che tempo fa.",
+      4: "Volo reale! Quattro stelle: sei tra le api che tengono in piedi la mappa del cielo.",
+      5: "Regina dell'alveare 👑 Cinque stelle: cento cieli raccontati, e il tempo di tutti è più vero grazie a te.",
+    };
+    setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
+  };
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
@@ -3542,6 +3573,7 @@ function AppInner() {
             } catch (er) { console.warn("allerta temporale:", er?.message || er); }
           }
           await loadFeed();                                                              // il feed vero rimpiazza la card provvisoria
+          if (sb.getUserPostCount && myUid) sb.getUserPostCount(myUid).then(celebrateRank).catch(() => {});
         } catch (e) {
           clearTemp();
           if (isNetErr(e)) toOutbox();
