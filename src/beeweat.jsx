@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.4";
+const APP_VERSION = "9.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1503,7 +1503,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup, following, onFollowUser, placeFavs, onTogglePlaceFav }) {
   const [favQ, setFavQ] = useState("");
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
@@ -1516,9 +1516,11 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
   const places = (inf ? (worldPlaces || []) : (nearPlaces || []).filter(p => p.dist <= km))
     .slice().sort((a, b) => inf ? a.name.localeCompare(b.name, "it") : a.dist - b.dist);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
-  const favList = (people || []).filter(p => favs?.includes(p.id));
+  const favList = (people || []).filter(p => (following || []).includes(p.name));
+  const followedPlaces = (placeFavs || []).map(nm =>
+    (nearPlaces || []).find(x => x.name === nm) || (worldPlaces || []).find(x => x.name === nm) || { name: nm, dist: null });
   const FavRow = ({ p }) => {
-    const on = favs.includes(p.id);
+    const on = (following || []).includes(p.name);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
         <UserAvatar src={p.ava} size={50} />
@@ -1526,7 +1528,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
         </div>
-        <button onClick={() => toggleFav(p.id)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
+        <button onClick={() => onFollowUser && onFollowUser(p.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
       </div>
     );
   };
@@ -1534,7 +1536,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
       {/* schede: Contatti | Preferiti */}
       <div style={{ display: "flex", gap: 22, padding: "12px 16px 0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-        {[["contatti", "Contatti"], ["preferiti", "Preferiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
+        {[["contatti", "BeePaper"], ["preferiti", "Seguiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? HBLUE : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
         ))}
       </div>
@@ -1548,8 +1550,18 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
               {favQ && <button onClick={() => setFavQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
             </div>
           </div>
-          <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi preferiti ({favList.length})</div>
-          {favList.length === 0 ? <div style={{ padding: "20px 16px", color: TXT2, fontSize: 14 }}>Nessun preferito ancora — aggiungili dalla lista sotto ⭐</div> : favList.map(p => <FavRow key={p.id} p={p} />)}
+          <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Api che segui ({favList.length})</div>
+          {favList.length === 0 ? <div style={{ padding: "20px 16px", color: TXT2, fontSize: 14 }}>Non segui ancora nessuna ape — trovale nella lista sotto ⭐</div> : favList.map(p => <FavRow key={p.id} p={p} />)}
+          <div style={{ padding: "18px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Luoghi che segui ({followedPlaces.length})</div>
+          {followedPlaces.length === 0 ? <div style={{ padding: "4px 16px 14px", color: TXT2, fontSize: 13.5 }}>Nessun luogo seguito — tocca la ⭐ accanto ai luoghi in BeePaper</div> : followedPlaces.map(pl => (
+            <div key={pl.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
+              <div onClick={() => onOpenPlace(pl)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{pl.name}</div>
+                {pl.dist != null && <div style={{ fontSize: 12.5, color: TXT2 }}>📍 {pl.dist} km da te</div>}
+              </div>
+              <button onClick={() => onTogglePlaceFav(pl.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name="starFill" size={24} color={STAR} /></button>
+            </div>
+          ))}
           <div style={{ padding: "18px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Tutti gli utenti</div>
           {(people || []).filter(p => !favQ.trim() || (p.name || "").toLowerCase().includes(favQ.trim().toLowerCase()) || (p.city || "").toLowerCase().includes(favQ.trim().toLowerCase())).map(p => <FavRow key={p.id} p={p} />)}
         </>
@@ -1590,7 +1602,8 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>{inf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</div>
           {places.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${LINE}` }}>
-              <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+              <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 10px", display: "flex", flexShrink: 0 }}><NavIcon name={(placeFavs || []).includes(p.name) ? "starFill" : "star"} size={22} color={(placeFavs || []).includes(p.name) ? STAR : TXT2} /></button>
+              <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 6px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)} <span style={{ color: TXT2, fontSize: 12 }}>da te</span></div>
@@ -3491,6 +3504,14 @@ function AppInner() {
     setPosts(flip); setExtraPosts(flip); setWorldFeedPosts(flip);   // il cuoricino vale ovunque: vicino, lungo raggio e Mondo
     if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
   };
+  const [placeFavs, setPlaceFavs] = useState(() => {   // luoghi seguiti: persistenti
+    try { return JSON.parse(localStorage.getItem("bw_place_favs") || "[]"); } catch (_) { return []; }
+  });
+  const togglePlaceFav = name => setPlaceFavs(f => {
+    const next = f.includes(name) ? f.filter(x => x !== name) : [...f, name];
+    try { localStorage.setItem("bw_place_favs", JSON.stringify(next)); } catch (_) {}
+    return next;
+  });
   const toggleFav = id => setFavs(f => {
     const next = f.includes(id) ? f.filter(x => x !== id) : [...f, id];
     try { localStorage.setItem("bw_favs", JSON.stringify(next)); } catch (_) {}
@@ -3916,7 +3937,7 @@ function AppInner() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin}
+        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
             if (name === null) return;

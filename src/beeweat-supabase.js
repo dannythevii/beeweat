@@ -452,7 +452,13 @@ try {
 // ============================================================================
 
 // Registrazione con email + password (name e city finiscono nei metadati → profilo)
+export async function nameTaken(name) {
+  const { data } = await supabase.from("profiles").select("id").ilike("name", (name || "").trim()).limit(1);
+  return !!(data && data.length);
+}
 export async function registerEmail({ email, password, name, city }) {
+  if (name && await nameTaken(name))
+    throw new Error("Questo nome è già usato da un'altra ape 🐝 — scegline uno diverso.");
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: { data: { name, city } },
