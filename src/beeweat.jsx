@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.5";
+const APP_VERSION = "9.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1922,7 +1922,38 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
           else { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
         }
       }
-    }).catch(e => { if (aiSeqRef.current === my) { console.warn("AI:", e?.message || e); setAi(navigator.onLine ? { error: true } : { offline: true }); } });
+    }).catch(async e => {
+      if (aiSeqRef.current !== my) return;
+      console.warn("AI:", e?.message || e);
+      if (!navigator.onLine) { setAi({ offline: true }); return; }
+      if (onCloudCheck) {                                  // occhi locali indisponibili ma rete c'è: giudica Bee-Eye
+        try {
+          setAi({ checking: true, secondOpinion: true });
+          const t = document.createElement("canvas");
+          const k = Math.min(1, 384 / c.width);
+          t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
+          t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+          const verdict = await onCloudCheck(t.toDataURL("image/jpeg", 0.8), {});
+          if (aiSeqRef.current !== my) return;
+          if (verdict) {
+            if (verdict.persone_in_primo_piano)
+              setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
+            else if (verdict.schermo_o_foto_di_foto)
+              setAi({ block: true, reason: "Bee-Eye 👁️: sembra uno schermo o una foto ri-fotografata. Serve il cielo vero. 📵", cls: "screen" });
+            else if (verdict.cielo_visibile || verdict.esterno) {
+              const cls = CLOUD_MAP[verdict.condizione] || "⛅ Poco nuvoloso";
+              setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
+              if (CONDITIONS.includes(cls)) setCond(cls);
+              if (verdict.mare_visibile && verdict.stato_mare) setCaption(cc => cc || `Mare ${verdict.stato_mare}`);
+            } else
+              setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. 🌤️"), cls: "not_sky" });
+            return;
+          }
+        } catch (_) {}
+        if (!navigator.onLine) { setAi({ offline: true }); return; }
+      }
+      setAi({ error: true });
+    });
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
@@ -1968,7 +1999,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
   const AiChip = () => !ai ? null : ai.error ? (
     <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
-      <span>Occhi AI non raggiungibili (serve la rete per il primo caricamento dei modelli). <b>Tocca qui per riprovare</b> — senza analisi la foto non può essere pubblicata.</span>
+      <span>Occhi AI non disponibili su questo dispositivo. <b>Tocca qui per riprovare</b> (proverò anche con Bee-Eye 👁️) — senza analisi la foto non può essere pubblicata.</span>
     </div>
   ) : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? HBLUE + "0E" : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? HBLUE : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HBLUE + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
@@ -3542,7 +3573,16 @@ function AppInner() {
             const v = await analyzePhoto(cnv);
             if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }   // scartata: non parte
             it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
-          } catch (_) { /* controllo non riuscito: si ritenta al prossimo giro */ it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+          } catch (_) {
+            try {                                           // occhi locali indisponibili: il controllo lo fa Bee-Eye
+              const verdict = sb.beeEye ? await sb.beeEye(it.img, {}) : null;
+              if (!verdict) throw new Error("no-cloud");
+              if (verdict.persone_in_primo_piano || verdict.schermo_o_foto_di_foto || !(verdict.cielo_visibile || verdict.esterno)) {
+                rejected.push(verdict.motivo || "non ha superato il controllo"); continue;
+              }
+              it.needsCheck = false;
+            } catch (_) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+          }
         }
         await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore });
         sent++;
