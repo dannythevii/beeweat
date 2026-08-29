@@ -1,4 +1,19 @@
-// Beeweat — Service Worker per le notifiche push (v4)
+// Beeweat — Service Worker: notifiche push + cassaforte modelli AI (v5)
+const AI_CACHE = "bw-ai-v1";
+const AI_HOSTS = /(tfhub\.dev|storage\.googleapis\.com|cdn\.jsdelivr\.net|unpkg\.com|kaggle)/;
+self.addEventListener("fetch", e => {
+  const url = e.request.url;
+  if (e.request.method !== "GET" || !AI_HOSTS.test(url)) return;   // tutto il resto passa dritto
+  e.respondWith(
+    caches.open(AI_CACHE).then(async cache => {
+      const hit = await cache.match(e.request);
+      if (hit) return hit;                                          // dalla cassaforte: zero rete
+      const res = await fetch(e.request);
+      if (res && res.ok) cache.put(e.request, res.clone());
+      return res;
+    })
+  );
+});
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
