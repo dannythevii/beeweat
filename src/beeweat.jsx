@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.6";
+const APP_VERSION = "9.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2927,6 +2927,10 @@ function AppInner() {
   // Posizione reale dell'utente (fallback: coordinate base)
   const [geo, setGeo] = useState(BASE_COORDS);
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
+  useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
+    const t = setTimeout(() => { loadAIModels().catch(() => {}); }, 2500);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     if (!navigator.geolocation) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
@@ -3435,6 +3439,15 @@ function AppInner() {
     markAlertRead(a);
     if (a.type === "alert") { setOverlay(null); setTab("beecast"); return; }
     if (a.type === "nudge") { setOverlay("post"); return; }
+    if (a.type === "followPost" && a.post_id && sb?.getPostById) {   // dritti al cielo appena pubblicato
+      sb.getPostById(a.post_id).then(r => {
+        setOverlay(o => ({ photo: { src: r.image_url, caption: `${r.profiles?.name || nameOf(a.from_user_id)} · ${titleCase(r.city || "")}${r.caption ? " — " + r.caption : ""}` }, back: o }));
+      }).catch(() => {
+        const c = contacts.find(x => x.id === a.from_user_id);
+        setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } });
+      });
+      return;
+    }
     if ((a.type === "follow" || a.type === "followPost") && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -3854,8 +3867,8 @@ function AppInner() {
     }} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
-    <div style={{ background: BODY, minHeight: "100%" }}>
-      <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="scr" style={{ background: BODY, minHeight: "100%", height: "100%", overflowY: "auto" }}>
+      <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 5 }}>
         <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={22} color="#fff" sw={2} /></button>
         <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
         {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Segna tutti letti</button>}

@@ -10,6 +10,13 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Un singolo cielo per id (per aprire l'avviso sul post giusto) ────────────
+export async function getPostById(id) {
+  const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
+  if (error) throw error;
+  const [row] = await attachProfiles([data]);
+  return row;
+}
 // ── Bee-Eye: il secondo parere in cloud sui casi incerti ─────────────────────
 export async function beeEye(imageDataUrl, hints) {
   const { data, error } = await supabase.functions.invoke("bee-eye", { body: { image: imageDataUrl, hints } });
