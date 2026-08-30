@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.1";
+const APP_VERSION = "10.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1513,7 +1513,10 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
   const list = contacts.filter(inRange)
     .filter(c => !ql || c.name.toLowerCase().includes(ql) || c.city.toLowerCase().includes(ql))
     .slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) || a.name.localeCompare(b.name, "it"));
-  const places = (inf ? (worldPlaces || []) : (nearPlaces || []).filter(p => p.dist <= km))
+  const nearShown = (nearPlaces || []).filter(p => p.dist <= km);
+  const places = (inf
+    ? [...nearShown, ...(worldPlaces || []).filter(w => !nearShown.some(x => x.name === w.name))]   // il Mondo si AGGIUNGE ai vicini
+    : nearShown)
     .slice().sort((a, b) => inf ? a.name.localeCompare(b.name, "it") : a.dist - b.dist);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
   const favList = (people || []).filter(p => (following || []).includes(p.name));
@@ -3219,11 +3222,20 @@ function AppInner() {
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) { setPushState("unsupported"); return; }
     if (typeof Notification !== "undefined" && Notification.permission === "denied") { setPushState("denied"); return; }
-    navigator.serviceWorker.getRegistration().then(reg => {
-      reg?.update().catch(() => {});                          // aggiorna sw.js se è uscita una versione nuova
-      reg?.pushManager.getSubscription().then(sub => { if (sub) setPushState("on"); });
-    });
-  }, []);
+    (async () => { try {
+      const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register("/sw.js"));
+      try { reg.update(); } catch (_) {}                       // aggiorna sw.js se è uscita una versione nuova
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub && typeof Notification !== "undefined" && Notification.permission === "granted" && !VAPID_PUBLIC_KEY.startsWith("INCOLLA")) {
+        // abbonamento caduto (succede dopo un aggiornamento del service worker, specie su iOS): rinnovo in silenzio
+        try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC_KEY) }); } catch (_) {}
+      }
+      if (sub) {
+        setPushState("on");
+        if (sb?.isConfigured && user) sb.savePushSub(sub.toJSON()).catch(() => {});   // indirizzo sempre fresco nel database
+      }
+    } catch (_) {} })();
+  }, [sb, user]);
   const enablePush = async () => {
     try {
       if (pushState === "unsupported") { alert("Questo browser non supporta le push. Su iPhone: aggiungi prima Beeweat alla schermata Home."); return; }
