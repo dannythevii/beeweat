@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.0";
+const APP_VERSION = "10.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1457,7 +1457,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds }) {
+function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
@@ -1473,7 +1473,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
         <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
       </div>
       {visible.map(e => (
-        <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
+        <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", transition: "box-shadow .3s" }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
             <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
             <div style={{ flex: 1 }}>
@@ -3339,6 +3339,8 @@ function AppInner() {
   // "Mondo" nel Feed: gli ultimi cieli del pianeta
   const [feedWorld, setFeedWorld] = useState(false);
   const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
+  const [focusPost, setFocusPost] = useState(null);        // il post del faro: vive qui, i ricarichi non lo toccano
+  const [focusEventId, setFocusEventId] = useState(null);  // l'evento da mettere in luce
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
   const [worldCount, setWorldCount] = useState(null);
   useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
@@ -3358,11 +3360,17 @@ function AppInner() {
   }, [contacts]);
   const withRank = list => (list || []).map(p => ({ ...p, stars_rank: rankOf[p.uid] ?? rankOf[p.user] ?? 0 }));
   const feedShown = useMemo(() => {
-    if (!feedWorld) return posts;
-    const ids = new Set(posts.map(p => p.id));
-    return [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
-      .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  }, [feedWorld, posts, worldFeedPosts]);
+    let base;
+    if (!feedWorld) base = posts;
+    else {
+      const ids = new Set(posts.map(p => p.id));
+      base = [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
+        .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    }
+    if (focusPost && !base.some(p => p.id === focusPost.id)) return [focusPost, ...base];   // il faro non si spegne
+    return base;
+  }, [feedWorld, posts, worldFeedPosts, focusPost]);
+  useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
   const [worldPlaces, setWorldPlaces] = useState(null);
@@ -3440,17 +3448,26 @@ function AppInner() {
     markAlertRead(a);
     if (a.type === "alert") { setOverlay(null); setTab("eventi"); return; }   // le allerte vivono negli Eventi
     if (a.type === "nudge") { setOverlay("post"); return; }
+    if (a.type === "followEvent") {                                   // dritti alla pagina Eventi, sulla card giusta
+      setOverlay(null); setTab("eventi");
+      if (a.post_id) {
+        setFocusEventId(a.post_id);
+        setTimeout(() => { try { document.getElementById("event-" + a.post_id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 350);
+        setTimeout(() => setFocusEventId(null), 4500);
+      }
+      return;
+    }
     if (a.type === "followPost" && a.post_id && sb?.getPostById) {   // dritti al cielo, DENTRO il feed
       (async () => {
         try {
           const r = await sb.getPostById(a.post_id);
           const { data: { user: au } } = await sb.supabase.auth.getUser();
           const mapped = mapRemoteRow(r, au?.id);
-          setPosts(ps => ps.some(p => p.id === mapped.id) ? ps : [mapped, ...ps]);   // se non è in lista, entra
+          setFocusPost(mapped);                                                      // stato riservato: i ricarichi non lo toccano
           setOverlay(null); setTab("feed"); setFeedWorld(false);
           setFocusPostId(mapped.id);
           setTimeout(() => { try { document.getElementById("post-" + mapped.id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 300);
-          setTimeout(() => setFocusPostId(null), 4500);                              // la luce si spegne da sola
+          setTimeout(() => setFocusPostId(null), 4500);                              // la luce si spegne, la card resta
         } catch (_) {
           const c = contacts.find(x => x.id === a.from_user_id);
           setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } });
@@ -3887,7 +3904,7 @@ function AppInner() {
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
         : alerts.map(a => (
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "broadcast" ? <span style={{ fontSize: 20 }}>📣</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "broadcast" ? <span style={{ fontSize: 20 }}>📣</span> : a.type === "followEvent" ? <span style={{ fontSize: 20 }}>📌</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14.5, color: TXT }}>{a.type === "alert"
                 ? <b style={{ color: HBLUE }}>Allerta BeeCast</b>
@@ -3895,7 +3912,7 @@ function AppInner() {
                 ? <b style={{ color: HBLUE }}>Il cielo ti chiama</b>
                 : a.type === "broadcast"
                 ? <b style={{ color: HBLUE }}>Messaggio dall'alveare 📣</b>
-                : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : "ti ha scritto"}</>}</div>
+                : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : "ti ha scritto"}</>}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
@@ -3999,7 +4016,7 @@ function AppInner() {
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
