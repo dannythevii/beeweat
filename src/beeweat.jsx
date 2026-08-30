@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.7";
+const APP_VERSION = "9.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -721,7 +721,7 @@ function LegalDoc({ title, intro, sections, onClose, onAccept }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 80, display: "flex", flexDirection: "column" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
         <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18 }}>{title}</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 8px" }}>
@@ -819,7 +819,7 @@ function AuthScreen({ onLogin, sb }) {
   // ── RECUPERO PASSWORD ──
   if (view === "recover") return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={20} color={HBLUE} /></button>
+      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
       <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
         {!recoverSent ? (
@@ -844,7 +844,7 @@ function AuthScreen({ onLogin, sb }) {
 
   return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => setView("welcome")} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={20} color={HBLUE} /></button>
+      <button onClick={() => setView("welcome")} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
       <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
         <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: 9, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Sora',sans-serif", background: mode === m ? "#fff" : "transparent", color: mode === m ? HBLUE : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
@@ -1683,7 +1683,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
   };
   return (
     <>
-      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}>{onClearChat && <button onClick={clearAll} title="Svuota conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 34, height: 34, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
+      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}>{onClearChat && <button onClick={clearAll} title="Svuota conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 34, height: 34, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
 
       {/* banner chat pubblica */}
       {contact.public && (
@@ -2009,7 +2009,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
   );
   return (
     <>
-      <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: "#fff", opacity: .85, pointerEvents: "none" }} />}
       <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
         <span style={{ fontSize: 44 }}>📱</span>
@@ -2107,7 +2107,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
   const [editing, setEditing] = useState(false);
   return (
     <>
-      <Header title="Profilo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <Header title="Profilo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
         <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, height: 78 }} />
         <div style={{ padding: "0 20px", marginTop: -42 }}>
@@ -2197,7 +2197,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
   const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
   return (
     <>
-      <Header title={(profile.name || "Utente").split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title={(profile.name || "Utente").split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ background: "#fff", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, color: HBLUE, borderBottom: `1px solid ${LINE}` }}>
           <UserAvatar src={profile.ava} size={56} ring stars={rankStars} />
@@ -2364,7 +2364,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
     : (people || []).filter(c => authorIds.has(c.id) || authorNames.has(c.name) || (c.city || "").toLowerCase() === place.name.toLowerCase());
   return (
     <>
-      <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {/* riepilogo luogo */}
         <div style={{ background: "#fff", padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
@@ -2413,7 +2413,7 @@ function PlaceEventsView({ place, events, onBack, onOpen }) {
   const list = events.filter(e => e.place === place.name);
   return (
     <>
-      <Header title={`Eventi · ${place.name}`} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title={`Eventi · ${place.name}`} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
         <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{list.length} eventi a {place.name}</div>
         {list.length === 0
@@ -2443,7 +2443,7 @@ function EventMapView({ event, onBack }) {
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
   return (
     <>
-      <Header title="Posizione evento" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>} />
+      <Header title="Posizione evento" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {/* riepilogo evento */}
         <div style={{ background: "#fff", margin: 14, borderRadius: 14, padding: 14, display: "flex", gap: 12, alignItems: "center", boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[event.sev]}` }}>
@@ -2587,7 +2587,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
   const permLabel = { granted: "Permesso concesso", denied: "Permesso negato dal browser", default: "Permesso non ancora richiesto", unsupported: "Non supportato in questo contesto" }[perm] || "";
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
-      <Header title="Notifiche" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={22} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title="Notifiche" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ background: "#fff", marginTop: 12 }}>
           <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
@@ -2685,7 +2685,7 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
       {/* barra di ricerca */}
       <div style={{ background: HBLUE, padding: "12px 14px", paddingTop: "calc(12px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={22} color="#fff" /></button>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "#ffffff", borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={18} color={TXT2} />
           <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
@@ -3869,7 +3869,7 @@ function AppInner() {
   if (overlay === "alerts") return wrap(
     <div className="scr" style={{ background: BODY, minHeight: "100%", height: "100%", overflowY: "auto" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 5 }}>
-        <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={22} color="#fff" sw={2} /></button>
+        <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={26} color="#fff" sw={2} /></button>
         <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
         {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Segna tutti letti</button>}
       </div>
