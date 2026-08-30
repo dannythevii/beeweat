@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.8";
+const APP_VERSION = "9.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1076,7 +1076,7 @@ function PhotoViewer({ src, caption, onClose }) {
   );
 }
 
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit }) {
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused }) {
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -1094,7 +1094,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     </button>
   );
   return (
-    <div ref={cardRef} className="fade-up" style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: `0 2px 10px ${HBLUE}0D` }}>
+    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: "#fff", border: focused ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
       {/* HEADER */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
         <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} stars={post.stars_rank || 0} /></div>
@@ -1138,7 +1138,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 }
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId }) {
   const visible = worldOn ? posts : posts.filter(p => p.dist <= km);
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
@@ -1153,7 +1153,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
                 Lettura del cielo in corso…
               </div>
             : <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>)
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} />)}
     </div>
   );
 }
@@ -3338,6 +3338,7 @@ function AppInner() {
   }, [sb, user]);
   // "Mondo" nel Feed: gli ultimi cieli del pianeta
   const [feedWorld, setFeedWorld] = useState(false);
+  const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
   const [worldCount, setWorldCount] = useState(null);
   useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
@@ -3439,13 +3440,22 @@ function AppInner() {
     markAlertRead(a);
     if (a.type === "alert") { setOverlay(null); setTab("beecast"); return; }
     if (a.type === "nudge") { setOverlay("post"); return; }
-    if (a.type === "followPost" && a.post_id && sb?.getPostById) {   // dritti al cielo appena pubblicato
-      sb.getPostById(a.post_id).then(r => {
-        setOverlay(o => ({ photo: { src: r.image_url, caption: `${r.profiles?.name || nameOf(a.from_user_id)} · ${titleCase(r.city || "")}${r.caption ? " — " + r.caption : ""}` }, back: o }));
-      }).catch(() => {
-        const c = contacts.find(x => x.id === a.from_user_id);
-        setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } });
-      });
+    if (a.type === "followPost" && a.post_id && sb?.getPostById) {   // dritti al cielo, DENTRO il feed
+      (async () => {
+        try {
+          const r = await sb.getPostById(a.post_id);
+          const { data: { user: au } } = await sb.supabase.auth.getUser();
+          const mapped = mapRemoteRow(r, au?.id);
+          setPosts(ps => ps.some(p => p.id === mapped.id) ? ps : [mapped, ...ps]);   // se non è in lista, entra
+          setOverlay(null); setTab("feed"); setFeedWorld(false);
+          setFocusPostId(mapped.id);
+          setTimeout(() => { try { document.getElementById("post-" + mapped.id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 300);
+          setTimeout(() => setFocusPostId(null), 4500);                              // la luce si spegne da sola
+        } catch (_) {
+          const c = contacts.find(x => x.id === a.from_user_id);
+          setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } });
+        }
+      })();
       return;
     }
     if ((a.type === "follow" || a.type === "followPost") && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } }); return; }
@@ -3986,7 +3996,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
