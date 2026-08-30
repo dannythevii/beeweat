@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "9.9";
+const APP_VERSION = "10.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1139,7 +1139,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
 function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId }) {
-  const visible = worldOn ? posts : posts.filter(p => p.dist <= km);
+  const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId);   // il post del faro entra anche se fuori raggio
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -3438,7 +3438,7 @@ function AppInner() {
   };
   const openAlertChat = a => {
     markAlertRead(a);
-    if (a.type === "alert") { setOverlay(null); setTab("beecast"); return; }
+    if (a.type === "alert") { setOverlay(null); setTab("eventi"); return; }   // le allerte vivono negli Eventi
     if (a.type === "nudge") { setOverlay("post"); return; }
     if (a.type === "followPost" && a.post_id && sb?.getPostById) {   // dritti al cielo, DENTRO il feed
       (async () => {
