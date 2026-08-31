@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.4";
+const APP_VERSION = "10.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -924,13 +924,17 @@ const WorldBtn = ({ on, onClick, h = 30 }) => (
   </button>
 );
 
+// Doppio passo del radar: nel primo km si scala di 100 m, poi di km in km
+const idxToKm = i => (i <= 9 ? (i + 1) / 10 : i - 8);          // 0..9 → 0,1..1,0 km · 10..108 → 2..100 km
+const kmToIdx = k => (k <= 1 ? Math.round(k * 10) - 1 : Math.round(k) + 8);
 function RadarBar({ km, setKm }) {
-  const pct = ((km - 1) / 99) * 100;
+  const idx = kmToIdx(km);
+  const pct = (idx / 108) * 100;
   return (
     <div style={{ background: GREYP, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, borderTop: `1px solid ${LINE}` }}>
       <NavIcon name="locate" size={26} color={HBLUE} sw={1.8} />
-      <input type="range" min={1} max={100} value={km} onChange={e => setKm(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE}26 ${pct}%, ${HBLUE}26 100%)` }} />
-      <span style={{ color: HBLUE, fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk',sans-serif", minWidth: 92, textAlign: "right" }}>Raggio: {km} Km</span>
+      <input type="range" min={0} max={108} value={idx} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE}26 ${pct}%, ${HBLUE}26 100%)` }} />
+      <span style={{ color: HBLUE, fontWeight: 600, fontSize: 15, fontFamily: "'Space Grotesk',sans-serif", minWidth: 92, textAlign: "right" }}>Raggio: {km < 1 ? `${Math.round(km * 1000)} m` : `${km} Km`}</span>
     </div>
   );
 }
