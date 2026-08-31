@@ -10,6 +10,19 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Foto premiata 🏅: gli admin premiano, tutti vedono l'annuncio ────────────
+export async function createAward(postId, message) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { data, error } = await supabase.from("awards")
+    .insert({ post_id: postId, awarded_by: user.id, message: message || null }).select().single();
+  if (error) throw error; return data;
+}
+export async function getLatestAward() {
+  const { data, error } = await supabase.from("awards").select("*")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error; return data || null;
+}
 // ── Un singolo cielo per id (per aprire l'avviso sul post giusto) ────────────
 export async function getPostById(id) {
   const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();

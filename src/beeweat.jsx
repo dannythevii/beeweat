@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.2";
+const APP_VERSION = "10.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -994,7 +994,28 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
-function EditPostModal({ post, onSave, onClose, onDelete }) {
+// ── Il sipario dorato: annuncio della foto premiata all'apertura dell'app ─────
+function AwardModal({ post, message, onClose, onOpen }) {
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 60, background: "rgba(10,30,60,.66)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: `0 0 0 6px ${ACCENT}44, 0 18px 50px rgba(0,0,0,.35)`, border: `2px solid ${ACCENT}`, fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ fontSize: 58, lineHeight: 1, filter: "drop-shadow(0 4px 10px rgba(240,185,41,.55))" }}>🏅</div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: ".14em", color: "#B8860B", marginTop: 10 }}>FOTO PREMIATA</div>
+        <div style={{ fontSize: 16.5, color: TXT, lineHeight: 1.45, marginTop: 8 }}>
+          La foto migliore è stata scattata da <b style={{ color: HBLUE }}>{post.user}</b>
+          {post.city ? <> a <b style={{ color: HBLUE }}>{post.city}</b></> : null}
+        </div>
+        {message && <div style={{ fontSize: 13.5, color: TXT2, marginTop: 6, fontStyle: "italic" }}>«{message}»</div>}
+        <button onClick={onOpen} title="Apri il post premiato" style={{ display: "block", width: "100%", marginTop: 14, padding: 0, border: `3px solid ${ACCENT}`, borderRadius: 16, overflow: "hidden", background: "#000", cursor: "pointer", boxShadow: "0 6px 18px rgba(0,0,0,.25)" }}>
+          <img src={post.img} alt="" style={{ width: "100%", height: 190, objectFit: "cover", display: "block" }} />
+        </button>
+        <div style={{ fontSize: 12, color: TXT2, marginTop: 8 }}>Tocca la foto per vedere il post 🐝</div>
+        <button onClick={onClose} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Complimenti! 🎉</button>
+      </div>
+    </div>
+  );
+}
+function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
   const [caption, setCaption] = useState(post.caption || "");
   const [cond, setCond] = useState(post.cond || CONDITIONS[0]);
   return (
@@ -1009,6 +1030,7 @@ function EditPostModal({ post, onSave, onClose, onDelete }) {
           <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
           <button onClick={() => onSave({ caption: caption.trim(), cond })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
         </div>
+        {onAward && <button onClick={() => { const m = window.prompt("🏅 Premiare questa foto? Messaggio facoltativo per l'annuncio (Annulla per non premiare):", ""); if (m !== null) onAward(m.trim()); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: `1.5px solid ${ACCENT}`, background: ACCENT + "22", color: "#8A5A12", fontWeight: 700, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>🏅 Premia questa foto (annuncio a tutte le api)</button>}
         {onDelete && <button onClick={() => { if (window.confirm("Eliminare definitivamente questo post?")) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>}
       </div>
     </div>
@@ -3410,6 +3432,27 @@ function AppInner() {
   }, [allPosts, realPlaces, contacts]);
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
+  const [award, setAward] = useState(null);   // { award, post } da mostrare col sipario dorato
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || !sb.getLatestAward) return;
+    (async () => { try {
+      const a = await sb.getLatestAward();
+      if (!a) return;
+      let seen = null; try { seen = localStorage.getItem("bw_award_seen"); } catch (_) {}
+      if (seen === a.id) return;                                   // già visto: una volta sola
+      const r = await sb.getPostById(a.post_id);
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      setAward({ award: a, post: mapRemoteRow(r, au?.id) });
+    } catch (_) {} })();
+  }, [sb, user]);
+  const closeAward = () => { try { if (award) localStorage.setItem("bw_award_seen", award.award.id); } catch (_) {} setAward(null); };
+  const openAwarded = () => {
+    if (!award) return;
+    const p = award.post; closeAward();
+    setFocusPost(p); setOverlay(null); setTab("feed"); setFeedWorld(false); setFocusPostId(p.id);
+    setTimeout(() => { try { document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 350);
+    setTimeout(() => setFocusPostId(null), 4500);
+  };
   const saveEdit = ({ caption, cond }) => {
     const p = editTarget; setEditTarget(null);
     if (!p) return;
@@ -4008,7 +4051,8 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} />}
+      {award && <AwardModal post={award.post} message={award.award.message} onClose={closeAward} onOpen={openAwarded} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
     </Frame>;
   }
@@ -4050,7 +4094,7 @@ function AppInner() {
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
-      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
     </Frame>
   );
 }
