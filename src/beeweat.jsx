@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.3";
+const APP_VERSION = "10.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1116,7 +1116,13 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     </button>
   );
   return (
-    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: "#fff", border: focused ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
+    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: post.awarded ? "linear-gradient(180deg,#FFF8E1 0%,#fff 38%)" : "#fff", border: (focused || post.awarded) ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px 14px", marginBottom: 16, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : post.awarded ? `0 0 0 3px ${ACCENT}33, 0 4px 18px ${ACCENT}44` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
+      {post.awarded && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "7px 10px", borderRadius: 10, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", fontWeight: 800, fontSize: 12.5, letterSpacing: ".04em", boxShadow: "0 2px 8px rgba(240,185,41,.45)" }}>
+          <span style={{ fontSize: 18 }}>🏅</span>
+          <span style={{ flex: 1, minWidth: 0 }}>FOTO PREMIATA — la migliore è di <b>{post.user}</b>{post.awardMsg ? <span style={{ fontWeight: 500 }}> · «{post.awardMsg}»</span> : null}</span>
+        </div>
+      )}
       {/* HEADER */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
         <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={48} stars={post.stars_rank || 0} /></div>
@@ -1161,7 +1167,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
 
 // ─── FEED ─────────────────────────────────────────────────────────────────────
 function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId }) {
-  const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId);   // il post del faro entra anche se fuori raggio
+  const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded);   // faro e premiata entrano anche fuori raggio
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -3375,6 +3381,17 @@ function AppInner() {
   const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
   const [focusPost, setFocusPost] = useState(null);        // il post del faro: vive qui, i ricarichi non lo toccano
   const [focusEventId, setFocusEventId] = useState(null);  // l'evento da mettere in luce
+  const [award, setAward] = useState(null);   // { award, post }: la foto premiata, in cima al Feed
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || !sb.getLatestAward) return;
+    (async () => { try {
+      const a = await sb.getLatestAward();
+      if (!a) { setAward(null); return; }
+      const r = await sb.getPostById(a.post_id);
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      setAward({ award: a, post: mapRemoteRow(r, au?.id) });
+    } catch (_) {} })();
+  }, [sb, user, socialTick]);
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
   const [worldCount, setWorldCount] = useState(null);
   useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
@@ -3401,9 +3418,10 @@ function AppInner() {
       base = [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
         .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
     }
-    if (focusPost && !base.some(p => p.id === focusPost.id)) return [focusPost, ...base];   // il faro non si spegne
+    if (focusPost && !base.some(p => p.id === focusPost.id)) base = [focusPost, ...base];   // il faro non si spegne
+    if (award?.post) base = [{ ...award.post, awarded: true, awardMsg: award.award.message || "" }, ...base.filter(p => p.id !== award.post.id)];   // la premiata in cima, sempre
     return base;
-  }, [feedWorld, posts, worldFeedPosts, focusPost]);
+  }, [feedWorld, posts, worldFeedPosts, focusPost, award]);
   useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
@@ -3432,27 +3450,6 @@ function AppInner() {
   }, [allPosts, realPlaces, contacts]);
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
-  const [award, setAward] = useState(null);   // { award, post } da mostrare col sipario dorato
-  useEffect(() => {
-    if (!sb?.isConfigured || !user || !sb.getLatestAward) return;
-    (async () => { try {
-      const a = await sb.getLatestAward();
-      if (!a) return;
-      let seen = null; try { seen = localStorage.getItem("bw_award_seen"); } catch (_) {}
-      if (seen === a.id) return;                                   // già visto: una volta sola
-      const r = await sb.getPostById(a.post_id);
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
-      setAward({ award: a, post: mapRemoteRow(r, au?.id) });
-    } catch (_) {} })();
-  }, [sb, user]);
-  const closeAward = () => { try { if (award) localStorage.setItem("bw_award_seen", award.award.id); } catch (_) {} setAward(null); };
-  const openAwarded = () => {
-    if (!award) return;
-    const p = award.post; closeAward();
-    setFocusPost(p); setOverlay(null); setTab("feed"); setFeedWorld(false); setFocusPostId(p.id);
-    setTimeout(() => { try { document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 350);
-    setTimeout(() => setFocusPostId(null), 4500);
-  };
   const saveEdit = ({ caption, cond }) => {
     const p = editTarget; setEditTarget(null);
     if (!p) return;
@@ -4039,9 +4036,9 @@ function AppInner() {
       : <button onClick={() => setOverlay("post")} title="Nuovo post" style={{ width: 40, height: 40, borderRadius: "50%", background: ACCENT, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,.28)" }}><NavIcon name="plus" size={22} color={HBLUE} sw={2.8} /></button>;
   const rightBtn = (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <button onClick={() => setOverlay("alerts")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 8, position: "relative" }}>
+      <button onClick={() => setOverlay("alerts")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 8, position: "relative", overflow: "visible" }}>
         <NavIcon name="bell" size={22} color="#fff" sw={2} />
-        {unreadCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, minWidth: 16, height: 16, borderRadius: 8, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>}
+        {unreadCount > 0 && <span style={{ position: "absolute", top: -3, right: -2, minWidth: 17, height: 17, borderRadius: 9, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", border: "2px solid " + HBLUE, boxSizing: "content-box", lineHeight: 1, zIndex: 3 }}>{unreadCount > 9 ? "9+" : unreadCount}</span>}
       </button>
       <button onClick={() => setOverlay("search")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 6 }}><NavIcon name="search" size={22} color="#fff" sw={2} /></button>
       {action}
@@ -4051,7 +4048,6 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {award && <AwardModal post={award.post} message={award.award.message} onClose={closeAward} onOpen={openAwarded} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
     </Frame>;
