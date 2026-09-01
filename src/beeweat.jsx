@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.5";
+const APP_VERSION = "10.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3385,17 +3385,25 @@ function AppInner() {
   const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
   const [focusPost, setFocusPost] = useState(null);        // il post del faro: vive qui, i ricarichi non lo toccano
   const [focusEventId, setFocusEventId] = useState(null);  // l'evento da mettere in luce
-  const [award, setAward] = useState(null);   // { award, post }: la foto premiata, in cima al Feed
+  const [award, setAward] = useState(null);   // { award, post }: la foto premiata (vive 24 ore)
+  const [awardShow, setAwardShow] = useState(false);   // in cima al Feed per 20 secondi all'apertura
+  const AWARD_LIFE = 24 * 3600 * 1000, AWARD_FEED_MS = 20 * 1000;
   useEffect(() => {
     if (!sb?.isConfigured || !user || !sb.getLatestAward) return;
+    let timer = null;
     (async () => { try {
       const a = await sb.getLatestAward();
-      if (!a) { setAward(null); return; }
+      if (!a || (Date.now() - new Date(a.created_at).getTime()) > AWARD_LIFE) { setAward(null); setAwardShow(false); return; }   // premio scaduto: 24 ore e via
       const r = await sb.getPostById(a.post_id);
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       setAward({ award: a, post: mapRemoteRow(r, au?.id) });
+      setAwardShow(true);
+      timer = setTimeout(() => setAwardShow(false), AWARD_FEED_MS);                   // 20 secondi di gloria in cima al Feed
     } catch (_) {} })();
-  }, [sb, user, socialTick]);
+    return () => { if (timer) clearTimeout(timer); };
+  }, [sb, user]);
+  // nel profilo la premiata porta il nastro per 24 ore
+  const withAward = list => (award?.post ? (list || []).map(p => p.id === award.post.id ? { ...p, awarded: true, awardMsg: award.award.message || "" } : p) : list);
   const [worldFeedPosts, setWorldFeedPosts] = useState([]);
   const [worldCount, setWorldCount] = useState(null);
   useEffect(() => { if (tab !== "feed") setFeedWorld(false); }, [tab]);
@@ -3423,9 +3431,10 @@ function AppInner() {
         .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
     }
     if (focusPost && !base.some(p => p.id === focusPost.id)) base = [focusPost, ...base];   // il faro non si spegne
-    if (award?.post) base = [{ ...award.post, awarded: true, awardMsg: award.award.message || "" }, ...base.filter(p => p.id !== award.post.id)];   // la premiata in cima, sempre
+    if (award?.post && awardShow) base = [{ ...award.post, awarded: true, awardMsg: award.award.message || "" }, ...base.filter(p => p.id !== award.post.id)];   // la premiata in cima, per 20 secondi
+    else if (award?.post) base = withAward(base);                                        // poi resta solo il nastro, dove il post compare
     return base;
-  }, [feedWorld, posts, worldFeedPosts, focusPost, award]);
+  }, [feedWorld, posts, worldFeedPosts, focusPost, award, awardShow]);
   useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
@@ -3629,6 +3638,8 @@ function AppInner() {
   const onStar = id => {
     const flip = ps => ps.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p);
     setPosts(flip); setExtraPosts(flip); setWorldFeedPosts(flip);   // il cuoricino vale ovunque: vicino, lungo raggio e Mondo
+    setAward(a => a && a.post && a.post.id === id ? { ...a, post: flip([a.post])[0] } : a);   // …e sulla foto premiata
+    setFocusPost(p => p && p.id === id ? flip([p])[0] : p);
     if (sb?.isConfigured) sb.toggleStar(id).catch(() => {});
   };
   const [placeFavs, setPlaceFavs] = useState(() => {   // luoghi seguiti: persistenti
@@ -3913,7 +3924,7 @@ function AppInner() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={allPosts} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
@@ -3979,7 +3990,7 @@ function AppInner() {
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={allPosts} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
     onOpenPhoto={openPhoto} onStar={onStar} onView={onView}
     onAdminEdit={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
