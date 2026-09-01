@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.8";
+const APP_VERSION = "10.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2036,7 +2036,11 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   const GeoChip = () => geoReal ? null : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
-      <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero. Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</span>
+      <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero.{" "}
+        {/iPhone|iPad/i.test(navigator.userAgent)
+          ? <>Su iPhone: <b>Impostazioni → Privacy → Localizzazione → Siti web Safari → "Mentre usi l'app"</b>, poi <b>Impostazioni → Safari → Posizione → "Chiedi"</b>, quindi ricarica Beeweat e tocca Consenti. Ancora meglio: installa l'app (Condividi ⬆️ → Aggiungi alla schermata Home).</>
+          : <>Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</>}
+      </span>
     </div>
   );
   const OfflineChip = () => ai?.offline ? (
@@ -2150,7 +2154,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || ai?.error || !ai) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || ai?.error || !ai) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : ai?.checking ? "Analisi foto…" : ai?.offline ? "Metti nello zaino 🎒" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.checking ? "Analisi foto…" : ai?.offline ? "Metti nello zaino 🎒" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2617,7 +2621,7 @@ function PermissionsPanel({ onGeoGranted }) {
         <span style={{ fontSize: 18, width: 26, textAlign: "center" }}>{emoji}</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>{label}</div>
-          <div style={{ fontSize: 11.5, color: ok ? "#2C7A57" : no ? "#C43C41" : TXT2 }}>{ok ? "Consentito ✓" : no ? "Negato dal sistema" : "Da richiedere"}</div>
+          <div style={{ fontSize: 11.5, color: ok ? "#2C7A57" : no ? "#C43C41" : TXT2 }}>{ok ? "Consentito ✓" : no ? (/iPhone|iPad/i.test(navigator.userAgent) ? "Negato dal sistema · Impostazioni iPhone → Privacy → Localizzazione → Siti web Safari, e Impostazioni → Safari" : "Negato dal sistema · sbloccalo nelle impostazioni del browser") : "Da richiedere"}</div>
         </div>
         {!ok && <button onClick={onAsk} style={{ padding: "7px 12px", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Richiedi</button>}
       </div>
