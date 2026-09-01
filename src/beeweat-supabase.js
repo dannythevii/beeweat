@@ -440,14 +440,31 @@ export async function sendDirectMessage(toId, text) {
     .select().single();
   if (error) throw error; return data;
 }
-export async function subscribeDirect(myId, onMessage) {
+export async function subscribeDirect(myId, onMessage, onRead) {
   await authRealtime();
   const ch = supabase.channel("direct-" + myId)
     .on("postgres_changes",
       { event: "INSERT", schema: "public", table: "messages", filter: `to_user_id=eq.${myId}` },
       payload => { if (payload.new?.scope === "direct") onMessage(payload.new); })
+    .on("postgres_changes",                                             // i miei messaggi che vengono letti
+      { event: "UPDATE", schema: "public", table: "messages", filter: `from_user_id=eq.${myId}` },
+      payload => { if (payload.new?.scope === "direct" && payload.new?.read_at && onRead) onRead(payload.new); })
     .subscribe();
   return () => supabase.removeChannel(ch);
+}
+// Segno come letti i messaggi che X mi ha scritto (spunta ✓✓ dalla sua parte)
+export async function markDirectRead(fromId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("messages").update({ read_at: new Date().toISOString() })
+    .eq("scope", "direct").eq("to_user_id", user.id).eq("from_user_id", fromId).is("read_at", null);
+}
+// Preferenza: conferma di lettura sì/no
+export async function setReadReceipts(on) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { error } = await supabase.from("profiles").update({ read_receipts: !!on }).eq("id", user.id);
+  if (error) throw error;
 }
 
 // true quando le chiavi qui sopra sono state compilate (attiva il login reale nell'app)
@@ -551,13 +568,13 @@ export async function uploadPhoto(file) {
 // ============================================================================
 
 // Crea un post: prima carica la foto, poi salva il record
-export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore }) {
+export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
   const { data, error } = await supabase.from("posts").insert({
     user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
-    cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null,
+    cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null, temp: (temp === null || temp === undefined || temp === "") ? null : Number(temp),
   }).select().single();
   if (error) throw error;
   return data;

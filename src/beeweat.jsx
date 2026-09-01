@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.6";
+const APP_VERSION = "10.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1144,7 +1144,10 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
+          <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span>
+            {post.temp != null && Number.isFinite(post.temp) && <span style={{ fontSize: 13, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif", lineHeight: 1 }}>{Math.round(post.temp)}°</span>}
+          </span>
           {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="flag" size={18} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
           {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
         </div>
@@ -1753,7 +1756,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         {msgs.map(m => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "11px 14px", fontSize: 15.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
+            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "11px 14px", fontSize: 15.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : "Inviato"} style={{ fontWeight: 800, letterSpacing: "-1px", color: m.readAt ? ACCENT : "#fff", opacity: m.readAt ? 1 : .8 }}>{m.readAt ? "✓✓" : "✓"}</span>}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
           </div>
         ))}
         <div ref={ref} />
@@ -1790,7 +1793,23 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 }
 
 // ─── CAMERA / POST ────────────────────────────────────────────────────────────
-function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
+// Temperatura attuale nel punto dello scatto (Open-Meteo, ~1 km di precisione)
+const fetchTempAt = async (lat, lng) => {
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m&timezone=auto`);
+    const j = await r.json();
+    const t = j?.current?.temperature_2m;
+    return typeof t === "number" ? Math.round(t) : null;
+  } catch (_) { return null; }
+};
+function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
+  const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
+  useEffect(() => {
+    if (!geo) return;
+    let alive = true;
+    fetchTempAt(geo.lat, geo.lng).then(t => { if (alive && t !== null) setTemp(v => v === "" ? String(t) : v); });
+    return () => { alive = false; };
+  }, [geo?.lat, geo?.lng]);
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
@@ -2013,7 +2032,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null }); }, 600); };
+  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null }); }, 600); };
   const GeoChip = () => geoReal ? null : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
@@ -2118,6 +2137,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
             <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px" }}>
+              <span style={{ fontSize: 18 }}>🌡️</span>
+              <span style={{ flex: 1, fontSize: 13.5, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
+              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" style={{ width: 58, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif" }} />
+              <span style={{ fontSize: 16, fontWeight: 700, color: HBLUE }}>°</span>
+            </div>
             <GeoChip />
       <OfflineChip />
       <AiChip0 />
@@ -2135,7 +2160,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const stars = mine.reduce((s, p) => s + p.stars, 0);
@@ -2202,6 +2227,16 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
+          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: HBLUE, letterSpacing: "-1px" }}>✓✓</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Conferma di lettura</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"}</div>
+            </div>
+            <div style={{ width: 44, height: 26, borderRadius: 13, background: user.readReceipts !== false ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
+            </div>
+          </button>}
           {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: "#fff", border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
             <div style={{ flex: 1, textAlign: "left" }}>
@@ -2799,7 +2834,7 @@ function AppInner() {
   const [myUid, setMyUid] = useState(null);
   useEffect(() => {
     import("./beeweat-supabase.js")
-      .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️" }); }).catch(() => {}); })
+      .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false }); }).catch(() => {}); })
       .catch(() => {});                          // modulo assente (anteprima): resta la demo
   }, []);
 
@@ -3124,7 +3159,7 @@ function AppInner() {
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
-          img: r.image_url, caption: r.caption || "", mine: !!au && r.user_id === au.id, uid: r.user_id };
+          img: r.image_url, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
     finally { setFeedReady(true); }
@@ -3326,7 +3361,7 @@ function AppInner() {
       city: titleCase(r.city || pr.city || ""),
       dist: Math.round(dist * 10) / 10,
       bearing: geo && r.lat != null ? bearingDeg(geo, { lat: r.lat, lng: r.lng }) : 0,
-      img: r.image_url, caption: r.caption || "", cond: r.condition || "☀️ Sereno",
+      img: r.image_url, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), cond: r.condition || "☀️ Sereno",
       stars: r.stars_count || 0, starred: !!r.starred_by_me, comments: r.comments_count || 0, views: r.views_count || 0,
       camDir: r.cam_dir || null,
     };
@@ -3397,6 +3432,9 @@ function AppInner() {
       const r = await sb.getPostById(a.post_id);
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       setAward({ award: a, post: mapRemoteRow(r, au?.id) });
+      let shown = null; try { shown = localStorage.getItem("bw_award_shown"); } catch (_) {}
+      if (shown === a.id) return;                                                     // già mostrata a quest'ape: una volta sola
+      try { localStorage.setItem("bw_award_shown", a.id); } catch (_) {}
       setAwardShow(true);
       timer = setTimeout(() => setAwardShow(false), AWARD_FEED_MS);                   // 20 secondi di gloria in cima al Feed
     } catch (_) {} })();
@@ -3574,9 +3612,12 @@ function AppInner() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const rows = await sb.getDirectMessages(c.id);
-      setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at) })) }));
+      setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null })) }));
+      if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(c.id).catch(() => {});   // ✓✓ dalla sua parte
     } catch (e) { console.warn("chat diretta:", e?.message || e); } })();
   };
+  const openChatRef = useRef(null);                       // la chat aperta in questo momento (per le spunte live)
+  openChatRef.current = overlay?.chat?.id || null;
   // Messaggi diretti in arrivo, in tempo reale (una sola iscrizione globale)
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -3584,7 +3625,10 @@ function AppInner() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
       unsub = await sb.subscribeDirect(au.id, m => {
-        setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at) }] }));
+        setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at), readAt: null }] }));
+        if (openChatRef.current === m.from_user_id && user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(m.from_user_id).catch(() => {});
+      }, m => {   // un mio messaggio è stato letto
+        setThreads(th => ({ ...th, [m.to_user_id]: (th[m.to_user_id] || []).map(x => x.id === m.id ? { ...x, readAt: m.read_at } : x) }));
       });
     } catch (_) {} })();
     return () => { try { if (unsub) unsub(); } catch (_) {} };
@@ -3691,7 +3735,8 @@ function AppInner() {
             } catch (_) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
           }
         }
-        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore });
+        if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng); } catch (_) {} }   // lo zaino la prende alla spedizione
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -3757,12 +3802,12 @@ function AppInner() {
     };
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
-  const onPost = ({ img, caption, cond, dir, aiClass, aiScore }) => {
+  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null }) => {
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
-      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, tries: 0, needsCheck: !aiClass });
+      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
@@ -3771,14 +3816,14 @@ function AppInner() {
       if (!navigator.onLine) { toOutbox(); }
       else (async () => {
         // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
-        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
+        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
         const clearTemp = () => setPosts(ps => ps.filter(p => p.id !== "tx_" + pendTs));
         try {
           const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
             img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
             (async () => locName || await reverseCity(geo.lat, geo.lng) || user.city)(),
           ]);
-          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore });
+          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
           // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
           if (/temporale|tempesta/i.test(cond || "")) {
             try {
@@ -3922,7 +3967,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
@@ -3950,6 +3995,10 @@ function AppInner() {
         catch (e) { alert("Città non salvata: " + (e?.message || e)); }
       }
     }} isAdmin={isAdmin}
+    onToggleReceipts={sb?.isConfigured && sb.setReadReceipts ? async on => {
+      setUser(u => u ? { ...u, readReceipts: on } : u);
+      try { await sb.setReadReceipts(on); } catch (e) { alert("Impostazione non salvata: " + (e?.message || e)); }
+    } : undefined}
     onBroadcast={async () => {
       const text = window.prompt("📣 Messaggio a TUTTE le api dell'alveare:");
       if (text === null || !text.trim()) return;
