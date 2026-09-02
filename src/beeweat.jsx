@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.5";
+const APP_VERSION = "11.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1001,7 +1001,7 @@ function ReportModal({ post, onSubmit, onClose }) {
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
 function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater }) {
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
       <div className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ fontSize: 54, lineHeight: 1 }}>{emoji}</div>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 19, color: HBLUE, marginTop: 12 }}>{title}</div>
@@ -2090,6 +2090,11 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   return (
     <>
       <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      {camInvite && <PermissionInvite emoji="📸" title="Apri gli occhi dell'alveare"
+        lines={[["☁️", "Ogni cielo che fotografi diventa meteo vero per tutti — la nuvola che vedi tu, nessun satellite la vede così."],
+                ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
+                ["🔒", "La fotocamera si accende solo quando la apri tu, mai di nascosto."]]}
+        cta="Apri la fotocamera 📸" onAccept={acceptCamInvite} onLater={onBack} />}
       {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: "#fff", opacity: .85, pointerEvents: "none" }} />}
       <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
         <span style={{ fontSize: 44 }}>📱</span>
@@ -2169,12 +2174,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
               <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" style={{ width: 58, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif" }} />
               <span style={{ fontSize: 16, fontWeight: 700, color: HBLUE }}>°</span>
             </div>
-            {camInvite && <PermissionInvite emoji="📸" title="Apri gli occhi dell'alveare"
-        lines={[["☁️", "Ogni cielo che fotografi diventa meteo vero per tutti — la nuvola che vedi tu, nessun satellite la vede così."],
-                ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
-                ["🔒", "La fotocamera si accende solo quando la apri tu, mai di nascosto."]]}
-        cta="Apri la fotocamera 📸" onAccept={acceptCamInvite} onLater={onBack} />}
-      <GeoChip />
+            <GeoChip />
       <OfflineChip />
       <AiChip0 />
       <AiChip />
