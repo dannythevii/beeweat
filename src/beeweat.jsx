@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.6";
+const APP_VERSION = "11.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3677,7 +3677,7 @@ function AppInner() {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const rows = await sb.getDirectMessages(c.id);
       setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null })) }));
-      if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(c.id).catch(() => {});   // ✓✓ dalla sua parte
+      if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(c.id).catch(e => console.warn("lettura:", e?.message || e));   // ✓✓ dalla sua parte
     } catch (e) { console.warn("chat diretta:", e?.message || e); } })();
   };
   const openChatRef = useRef(null);                       // la chat aperta in questo momento (per le spunte live)
@@ -3691,8 +3691,12 @@ function AppInner() {
       unsub = await sb.subscribeDirect(au.id, m => {
         setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at), readAt: null }] }));
         if (openChatRef.current === m.from_user_id && user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(m.from_user_id).catch(() => {});
-      }, m => {   // un mio messaggio è stato letto
-        setThreads(th => ({ ...th, [m.to_user_id]: (th[m.to_user_id] || []).map(x => x.id === m.id ? { ...x, readAt: m.read_at } : x) }));
+      }, m => {   // un mio messaggio è stato letto: si accendono lui e tutti i miei precedenti
+        setThreads(th => {
+          const list = th[m.to_user_id] || [];
+          const idx = list.findIndex(x => x.id === m.id);
+          return { ...th, [m.to_user_id]: list.map((x, i) => (x.me && !x.readAt && (idx < 0 || i <= idx)) ? { ...x, readAt: m.read_at } : x) };
+        });
       });
     } catch (_) {} })();
     return () => { try { if (unsub) unsub(); } catch (_) {} };
@@ -3909,7 +3913,8 @@ function AppInner() {
   };
   const sendMsg = (cid, text) => {
     const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-    setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: Date.now(), me: true, text, time: t }] }));
+    const tmpId = "tmp_" + Date.now();
+    setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: tmpId, me: true, text, time: t, readAt: null }] }));
     if (sb?.isConfigured && cid.startsWith("post_") && cid.includes("-")) {
       const pid = cid.slice(5);
       setPosts(ps => ps.map(p => p.id === pid ? { ...p, comments: (p.comments || 0) + 1 } : p));
@@ -3919,7 +3924,9 @@ function AppInner() {
     } else if (sb?.isConfigured && cid.startsWith("g_") && cid.slice(2).includes("-")) {
       sb.sendGroupMessage(cid.slice(2), text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && typeof cid === "string" && cid.includes("-") && !cid.startsWith("post_") && !cid.startsWith("place_") && !cid.startsWith("g_")) {
-      sb.sendDirectMessage(cid, text).catch(e => console.warn("invio:", e?.message || e));
+      sb.sendDirectMessage(cid, text)
+        .then(row => { if (row?.id) setThreads(th => ({ ...th, [cid]: (th[cid] || []).map(x => x.id === tmpId ? { ...x, id: row.id, readAt: row.read_at || null } : x) })); })   // l'id vero, per le spunte
+        .catch(e => console.warn("invio:", e?.message || e));
     }
   };
   const chatUnsubRef = useRef(null);
