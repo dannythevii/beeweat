@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.3";
+const APP_VERSION = "11.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1908,6 +1908,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
         return;
       }
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}   // sì ricevuto: l'invito non serve più
       streamRef.current = s; if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); } setStreaming(true); setErr(null);
       // capacità del sensore: zoom hardware e torcia (dove il dispositivo le espone)
       setZoom(1); setTorchOn(false);
@@ -1931,9 +1932,9 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
     }
   }, [facing]);
-  const [camInvite, setCamInvite] = useState(() => { try { return localStorage.getItem("bw_cam_invited") !== "1"; } catch (_) { return true; } });
+  const [camInvite, setCamInvite] = useState(() => { try { return localStorage.getItem("bw_cam_ok") !== "1"; } catch (_) { return true; } });   // si ripropone finché la fotocamera non si è aperta davvero
   useEffect(() => { if (camInvite) return; start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing, camInvite]);
-  const acceptCamInvite = () => { try { localStorage.setItem("bw_cam_invited", "1"); } catch (_) {} setCamInvite(false); };
+  const acceptCamInvite = () => setCamInvite(false);
   const [flash, setFlash] = useState(false);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
     setFlash(true); setTimeout(() => setFlash(false), 140);
@@ -3033,21 +3034,26 @@ function AppInner() {
   }, []);
   const [geoInvite, setGeoInvite] = useState(false);
   const [geoGo, setGeoGo] = useState(false);          // via libera al GPS (dopo l'invito, o subito se già concesso)
+  const [geoTick, setGeoTick] = useState(0);          // per ritentare il GPS dopo una riattivazione
   useEffect(() => {
     if (!navigator.geolocation) return;
-    let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {}
     const go = () => setGeoGo(true);
-    // l'invito è una cortesia, mai un cancello: si mostra SOLO se il permesso è certamente da chiedere,
-    // e in ogni caso il GPS parte comunque entro pochi secondi
+    // Regola: si chiede al primo accesso; se la risposta è no, si richiede a ogni accesso finché non arriva il sì.
+    // Con il "no" di sistema il telefono non lascia richiedere: l'invito spiega come riattivare.
+    // In ogni caso il GPS parte comunque entro pochi secondi (l'invito non è mai un cancello).
     const watchdog = setTimeout(go, 6000);
     if (navigator.permissions?.query) {
       navigator.permissions.query({ name: "geolocation" })
-        .then(st => { if (st.state === "prompt" && !asked) setGeoInvite(true); else go(); })
-        .catch(go);
-    } else go();
+        .then(st => {
+          if (st.state === "granted") go();
+          else if (st.state === "denied") { setGeoInvite("denied"); go(); }
+          else setGeoInvite(true);
+        })
+        .catch(() => { let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {} if (asked) go(); else setGeoInvite(true); });
+    } else { let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {} if (asked) go(); else setGeoInvite(true); }
     return () => clearTimeout(watchdog);
   }, []);
-  const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); setGeoGo(true); };
+  const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); setGeoGo(true); setGeoTick(t => t + 1); };
   const laterGeoInvite = () => { setGeoInvite(false); setGeoGo(true); };   // "più tardi" non toglie la posizione a nessuno
   useEffect(() => {
     if (!navigator.geolocation || !geoGo) return;
@@ -3056,7 +3062,7 @@ function AppInner() {
       p => { setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoReal(true); },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
-  }, [geoGo]);
+  }, [geoGo, geoTick]);
   // Meteo reale Open-Meteo per la posizione attuale (senza chiavi; ogni 30 min)
   const [wx, setWx] = useState(null);
   const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
@@ -4160,11 +4166,20 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {geoInvite && <PermissionInvite emoji="🌍" title="Dove sei, ape?"
+      {geoInvite === true && <PermissionInvite emoji="🌍" title="Dove sei, ape?"
         lines={[["📍", "Beeweat racconta il tempo posto per posto: con la tua posizione i tuoi cieli finiscono sulla mappa giusta, e tu vedi cosa succede intorno a te."],
                 ["⛈️", "Ricevi le allerte del tuo raggio: il temporale che arriva, la mareggiata, la neve in valle."],
                 ["🔒", "La posizione resta tua: non compare mai l'indirizzo esatto, solo il luogo."]]}
         cta="Consenti la posizione 📍" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
+      {geoInvite === "denied" && <PermissionInvite emoji="📍" title="La posizione è spenta"
+        lines={/iPhone|iPad/i.test(navigator.userAgent)
+          ? [["1️⃣", "Impostazioni → Privacy e sicurezza → Localizzazione → attiva, e \"Siti web Safari\" → Mentre usi l'app"],
+             ["2️⃣", "Impostazioni → Safari → Posizione → Chiedi (o Consenti)"],
+             ["🐝", "Senza posizione Beeweat non può pubblicare i tuoi cieli né avvisarti dei temporali vicini."]]
+          : [["1️⃣", "Tocca l'icona 🔒 nella barra dell'indirizzo → Posizione → Consenti"],
+             ["2️⃣", "Oppure: impostazioni del browser → Siti → beeweat → Posizione → Consenti"],
+             ["🐝", "Senza posizione Beeweat non può pubblicare i tuoi cieli né avvisarti dei temporali vicini."]]}
+        cta="Ho riattivato, riprova 🔄" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
     </Frame>;
