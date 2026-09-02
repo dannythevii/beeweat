@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "10.9";
+const APP_VERSION = "11.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1561,10 +1561,12 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
     const on = (following || []).includes(p.name);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
-        <UserAvatar src={p.ava} size={50} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
+        <div onClick={() => onOpenUser && onOpenUser({ user: p.name, ava: p.ava, city: p.city, uid: p.id })} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
+          <UserAvatar src={p.ava} size={50} stars={beeStars(p.postsCount)} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
+          </div>
         </div>
         <button onClick={() => onFollowUser && onFollowUser(p.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
       </div>
