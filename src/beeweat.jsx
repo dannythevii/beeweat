@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.0";
+const APP_VERSION = "11.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -998,6 +998,23 @@ function ReportModal({ post, onSubmit, onClose }) {
 }
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
+// ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
+function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
+      <div className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ fontSize: 54, lineHeight: 1 }}>{emoji}</div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 19, color: HBLUE, marginTop: 12 }}>{title}</div>
+        <div style={{ fontSize: 14.5, color: TXT, lineHeight: 1.55, marginTop: 10, textAlign: "left" }}>
+          {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8, marginTop: i ? 6 : 0 }}><span>{l[0]}</span><span>{l[1]}</span></div>)}
+        </div>
+        <button onClick={onAccept} style={{ marginTop: 18, width: "100%", padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{cta}</button>
+        {onLater && <button onClick={onLater} style={{ marginTop: 8, width: "100%", padding: 10, borderRadius: 12, border: "none", background: "none", color: TXT2, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Più tardi</button>}
+        <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Al prossimo passo il telefono ti chiederà conferma: tocca <b>Consenti</b> 🐝</div>
+      </div>
+    </div>
+  );
+}
 // ── Il sipario dorato: annuncio della foto premiata all'apertura dell'app ─────
 function AwardModal({ post, message, onClose, onOpen }) {
   return (
@@ -1561,7 +1578,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
     const on = (following || []).includes(p.name);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
-        <div onClick={() => onOpenUser && onOpenUser({ user: p.name, ava: p.ava, city: p.city, uid: p.id })} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
+        <div onClick={() => onOpenUser && onOpenUser(p)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
           <UserAvatar src={p.ava} size={50} stars={beeStars(p.postsCount)} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
@@ -1914,7 +1931,9 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
     }
   }, [facing]);
-  useEffect(() => { start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing]);
+  const [camInvite, setCamInvite] = useState(() => { try { return localStorage.getItem("bw_cam_invited") !== "1"; } catch (_) { return true; } });
+  useEffect(() => { if (camInvite) return; start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing, camInvite]);
+  const acceptCamInvite = () => { try { localStorage.setItem("bw_cam_invited", "1"); } catch (_) {} setCamInvite(false); };
   const [flash, setFlash] = useState(false);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
     setFlash(true); setTimeout(() => setFlash(false), 140);
@@ -2149,7 +2168,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
               <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" style={{ width: 58, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Space Grotesk',sans-serif" }} />
               <span style={{ fontSize: 16, fontWeight: 700, color: HBLUE }}>°</span>
             </div>
-            <GeoChip />
+            {camInvite && <PermissionInvite emoji="📸" title="Apri gli occhi dell'alveare"
+        lines={[["☁️", "Ogni cielo che fotografi diventa meteo vero per tutti — la nuvola che vedi tu, nessun satellite la vede così."],
+                ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
+                ["🔒", "La fotocamera si accende solo quando la apri tu, mai di nascosto."]]}
+        cta="Apri la fotocamera 📸" onAccept={acceptCamInvite} onLater={onBack} />}
+      <GeoChip />
       <OfflineChip />
       <AiChip0 />
       <AiChip />
@@ -3007,14 +3031,26 @@ function AppInner() {
     const t = setTimeout(() => { loadAIModels().catch(() => {}); }, 2500);
     return () => clearTimeout(t);
   }, []);
+  const [geoInvite, setGeoInvite] = useState(false);
+  const [geoGo, setGeoGo] = useState(false);          // via libera al GPS (dopo l'invito, o subito se già concesso)
   useEffect(() => {
     if (!navigator.geolocation) return;
+    let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {}
+    const go = () => setGeoGo(true);
+    const invite = () => { if (asked) go(); else setGeoInvite(true); };
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted") go(); else invite(); }).catch(invite);
+    } else invite();
+  }, []);
+  const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); setGeoGo(true); };
+  useEffect(() => {
+    if (!navigator.geolocation || !geoGo) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
     const id = navigator.geolocation.watchPosition(
       p => { setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoReal(true); },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
-  }, []);
+  }, [geoGo]);
   // Meteo reale Open-Meteo per la posizione attuale (senza chiavi; ogni 30 min)
   const [wx, setWx] = useState(null);
   const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
@@ -4118,6 +4154,11 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {geoInvite && <PermissionInvite emoji="🌍" title="Dove sei, ape?"
+        lines={[["📍", "Beeweat racconta il tempo posto per posto: con la tua posizione i tuoi cieli finiscono sulla mappa giusta, e tu vedi cosa succede intorno a te."],
+                ["⛈️", "Ricevi le allerte del tuo raggio: il temporale che arriva, la mareggiata, la neve in valle."],
+                ["🔒", "La posizione resta tua: non compare mai l'indirizzo esatto, solo il luogo."]]}
+        cta="Consenti la posizione 📍" onAccept={acceptGeoInvite} onLater={() => setGeoInvite(false)} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
     </Frame>;
