@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.4";
+const APP_VERSION = "11.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3026,7 +3026,11 @@ function AppInner() {
   const [threads, setThreads] = useState({});
   const [nextId, setNextId] = useState(1000);
   // Posizione reale dell'utente (fallback: coordinate base)
-  const [geo, setGeo] = useState(BASE_COORDS);
+  const [geo, setGeo] = useState(() => {   // all'avvio: l'ultima posizione vera dell'ape (Sorrento solo se non c'è mai stato un fix)
+    try { const j = JSON.parse(localStorage.getItem("bw_last_geo") || "null"); if (j && typeof j.lat === "number") return j; } catch (_) {}
+    return BASE_COORDS;
+  });
+  const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
   useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
     const t = setTimeout(() => { loadAIModels().catch(() => {}); }, 2500);
@@ -3041,6 +3045,8 @@ function AppInner() {
     // Regola: si chiede al primo accesso; se la risposta è no, si richiede a ogni accesso finché non arriva il sì.
     // Con il "no" di sistema il telefono non lascia richiedere: l'invito spiega come riattivare.
     // In ogni caso il GPS parte comunque entro pochi secondi (l'invito non è mai un cancello).
+    let okBefore = false; try { okBefore = localStorage.getItem("bw_geo_ok") === "1"; } catch (_) {}
+    if (okBefore) { go(); return; }                     // il sì è già arrivato in passato: GPS immediato, come sempre
     const watchdog = setTimeout(go, 6000);
     if (navigator.permissions?.query) {
       navigator.permissions.query({ name: "geolocation" })
@@ -3059,7 +3065,11 @@ function AppInner() {
     if (!navigator.geolocation || !geoGo) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
     const id = navigator.geolocation.watchPosition(
-      p => { setGeo({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoReal(true); },
+      p => {
+        const g = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setGeo(g); setGeoReal(true);
+        try { localStorage.setItem("bw_last_geo", JSON.stringify(g)); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
+      },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
   }, [geoGo, geoTick]);
@@ -3166,7 +3176,7 @@ function AppInner() {
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   const [locName, setLocName] = useState(null);
   useEffect(() => {
-    if (!geo) return;
+    if (!geo || (!geoReal && !geoRestored)) return;   // solo posizioni vere (fresche o ricordate): mai il "Sorrento" di fabbrica
     let stop = false, timer = null;
     const attempt = async () => {
       let name = await reverseCity(geo.lat, geo.lng);
@@ -3188,7 +3198,7 @@ function AppInner() {
     };
     attempt();
     return () => { stop = true; if (timer) clearTimeout(timer); };
-  }, [geo]);
+  }, [geo, geoReal]);
   const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
   const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
   const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
