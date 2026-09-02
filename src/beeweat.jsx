@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.2";
+const APP_VERSION = "11.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3037,12 +3037,18 @@ function AppInner() {
     if (!navigator.geolocation) return;
     let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {}
     const go = () => setGeoGo(true);
-    const invite = () => { if (asked) go(); else setGeoInvite(true); };
+    // l'invito è una cortesia, mai un cancello: si mostra SOLO se il permesso è certamente da chiedere,
+    // e in ogni caso il GPS parte comunque entro pochi secondi
+    const watchdog = setTimeout(go, 6000);
     if (navigator.permissions?.query) {
-      navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted") go(); else invite(); }).catch(invite);
-    } else invite();
+      navigator.permissions.query({ name: "geolocation" })
+        .then(st => { if (st.state === "prompt" && !asked) setGeoInvite(true); else go(); })
+        .catch(go);
+    } else go();
+    return () => clearTimeout(watchdog);
   }, []);
   const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); setGeoGo(true); };
+  const laterGeoInvite = () => { setGeoInvite(false); setGeoGo(true); };   // "più tardi" non toglie la posizione a nessuno
   useEffect(() => {
     if (!navigator.geolocation || !geoGo) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
@@ -4158,7 +4164,7 @@ function AppInner() {
         lines={[["📍", "Beeweat racconta il tempo posto per posto: con la tua posizione i tuoi cieli finiscono sulla mappa giusta, e tu vedi cosa succede intorno a te."],
                 ["⛈️", "Ricevi le allerte del tuo raggio: il temporale che arriva, la mareggiata, la neve in valle."],
                 ["🔒", "La posizione resta tua: non compare mai l'indirizzo esatto, solo il luogo."]]}
-        cta="Consenti la posizione 📍" onAccept={acceptGeoInvite} onLater={() => setGeoInvite(false)} />}
+        cta="Consenti la posizione 📍" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
     </Frame>;
