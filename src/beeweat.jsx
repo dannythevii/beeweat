@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.0";
+const APP_VERSION = "12.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -83,6 +83,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     flag: <><line x1="5" y1="21" x2="5" y2="4" {...p} /><path d="M5 4.5h12l-2.3 3.5L17 11.5H5z" {...p} /></>,
     beecast: <><path d="M12 3.2l6.2 3.6v7.2L12 17.6l-6.2-3.6V6.8z" {...p} /><line x1="12" y1="17.6" x2="12" y2="21" {...p} /><line x1="5.8" y1="6.8" x2="3" y2="5.2" {...p} /><line x1="18.2" y1="6.8" x2="21" y2="5.2" {...p} /></>,
     clock: <><circle cx="12" cy="12" r="9" {...p} /><polyline points="12,7 12,12 16,14" {...p} /></>,
+    gear: <><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
 };
@@ -2251,7 +2252,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
           )}
           <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="bell" size={19} color={HBLUE} /></div>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="gear" size={21} color={HBLUE} sw={1.8} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Configurazione</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{notif?.enabled ? `Attive · entro ${notif.radiusKm} km` : "Disattivate"}</div>
@@ -2664,7 +2665,93 @@ function PermissionsPanel({ onGeoGranted }) {
   );
 }
 
-function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted }) {
+// ── Centro assistenza: "Come possiamo aiutarti" (domande frequenti) ──────────
+const HELP_FAQ = [
+  { q: "La posizione non viene rilevata", a: "Beeweat pubblica solo cieli con il loro posto vero. Su iPhone: Impostazioni → Privacy → Localizzazione → Siti web Safari → \"Mentre usi l'app\", poi Impostazioni → Safari → Posizione → Chiedi. Su Android: icona 🔒 nella barra → Posizione → Consenti. Poi ricarica l'app." },
+  { q: "La fotocamera non si apre", a: "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri beeweat.vercel.app in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera)." },
+  { q: "La mia foto è stata respinta", a: "Gli occhi dell'alveare accettano solo cieli veri, scattati dal vivo: niente persone in primo piano, schermi, interni, muri o superfici. Alza l'obiettivo e fai entrare più cielo nell'inquadratura." },
+  { q: "Ho pubblicato senza rete, dov'è il post?", a: "È nello zaino 🎒: resta al sicuro sul telefono e parte da solo appena torna la connessione (viene controllato prima di partire). Lo vedi nel feed con l'etichetta \"in attesa di rete\"." },
+  { q: "Non ricevo le notifiche", a: "Su iPhone le notifiche push funzionano solo con l'app installata: Condividi ⬆️ → Aggiungi alla schermata Home. Poi Profilo → Configurazione → Push sul telefono → Attiva." },
+  { q: "Cosa sono le stelle sull'avatar?", a: "Sono i gradi dell'alveare: una stella ogni 20 cieli pubblicati. Scout Bee (20), Worker Bee (40), Guard Bee (60), Royal Bee (80), Queen Bee (100+)." },
+  { q: "Come funzionano le spunte nelle chat?", a: "✓ Inviato, ✓✓ Consegnato sul telefono dell'altra ape, ✓✓ dorate = Letto. Puoi disattivare la conferma di lettura dal profilo: gli altri non vedranno più quando leggi." },
+  { q: "Come installo Beeweat sul telefono?", a: "iPhone: Safari → Condividi ⬆️ → Aggiungi alla schermata Home. Android: Chrome → menù ⋮ → Installa app. Avrai lo schermo intero, i permessi stabili e le notifiche." },
+];
+function HelpView({ onClose }) {
+  const [open, setOpen] = useState(null);
+  return (
+    <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
+      <Header title="Come possiamo aiutarti" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 12 }}>Le domande più frequenti dell'alveare. Non trovi la tua? Scrivi agli amministratori dal Centro assistenza 🐝</div>
+        {HELP_FAQ.map((f, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 14, marginBottom: 10, border: `1px solid ${LINE}`, overflow: "hidden" }}>
+            <button onClick={() => setOpen(open === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 14.5, color: TXT }}>{f.q}</span>
+              <span style={{ transform: open === i ? "rotate(90deg)" : "none", transition: "transform .2s", display: "flex" }}><NavIcon name="chevron" size={18} color={TXT2} sw={2.2} /></span>
+            </button>
+            {open === i && <div style={{ padding: "0 14px 14px", fontSize: 13.5, color: TXT, lineHeight: 1.55 }}>{f.a}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// ── "Inizia": come funziona Beeweat, in sei passi ────────────────────────────
+const INTRO_STEPS = [
+  ["📸", "Scatta il cielo", "Tocca il + e fotografa il cielo sopra di te — solo dal vivo, niente archivio. È la regola d'oro: ogni cielo è vero e di adesso."],
+  ["👁️", "Gli occhi dell'alveare", "Prima di pubblicare, l'intelligenza artificiale controlla la foto: niente persone in primo piano, schermi o interni. Nei casi dubbi chiede un secondo parere a Bee-Eye, il giudice in cloud."],
+  ["📡", "Radar e Feed", "Il Feed mostra i cieli nel tuo raggio (lo regoli con il cursore in basso, da 100 metri a 100 km). Il Radar disegna maltempo ed eventi intorno a te, in tempo reale."],
+  ["⛈️", "Eventi e allerte", "Segnala temporali, mareggiate, strade chiuse. Un post \"Temporale\" crea da solo un'allerta per le api vicine. Le allerte vivono nella pagina Eventi."],
+  ["🐝", "BeeWorld e le stelle", "Segui le api e i luoghi che ti interessano: ogni loro cielo ti arriva in campanella. Una stella ogni 20 cieli pubblicati: da Scout Bee a Queen Bee."],
+  ["🎒", "Lo zaino offline", "Senza rete? Pubblica lo stesso: il post resta nello zaino e parte da solo al ritorno della linea. In montagna, in barca, ovunque."],
+];
+function IntroView({ onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
+      <Header title="Come funziona Beeweat" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19 }}>Mille occhi, un solo cielo.</div>
+          <div style={{ fontSize: 13.5, opacity: .95, marginTop: 6, lineHeight: 1.5 }}>Beeweat è il meteo fatto dalle persone: ogni foto è un'ape che torna all'alveare con una notizia. Più siamo, più il tempo vero si compone.</div>
+        </div>
+        {INTRO_STEPS.map(([e, t, d], i) => (
+          <div key={i} style={{ display: "flex", gap: 12, background: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, border: `1px solid ${LINE}` }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{e}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: HBLUE }}>{i + 1}. {t}</div>
+              <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 3 }}>{d}</div>
+            </div>
+          </div>
+        ))}
+        <div style={{ textAlign: "center", fontSize: 12.5, color: TXT2, margin: "10px 0 6px" }}>Buon volo, ape 🐝</div>
+      </div>
+    </div>
+  );
+}
+// ── Chat con gli amministratori ──────────────────────────────────────────────
+function SupportView({ admins, onPick, onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
+      <Header title="Chat con gli amministratori" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginBottom: 12, background: "#fff", borderRadius: 14, padding: 14, border: `1px solid ${LINE}` }}>Un problema, un'idea, una foto respinta ingiustamente? Scrivi a chi tiene in piedi l'alveare: ti risponde in chat 🐝</div>
+        {admins === null ? <div style={{ textAlign: "center", color: TXT2, padding: 30 }}>Cerco gli amministratori…</div>
+          : admins.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 30 }}>Nessun amministratore disponibile al momento.</div>
+          : admins.map(a => (
+            <button key={a.id} onClick={() => onPick(a)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 14px", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, marginBottom: 10, cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
+              <UserAvatar src={a.avatar_url} size={50} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 16, color: HBLUE }}>{a.name}</div>
+                <div style={{ fontSize: 12.5, color: TXT2 }}>Amministratore Beeweat{a.city ? " · " + a.city : ""}</div>
+              </div>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="send" size={17} color="#fff" sw={2} /></div>
+            </button>
+          ))}
+      </div>
+    </div>
+  );
+}
+function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted, onHelp, onSupport, onIntro }) {
   const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const set = (k, v) => onChange({ ...settings, [k]: v });
   const enableMaster = async v => {
@@ -2688,9 +2775,10 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
   const permLabel = { granted: "Permesso concesso", denied: "Permesso negato dal browser", default: "Permesso non ancora richiesto", unsupported: "Non supportato in questo contesto" }[perm] || "";
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
-      <Header title="Notifiche" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title="Configurazione" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ background: "#fff", marginTop: 12 }}>
+        <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Notifiche</div>
+        <div style={{ background: "#fff" }}>
           <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, background: HBLUE + "06" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "33", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="bell" size={19} color="#8A5A12" /></div>
@@ -2727,6 +2815,22 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
           Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche push reali funzionano solo con l'app installata dallo store; in anteprima questa è una simulazione delle impostazioni.
         </div>
         <PermissionsPanel onGeoGranted={onGeoGranted} />
+
+        <div style={{ padding: "18px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Centro assistenza</div>
+        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, marginBottom: 20 }}>
+          {[["❓", "Come possiamo aiutarti", "Le risposte alle domande più frequenti", onHelp],
+            ["💬", "Chat con gli amministratori", "Scrivi a chi tiene in piedi l'alveare", onSupport],
+            ["🚀", "Inizia", "Come funziona Beeweat, in sei passi", onIntro]].map(([e, t, d, fn]) => (
+            <button key={t} onClick={fn} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{e}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{t}</div>
+                <div style={{ fontSize: 12, color: TXT2, marginTop: 1 }}>{d}</div>
+              </div>
+              <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -3565,6 +3669,7 @@ function AppInner() {
   }, [allPosts, realPlaces, contacts]);
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
+  const [admins, setAdmins] = useState(null);   // gli amministratori, per il Centro assistenza
   const saveEdit = ({ caption, cond }) => {
     const p = editTarget; setEditTarget(null);
     if (!p) return;
@@ -4136,7 +4241,12 @@ function AppInner() {
         ))}
     </div>
   );
-  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }} />);
+  if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }}
+    onHelp={() => setOverlay("help")} onIntro={() => setOverlay("intro")}
+    onSupport={() => { setAdmins(null); setOverlay("support"); if (sb?.isConfigured && sb.getAdmins) sb.getAdmins().then(setAdmins).catch(() => setAdmins([])); else setAdmins([]); }} />);
+  if (overlay === "help") return wrap(<HelpView onClose={() => setOverlay("notif")} />);
+  if (overlay === "intro") return wrap(<IntroView onClose={() => setOverlay("notif")} />);
+  if (overlay === "support") return wrap(<SupportView admins={admins} onClose={() => setOverlay("notif")} onPick={a => openDirectChat({ id: a.id, name: a.name, ava: a.avatar_url || null, city: a.city || "" })} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
     onOpenPhoto={openPhoto} onStar={onStar} onView={onView}
     onAdminEdit={async u => {

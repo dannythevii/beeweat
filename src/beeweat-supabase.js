@@ -80,6 +80,11 @@ export async function adminUpdateProfile(userId, { name, city }) {
   const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
   if (error) throw error;
 }
+// ── Gli amministratori (per il Centro assistenza) ────────────────────────────
+export async function getAdmins() {
+  const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").eq("is_admin", true).order("name");
+  if (error) throw error; return data || [];
+}
 // ── Megafono: messaggio degli admin a tutte le api ───────────────────────────
 export async function adminBroadcast(text) {
   const { data, error } = await supabase.rpc("admin_broadcast", { p_text: text });
