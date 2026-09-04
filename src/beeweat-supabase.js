@@ -446,11 +446,18 @@ export async function subscribeDirect(myId, onMessage, onRead) {
     .on("postgres_changes",
       { event: "INSERT", schema: "public", table: "messages", filter: `to_user_id=eq.${myId}` },
       payload => { if (payload.new?.scope === "direct") onMessage(payload.new); })
-    .on("postgres_changes",                                             // i miei messaggi che vengono letti
+    .on("postgres_changes",                                             // i miei messaggi che vengono consegnati/letti
       { event: "UPDATE", schema: "public", table: "messages", filter: `from_user_id=eq.${myId}` },
-      payload => { if (payload.new?.scope === "direct" && payload.new?.read_at && onRead) onRead(payload.new); })
+      payload => { if (payload.new?.scope === "direct" && onRead) onRead(payload.new); })
     .subscribe();
   return () => supabase.removeChannel(ch);
+}
+// Segno come CONSEGNATI tutti i messaggi arrivati a me (✓✓ bianche dalla parte di chi scrive)
+export async function markAllDelivered() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("messages").update({ delivered_at: new Date().toISOString() })
+    .eq("scope", "direct").eq("to_user_id", user.id).is("delivered_at", null);
 }
 // Segno come letti i messaggi che X mi ha scritto (spunta ✓✓ dalla sua parte)
 export async function markDirectRead(fromId) {

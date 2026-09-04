@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "11.8";
+const APP_VERSION = "11.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1775,13 +1775,13 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         {msgs.map((m, mi) => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "11px 14px", fontSize: 15.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 10, opacity: .7, marginTop: 4, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", color: m.readAt ? ACCENT : "#fff", opacity: m.readAt ? 1 : .8 }}>{m.readAt ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 9.5, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : "Inviato"}</span>}</span>}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
+            <div style={{ maxWidth: "75%", background: m.me ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 11.5, opacity: .75, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 10.5, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
           </div>
         ))}
         <div ref={ref} />
       </div>
       <div style={{ padding: "12px 16px", background: "#fff", borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
-        <textarea rows={1} placeholder="Scrivi un messaggio…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 14, resize: "none", outline: "none", color: TXT }} />
+        <textarea rows={1} placeholder="Scrivi un messaggio…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 16.5, resize: "none", outline: "none", color: TXT }} />
         <button onClick={send} style={{ width: 46, height: 46, borderRadius: 14, background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
       </div>
 
@@ -3676,26 +3676,53 @@ function AppInner() {
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const rows = await sb.getDirectMessages(c.id);
-      setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null })) }));
+      setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null, deliveredAt: r.delivered_at || null })) }));
       if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(c.id).catch(e => console.warn("lettura:", e?.message || e));   // ✓✓ dalla sua parte
     } catch (e) { console.warn("chat diretta:", e?.message || e); } })();
   };
   const openChatRef = useRef(null);                       // la chat aperta in questo momento (per le spunte live)
   openChatRef.current = overlay?.chat?.id || null;
+  const chatOpenId = overlay?.chat?.id || null;
+  useEffect(() => {                                        // battito della chat diretta aperta: spunte sempre vere
+    if (!sb?.isConfigured || !chatOpenId || typeof chatOpenId !== "string" || !chatOpenId.includes("-") || /^(post_|place_|g_)/.test(chatOpenId)) return;
+    let alive = true;
+    const beat = async () => { try {
+      const rows = await sb.getDirectMessages(chatOpenId);
+      if (!alive) return;
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      setThreads(th => {
+        const local = th[chatOpenId] || [];
+        const fresh = (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null, deliveredAt: r.delivered_at || null }));
+        const tmp = local.filter(x => typeof x.id === "string" && x.id.startsWith("tmp_"));   // gli invii ancora in volo restano
+        return { ...th, [chatOpenId]: [...fresh, ...tmp] };
+      });
+      if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(chatOpenId).catch(() => {});
+    } catch (_) {} };
+    const iv = setInterval(beat, 5000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [sb, chatOpenId]);
   // Messaggi diretti in arrivo, in tempo reale (una sola iscrizione globale)
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
     let unsub = null;
     (async () => { try {
       const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      if (sb.markAllDelivered) sb.markAllDelivered().catch(() => {});   // quello che è arrivato mentre l'app dormiva: consegnato
       unsub = await sb.subscribeDirect(au.id, m => {
-        setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at), readAt: null }] }));
+        setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at), readAt: null, deliveredAt: null }] }));
+        if (sb.markAllDelivered) sb.markAllDelivered().catch(() => {});     // consegnato: ✓✓ bianche dalla sua parte
         if (openChatRef.current === m.from_user_id && user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(m.from_user_id).catch(() => {});
-      }, m => {   // un mio messaggio è stato letto: si accendono lui e tutti i miei precedenti
+      }, m => {   // un mio messaggio è stato consegnato o letto
         setThreads(th => {
           const list = th[m.to_user_id] || [];
           const idx = list.findIndex(x => x.id === m.id);
-          return { ...th, [m.to_user_id]: list.map((x, i) => (x.me && !x.readAt && (idx < 0 || i <= idx)) ? { ...x, readAt: m.read_at } : x) };
+          return { ...th, [m.to_user_id]: list.map((x, i) => {
+            if (!x.me) return x;
+            let y = x;
+            if (m.delivered_at && !y.deliveredAt && (idx < 0 || i <= idx)) y = { ...y, deliveredAt: m.delivered_at };
+            if (m.read_at && !y.readAt && (idx < 0 || i <= idx)) y = { ...y, readAt: m.read_at, deliveredAt: y.deliveredAt || m.read_at };
+            return y;
+          }) };
         });
       });
     } catch (_) {} })();
