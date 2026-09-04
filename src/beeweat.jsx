@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.1";
+const APP_VERSION = "12.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2192,9 +2192,10 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
   const stars = mine.reduce((s, p) => s + p.stars, 0);
   const [editing, setEditing] = useState(false);
   return (
@@ -2205,20 +2206,20 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         <div style={{ padding: "0 20px", marginTop: -42 }}>
           <button onClick={() => setEditing(true)} style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
             <div style={{ width: 90, height: 90, borderRadius: "50%", background: "#fff", border: "3px solid #fff", boxShadow: `0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <UserAvatar src={user.avatar} size={84} ring={false} />
+              <UserAvatar src={user.avatar} size={84} ring={false} stars={beeStars(nMine)} />
             </div>
             <div style={{ position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: "50%", background: HBLUE, border: "2.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={15} color="#fff" sw={2} /></div>
           </button>
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8 }}>{user.name}
             {onRename && <button onClick={onRename} title="Modifica nome" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
           </div>
-          {beeStars(posts.filter(p => p.mine).length) > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>{"⭐".repeat(beeStars(posts.filter(p => p.mine).length))} {beeRank(posts.filter(p => p.mine).length)}</div>}
+          {beeStars(nMine) > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>{"⭐".repeat(beeStars(nMine))} {beeRank(nMine)}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
             {onRenameCity && <button onClick={onRenameCity} title="Modifica città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={13} color={HBLUE} sw={1.9} /></button>}
           </div>
         </div>
         <div style={{ display: "flex", margin: "16px 16px 0", background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 12px ${HBLUE}10` }}>
-          {[{ l: "Post", v: mine.length, i: "camera" }, { l: "Stelle", v: stars, i: "starFill" }, { l: "Giorni", v: 7, i: "feed" }].map((s, i) => (
+          {[{ l: "Post", v: nMine, i: "camera" }, { l: "Stelle", v: stars, i: "starFill" }, { l: "Giorni", v: 7, i: "feed" }].map((s, i) => (
             <div key={i} style={{ flex: 1, textAlign: "center", padding: "16px 8px", borderRight: i < 2 ? `1px solid ${LINE}` : "none" }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><NavIcon name={s.i} size={20} color={HBLUE} /></div>
               <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 22, color: TXT }}>{s.v}</div>
@@ -3670,6 +3671,11 @@ function AppInner() {
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
   const [admins, setAdmins] = useState(null);   // gli amministratori, per il Centro assistenza
+  const [myPostCount, setMyPostCount] = useState(null);   // i miei post vivi, contati dal database
+  useEffect(() => {
+    if (!sb?.isConfigured || !myUid || !sb.getUserPostCount) return;
+    sb.getUserPostCount(myUid).then(setMyPostCount).catch(() => {});
+  }, [sb, myUid, socialTick, overlay === "profile"]);
   const saveEdit = ({ caption, cond }) => {
     const p = editTarget; setEditTarget(null);
     if (!p) return;
@@ -4033,7 +4039,7 @@ function AppInner() {
             } catch (er) { console.warn("allerta temporale:", er?.message || er); }
           }
           await loadFeed();                                                              // il feed vero rimpiazza la card provvisoria
-          if (sb.getUserPostCount && myUid) sb.getUserPostCount(myUid).then(celebrateRank).catch(() => {});
+          if (sb.getUserPostCount && myUid) sb.getUserPostCount(myUid).then(n => { setMyPostCount(n); celebrateRank(n); }).catch(() => {});
         } catch (e) {
           clearTemp();
           if (isNetErr(e)) toOutbox();
@@ -4172,7 +4178,7 @@ function AppInner() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
