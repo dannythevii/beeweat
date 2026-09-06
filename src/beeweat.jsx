@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.2";
+const APP_VERSION = "12.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1510,7 +1510,7 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId }) {
+function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
@@ -1535,6 +1535,9 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
               <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
             </div>
             <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
+            {e.img && <button onClick={ev => { ev.stopPropagation(); onOpenPhoto && onOpenPhoto({ img: e.img, caption: `${e.title}${e.place ? " · " + e.place : ""}` }); }} title="Apri la foto" style={{ padding: 0, border: `2px solid ${ACCENT}`, borderRadius: 10, overflow: "hidden", background: "#000", cursor: "pointer", width: 52, height: 52, flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,.2)" }}>
+              <img src={e.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </button>}
             {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           </div>
           {/* terzo rigo: localizzazione (tocca per la mappa) */}
@@ -2376,6 +2379,14 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));   // scadenza consigliata: un mese
   const [coords, setCoords] = useState(null);
   const [locating, setLocating] = useState(false);
+  const [photo, setPhoto] = useState(null);           // { file, url } — la foto dell'evento, scattata sul momento
+  const shotRef = useRef(null);
+  const onShot = e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (photo?.url) URL.revokeObjectURL(photo.url);
+    setPhoto({ file: f, url: URL.createObjectURL(f) });
+    e.target.value = "";
+  };
   useEffect(() => { if (geo && !coords) setCoords({ lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) }); }, [geo]);   // posizione viva, subito
   const locate = () => {
     setLocating(true);
@@ -2391,7 +2402,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
     const c = coords || (geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true });
     const category = cat === EVENT_CATEGORIES[0] ? "" : cat;
     const t = type === EVENT_TYPES[0] ? "" : type.split(" ")[0];
-    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category, ends });
+    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category, ends, file: photo?.file || null, img: photo?.url || null });
   };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
@@ -2419,6 +2430,18 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
           </div>
           {/* 4° rigo: gravità */}
           <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(s => <button key={s} onClick={() => setSev(s)} style={{ flex: 1, padding: 10, borderRadius: 10, border: sev === s ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: sev === s ? HBLUE + "12" : "#fff", color: sev === s ? HBLUE : TXT2, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{s}</button>)}</div>
+          <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onShot} style={{ display: "none" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "10px 12px" }}>
+            {photo
+              ? <img src={photo.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${ACCENT}` }} />
+              : <div style={{ width: 56, height: 56, borderRadius: 10, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📸</div>}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{photo ? "Foto pronta ✓" : "Aggiungi una foto"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{photo ? "Comparirà in miniatura sull'evento" : "Facoltativa · scattata sul momento"}</div>
+            </div>
+            <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Rifai" : "Scatta"}</button>
+            {photo && <button onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }} title="Rimuovi" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="close" size={18} color={TXT2} sw={2.2} /></button>}
+          </div>
           <button onClick={submit} style={{ padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Pubblica evento</button>
         </div>
       </div>
@@ -2706,11 +2729,36 @@ const INTRO_STEPS = [
   ["🐝", "BeeWorld e le stelle", "Segui le api e i luoghi che ti interessano: ogni loro cielo ti arriva in campanella. Una stella ogni 20 cieli pubblicati: da Scout Bee a Queen Bee."],
   ["🎒", "Lo zaino offline", "Senza rete? Pubblica lo stesso: il post resta nello zaino e parte da solo al ritorno della linea. In montagna, in barca, ovunque."],
 ];
+// ── Il video di presentazione: incolla qui il link (YouTube, Vimeo o un file .mp4, es. su beeweat.com) ──
+const INTRO_VIDEO = "";   // es. "https://www.youtube.com/watch?v=XXXXXXXX" · "https://vimeo.com/123456789" · "https://beeweat.com/video/beeweat.mp4"
+const introEmbed = url => {
+  if (!url) return null;
+  const yt = url.match(/(?:youtu\.be\/|v=|\/shorts\/|\/embed\/)([\w-]{6,})/);
+  if (yt) return { kind: "iframe", src: `https://www.youtube-nocookie.com/embed/${yt[1]}?rel=0&modestbranding=1&playsinline=1` };
+  const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vm) return { kind: "iframe", src: `https://player.vimeo.com/video/${vm[1]}?dnt=1` };
+  return { kind: "video", src: url };
+};
+function IntroVideo() {
+  const v = introEmbed(INTRO_VIDEO);
+  if (!v) return null;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "0 2px 8px" }}>Guarda il video</div>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 16, overflow: "hidden", background: "#0B1524", boxShadow: `0 4px 18px ${HBLUE}33` }}>
+        {v.kind === "iframe"
+          ? <iframe src={v.src} title="Beeweat — presentazione" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }} />
+          : <video src={v.src} controls playsInline preload="metadata" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+      </div>
+    </div>
+  );
+}
 function IntroView({ onClose }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title="Come funziona Beeweat" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <IntroVideo />
         <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", marginBottom: 14 }}>
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19 }}>Mille occhi, un solo cielo.</div>
           <div style={{ fontSize: 13.5, opacity: .95, marginTop: 6, lineHeight: 1.5 }}>Beeweat è il meteo fatto dalle persone: ogni foto è un'ape che torna all'alveare con una notizia. Più siamo, più il tempo vero si compone.</div>
@@ -3569,7 +3617,7 @@ function AppInner() {
       const rows = await sb.getEvents();
       setEvents(rows.map(r => ({
         id: r.id, uid: r.user_id, user: r.profiles?.name || "Utente", ava: r.profiles?.avatar_url || null,
-        type: r.type, cat: r.cat, title: r.title, place: r.place, sev: r.sev,
+        type: r.type, cat: r.cat, title: r.title, place: r.place, sev: r.sev, img: r.image_url || null,
         lat: r.lat, lng: r.lng, ends: r.ends, time: fmtPostTime(r.created_at),
         dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng }) * 10) / 10 : 999,
       })));
@@ -4360,7 +4408,7 @@ function AppInner() {
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);

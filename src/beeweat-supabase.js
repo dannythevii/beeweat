@@ -112,10 +112,12 @@ export async function getEvents(limit = 200) {
 export async function createEvent(ev) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
+  let image_url = null;
+  if (ev.file) { try { image_url = await uploadPhoto(ev.file); } catch (e) { console.warn("foto evento:", e?.message || e); } }   // la foto dell'evento, se c'è
   const { data, error } = await supabase.from("events").insert({
     user_id: user.id, type: ev.type ?? null, cat: ev.cat ?? null, title: ev.title,
     place: ev.place ?? null, sev: ev.sev ?? null, lat: ev.lat ?? null, lng: ev.lng ?? null,
-    ends: ev.ends ?? null,
+    ends: ev.ends ?? null, image_url,
   }).select().single();
   if (error) throw error; return data;
 }
