@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.5";
+const APP_VERSION = "12.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1944,8 +1944,8 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
     }
   }, [facing]);
-  const [camInvite, setCamInvite] = useState(() => { try { return localStorage.getItem("bw_cam_ok") !== "1"; } catch (_) { return true; } });   // si ripropone finché la fotocamera non si è aperta davvero
-  useEffect(() => { if (camInvite) return; start(); return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, [facing, camInvite]);
+  const [camInvite, setCamInvite] = useState(false);   // fotocamera nativa: il telefono chiede il permesso da sé
+  useEffect(() => { return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, []);   // fotocamera nativa: nessun flusso video in pagina
   const acceptCamInvite = () => setCamInvite(false);
   const [flash, setFlash] = useState(false);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
@@ -2043,7 +2043,27 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       setAi({ error: true });
     });
   };
-  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); start(); };
+  const shotRef = useRef(null);
+  const onNativeShot = e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const c = canvasRef.current; if (!c) return;
+        const k = Math.min(1, 2000 / Math.max(im.naturalWidth, im.naturalHeight));   // dimensione ragionevole per analisi e upload
+        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        setCaptured(c.toDataURL("image/jpeg", .85));
+        setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
+        try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
+        setTimeout(runAI, 60);
+      } finally { URL.revokeObjectURL(url); }
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile: riprova."); };
+    im.src = url;
+  };
+  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setTimeout(() => shotRef.current?.click(), 50); };
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
     try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (_) {}
     loadAIModels().catch(() => {});   // pre-riscaldamento: gli occhi AI si preparano mentre inquadri
@@ -2116,43 +2136,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#0B1524", minHeight: format === "std" ? 280 : undefined, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
-            <div onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd} style={{ overflow: "hidden", display: streaming ? "block" : "none", position: "relative", aspectRatio: format === "pano" ? "21 / 9" : format === "wide" ? "16 / 9" : undefined }}>
-              <video ref={videoRef} playsInline muted style={{ width: "100%", height: format === "std" ? undefined : "100%", maxHeight: format === "std" ? 360 : undefined, objectFit: "cover", display: "block", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center center", transition: "transform .12s ease-out" }} />
-              {streaming && (
-                <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center", gap: 8, zIndex: 5 }}>
-                  {[1, 2, 3, ...(maxZoom >= 5 ? [5] : [])].map(zv => {
-                    const on = Math.abs(zoom - zv) < 0.2;
-                    return (
-                      <button key={zv} onClick={() => applyZoom(zv)} style={{ minWidth: 40, height: 32, padding: "0 10px", borderRadius: 16, border: "none", cursor: "pointer", background: on ? "rgba(20,28,40,.78)" : "rgba(20,28,40,.42)", color: on ? ACCENT : "#fff", fontWeight: 700, fontSize: on ? 13.5 : 12, fontFamily: "'Space Grotesk',sans-serif", backdropFilter: "blur(4px)" }}>
-                        {zv}{on ? "×" : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {grid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                {[1, 2].map(i => <div key={"v" + i} style={{ position: "absolute", top: 0, bottom: 0, left: `${i * 33.33}%`, width: 1, background: "rgba(255,255,255,.5)" }} />)}
-                {[1, 2].map(i => <div key={"h" + i} style={{ position: "absolute", left: 0, right: 0, top: `${i * 33.33}%`, height: 1, background: "rgba(255,255,255,.5)" }} />)}
-              </div>}
-              {zoom > 1.02 && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.45)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 14, padding: "3px 10px" }}>{zoom.toFixed(1)}×</div>}
-            </div>
-            {!streaming && !err && <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: TXT2 }}>Avvio fotocamera…</div>}
-            {err && <div style={{ minHeight: 280, display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", padding: "26px 22px", textAlign: "center" }}>
-              <NavIcon name="camera" size={40} color={TXT2} />
-              <span style={{ color: RED, fontSize: 14, fontWeight: 600 }}>{err.msg}</span>
-              {err.kind === "denied" && <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.6, textAlign: "left", background: "#fff", borderRadius: 10, padding: "10px 12px", border: `1px solid ${LINE}` }}>
-                Per attivare la fotocamera:<br />
-                • tocca l'icona 🔒/📷 nella barra degli indirizzi del browser<br />
-                • imposta la Fotocamera su <b>Consenti</b><br />
-                • ricarica la pagina e premi <b>Riprova</b><br />
-                Su iPhone: Impostazioni → Safari → Fotocamera → Consenti.
-              </div>}
-              {(err.kind === "blocked" || err.kind === "unsupported") && <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.6 }}>Se stai usando un'anteprima incorporata, apri l'app in una scheda del browser dedicata: la fotocamera richiede HTTPS e il permesso del sito.</div>}
-              <button onClick={start} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: HBLUE, color: "#fff", cursor: "pointer", fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Riprova</button>
-              {TEST_MODE && <button onClick={() => { setErr(null); setCaptured(DEMO_PHOTOS[Math.floor(Math.random() * DEMO_PHOTOS.length)]); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); }} style={{ padding: "8px 16px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "transparent", color: TXT2, cursor: "pointer", fontSize: 12.5, fontWeight: 600, fontFamily: "'Sora',sans-serif" }}>Usa una foto demo (solo prova)</button>}
-            </div>}
-            {streaming && <div style={{ position: "absolute", top: 12, left: 14, display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,.35)", borderRadius: 20, padding: "4px 10px" }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: RED, animation: "blink 1s infinite" }} /><span style={{ fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: ".1em" }}>LIVE</span></div>}
-            {streaming && <Compass h={heading} />}
+            <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
+            <button onClick={() => shotRef.current?.click()} style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: 380, border: `2px dashed ${HBLUE}66`, borderRadius: 16, background: "linear-gradient(160deg,#EAF3FB,#fff)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+              <div style={{ width: 88, height: 88, borderRadius: "50%", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 58, fontWeight: 300, lineHeight: 1, boxShadow: `0 8px 22px ${HBLUE}55` }}>+</div>
+              <div style={{ fontWeight: 700, fontSize: 17, color: HBLUE }}>Scatta il cielo</div>
+              <div style={{ fontSize: 12.5, color: TXT2 }}>Si apre la fotocamera del telefono · solo dal vivo, mai dall'archivio</div>
+            </button>
           </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
           <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
