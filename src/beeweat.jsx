@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.4";
+const APP_VERSION = "12.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -551,7 +551,14 @@ const analyzePhoto = async fullCanvas => {
   const person = dets.find(x => x.class === "person" && x.score > 0.55 && areaOf(x) > 0.07);
   if (person) return { block: true, reason: "Persona in primo piano rilevata: per la privacy, le persone vanno bene solo da lontano, come parte del paesaggio. 📷", cls: "person", score: Math.round(person.score * 100) / 100 };
   const skin = skinRatio(canvas);
-  if (skin > 0.28) return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
+  // Pelle: tufo, travertino e facciate ocra hanno la stessa cromia. Da sola non boccia più:
+  //  - con un indizio di persona (anche debole) → bocciata;
+  //  - senza → sospetto "skinSuspect", che va al secondo parere di Bee-Eye (una facciata la riconosce).
+  const weakPerson = dets.some(x => x.class === "person" && x.score > 0.25 && areaOf(x) > 0.02);
+  const humanHint = preds.some(p => /\b(face|person|people|man|woman|girl|boy|child|baby|hand|arm|selfie|portrait)\b/i.test(p.className || ""));
+  if (skin > 0.28 && (weakPerson || humanHint))
+    return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
+  const skinSuspect = skin > 0.28;   // colore-pelle senza persona: monumento? viso di profilo? decide Bee-Eye
   // Schermi e display: sempre bocciati (il cielo in TV non è il tuo cielo)
   const screenObj = dets.find(x => SCREEN_OBJECTS.includes(x.class) && x.score > 0.45);
   const screenPred = preds.slice(0, 3).find(p => SCREEN_RX.test(p.className) && p.probability > 0.15);
@@ -597,8 +604,9 @@ const analyzePhoto = async fullCanvas => {
   const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
   // muro/superficie uniforme: riempie tutto, senza azzurro e senza il gradiente naturale del cielo
   const uniformWall = !!(mask && mask.frac > 0.8 && mask.blue < 0.12 && mask.gradient < 6);
-  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright || uniformWall));
+  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright || uniformWall)) || skinSuspect;
   const conflictWhat = !conflict ? null
+    : skinSuspect && !(indoorObj || confidentNotOutdoor) ? "molto colore-pelle nell'inquadratura"
     : indoorObj ? indoorObj.class
     : artificialLight ? "luci artificiali"
     : nightBright ? "cielo troppo luminoso per quest'ora"
