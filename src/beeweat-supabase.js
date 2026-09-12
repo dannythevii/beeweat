@@ -23,6 +23,14 @@ export async function getLatestAward() {
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error; return data || null;
 }
+// ── Storico: i reel archiviati di un'ape (foto su beeweat.com, righe qui) ────
+export async function getArchivedPosts(userId) {
+  const { data, error } = await supabase.from("posts")
+    .select("*").eq("user_id", userId).not("archived_at", "is", null)
+    .order("created_at", { ascending: false }).limit(2000);
+  if (error) throw error;
+  return attachProfiles(await enrichCounts(data || []));
+}
 // ── Un singolo cielo per id (per aprire l'avviso sul post giusto) ────────────
 export async function getPostById(id) {
   const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
@@ -62,13 +70,13 @@ async function enrichCounts(rows) {
 }
 export async function getWorldFeed(limit = 100) {
   const { data, error } = await supabase.from("posts")
-    .select("*").order("created_at", { ascending: false }).limit(limit);
+    .select("*").is("archived_at", null).order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return attachProfiles(await enrichCounts(data || []));
 }
 // Il censimento dell'alveare: quanti cieli in tutto il mondo
 export async function getWorldCount() {
-  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true });
+  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true }).is("archived_at", null);
   if (error) throw error;
   return count || 0;
 }
@@ -145,14 +153,14 @@ async function attachProfiles(rows) {
 }
 export async function getPostsByUser(userId, limit = 30) {
   const { data, error } = await supabase.from("posts")
-    .select("*").eq("user_id", userId)
+    .select("*").eq("user_id", userId).is("archived_at", null)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return attachProfiles(await enrichCounts(data));
 }
 export async function getPostsByCity(city, limit = 30) {
   const { data, error } = await supabase.from("posts")
-    .select("*").ilike("city", city)
+    .select("*").ilike("city", city).is("archived_at", null)
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return attachProfiles(await enrichCounts(data));
