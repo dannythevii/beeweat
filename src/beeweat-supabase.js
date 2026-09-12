@@ -126,6 +126,8 @@ export async function createEvent(ev) {
     user_id: user.id, type: ev.type ?? null, cat: ev.cat ?? null, title: ev.title,
     place: ev.place ?? null, sev: ev.sev ?? null, lat: ev.lat ?? null, lng: ev.lng ?? null,
     ends: ev.ends ?? null, image_url,
+    kind: ev.kind || "meteo", description: ev.description ?? null, starts_at: ev.startsAt ?? null,
+    address: ev.address ?? null, link: ev.link ?? null, contact: ev.contact ?? null,
   }).select().single();
   if (error) throw error; return data;
 }
@@ -421,6 +423,19 @@ export async function subscribeNotifications(myId, onEvent) {
 }
 
 // ── Profili e chat dirette ────────────────────────────────────────────────────
+// Quante api nell'alveare (per lo splash)
+export async function getUserCount() {
+  const { count, error } = await supabase.from("profiles").select("id", { count: "exact", head: true });
+  if (error) throw error; return count || 0;
+}
+// Chi è online adesso (presence): leggero, una sola stanza per tutti
+export async function subscribePresence(myId, onCount) {
+  await authRealtime();
+  const ch = supabase.channel("bw-online", { config: { presence: { key: myId } } });
+  ch.on("presence", { event: "sync" }, () => { try { onCount(Object.keys(ch.presenceState()).length); } catch (_) {} })
+    .subscribe(async status => { if (status === "SUBSCRIBED") { try { await ch.track({ at: Date.now() }); } catch (_) {} } });
+  return () => supabase.removeChannel(ch);
+}
 export async function getProfiles() {
   const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").order("name");
   if (error) throw error;

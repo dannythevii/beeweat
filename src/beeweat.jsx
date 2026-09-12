@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.7";
+const APP_VERSION = "12.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -753,6 +753,8 @@ function LegalDoc({ title, intro, sections, onClose, onAccept }) {
 
 // ─── AUTH ───────────────────────────────────────────────────────────────────
 function AuthScreen({ onLogin, sb }) {
+  const [userCount, setUserCount] = useState(null);
+  useEffect(() => { if (sb?.isConfigured && sb.getUserCount) sb.getUserCount().then(setUserCount).catch(() => {}); }, [sb]);
   const [view, setView] = useState("welcome");
   const [mode, setMode] = useState("register");
   const [form, setForm] = useState({ name: "", city: "", email: "", password: "" });
@@ -814,6 +816,7 @@ function AuthScreen({ onLogin, sb }) {
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 42, letterSpacing: ".04em", color: "#2A7DC4", marginTop: 14 }}>BEEWEAT</div>
         <div style={{ fontSize: 14, color: "#6E8BA6", marginTop: 4, fontWeight: 500, letterSpacing: ".01em" }}>Le api del tempo · il meteo in tempo reale</div>
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 15.5, color: HBLUE, marginTop: 10, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
+        {userCount != null && <div style={{ fontSize: 13.5, color: HBLUE, marginTop: 10, fontWeight: 700 }}>🐝 {userCount} api nell'alveare</div>}
         <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
       </div>
       <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
@@ -1518,22 +1521,29 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto }) {
+function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
+  const [view, setView] = useState("meteo");   // Eventi meteo | Eventi social
   const alive = events.filter(e => !e.ends || e.ends >= today);
   const visible = alive.filter(e =>
     (inf || e.dist <= km) &&
-    true);
+    ((view === "social") === ((e.kind || "meteo") === "social")));
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        {[["meteo", "Eventi meteo"], ["social", "Eventi social"]].map(([id, label]) => (
+          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: view === id ? "none" : `1.5px solid ${LINE}`, background: view === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+        ))}
+      </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {inf ? "in tutto il mondo" : "segnalati nella zona"}</span>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {view === "social" ? "social" : "meteo"} {inf ? "in tutto il mondo" : "nella zona"}</span>
         <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
       </div>
-      {visible.map(e => (
+      {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
+      {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} /> : (
         <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", transition: "box-shadow .3s" }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
             <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
@@ -2192,7 +2202,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
@@ -2270,6 +2280,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
               <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
+          {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2C7A57", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
           {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: "#fff", border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
             <div style={{ flex: 1, textAlign: "left" }}>
@@ -2278,13 +2289,11 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>}
+          {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>🗄️ Reel precedenti <NavIcon name="chevron" size={15} color={HBLUE} sw={2.4} /></button>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
           <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
-          {onArchive && <button onClick={onArchive} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 14px", marginBottom: 14, borderRadius: 10, border: "1.5px solid #E0A315", background: "linear-gradient(135deg,#FFF3D1,#FFE7A8)", color: "#8A5A12", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-            <span>🗄️</span> Reel precedenti <NavIcon name="chevron" size={15} color="#8A5A12" sw={2.4} />
-          </button>}
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
           {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
@@ -2370,86 +2379,208 @@ function AddContactModal({ people, contacts, onAdd, onClose }) {
 }
 
 // ─── ADD EVENT MODAL ──────────────────────────────────────────────────────────
+// ── Mappa (OpenStreetMap via Leaflet, caricato al bisogno) per gli eventi social ──
+let _leafletP = null;
+const ensureLeaflet = () => {
+  if (window.L) return Promise.resolve(window.L);
+  if (_leafletP) return _leafletP;
+  _leafletP = new Promise((res, rej) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
+    const sc = document.createElement("script"); sc.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; sc.onload = () => res(window.L); sc.onerror = rej; document.head.appendChild(sc);
+  });
+  return _leafletP;
+};
+function SocialMap({ events, me, onPick }) {
+  const ref = useRef(null); const mapRef = useRef(null);
+  useEffect(() => {
+    let alive = true;
+    ensureLeaflet().then(L => {
+      if (!alive || !ref.current) return;
+      if (!mapRef.current) {
+        mapRef.current = L.map(ref.current, { zoomControl: false, attributionControl: true }).setView(me ? [me.lat, me.lng] : [41.9, 12.5], me ? 12 : 5);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapRef.current);
+      }
+      const map = mapRef.current;
+      if (map._bwLayer) map.removeLayer(map._bwLayer);
+      const layer = L.layerGroup().addTo(map); map._bwLayer = layer;
+      if (me) L.circleMarker([me.lat, me.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#235C9C", fillOpacity: 1 }).addTo(layer).bindTooltip("Tu");
+      const pts = [];
+      events.forEach(e => {
+        if (e.lat == null) return;
+        const icon = L.divIcon({ className: "", html: `<div style="width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid #235C9C;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 8px rgba(0,0,0,.25)">${(e.cat || "🎉").split(" ")[0]}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] });
+        L.marker([e.lat, e.lng], { icon }).addTo(layer).on("click", () => onPick && onPick(e)).bindTooltip(e.title);
+        pts.push([e.lat, e.lng]);
+      });
+      if (me) pts.push([me.lat, me.lng]);
+      if (pts.length > 1) map.fitBounds(pts, { padding: [28, 28], maxZoom: 14 });
+      setTimeout(() => map.invalidateSize(), 60);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [events, me?.lat, me?.lng]);
+  useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
+  return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12 }} />;
+}
+const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
+function SocialEventCard({ e, onOpen, focused }) {
+  const [more, setMore] = useState(false);
+  return (
+    <div id={"event-" + e.id} className="fade-up" style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, border: `1px solid ${LINE}` }}>
+      <div style={{ display: "flex", gap: 12 }}>
+        {e.img ? <img src={e.img} alt="" onClick={() => onOpen(e)} style={{ width: 72, height: 72, borderRadius: 12, objectFit: "cover", flexShrink: 0, cursor: "pointer", border: `1px solid ${LINE}` }} />
+               : <div style={{ width: 72, height: 72, borderRadius: 12, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>{(e.cat || "🎉").split(" ")[0]}</div>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
+          {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 700, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "3px 8px" }}>{e.cat}</span>}
+          {e.startsAt && <div style={{ fontSize: 13, color: TXT, marginTop: 5, fontWeight: 600 }}>🗓️ {fmtWhen(e.startsAt)}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 3 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.address || e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
+        </div>
+      </div>
+      {e.description && <div onClick={() => setMore(m => !m)} style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 10, whiteSpace: "pre-wrap", cursor: "pointer", ...(more ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{e.description}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button onClick={() => onOpen(e)} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>🗺️ Vedi sulla mappa</button>
+        {e.link && <a href={/^https?:/i.test(e.link) ? e.link : "https://" + e.link} target="_blank" rel="noopener" style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>🔗 Info</a>}
+        {e.contact && <a href={/@/.test(e.contact) ? "mailto:" + e.contact : "tel:" + e.contact.replace(/\s+/g, "")} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>📞 Contatto</a>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 12.5, color: TXT2 }}><UserAvatar src={e.ava} size={26} /> Organizzato da <b style={{ color: HBLUE }}>{e.user}</b></div>
+    </div>
+  );
+}
+// ── Geocodifica di un indirizzo/città (Photon → Nominatim); null se non trova ──
+const geocodeAddress = async q => {
+  const t = (q || "").trim(); if (!t) return null;
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(t)}&limit=1&lang=it`);
+    const j = await r.json(); const c = j?.features?.[0]?.geometry?.coordinates;
+    if (c) return { lat: +c[1].toFixed(5), lng: +c[0].toFixed(5) };
+  } catch (_) {}
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q=${encodeURIComponent(t)}`);
+    const j = await r.json(); if (j?.[0]) return { lat: +(+j[0].lat).toFixed(5), lng: +(+j[0].lon).toFixed(5) };
+  } catch (_) {}
+  return null;
+};
+const inputStyle = { background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 12px", fontSize: 14, color: TXT, outline: "none", width: "100%", fontFamily: "'Sora',sans-serif", boxSizing: "border-box" };
+const labelStyle = { fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 };
+
 function AddEventModal({ onAdd, onClose, user, geo, locName }) {
-  const [type, setType] = useState(EVENT_TYPES[0]);
-  const [cat, setCat] = useState(EVENT_CATEGORIES[0]);
+  const [kind, setKind] = useState("meteo");                          // "meteo" | "social"
+  const [type, setType] = useState(EVENT_TYPES[1]);
+  const [cat, setCat] = useState(EVENT_CATEGORIES[1]);
   const [title, setTitle] = useState("");
-  const [place, setPlace] = useState(locName || user.city);
   const [sev, setSev] = useState("Media");
-  const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));   // scadenza consigliata: un mese
+  const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [description, setDescription] = useState("");
+  const [startsAt, setStartsAt] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState(locName || user.city || "");
+  const [link, setLink] = useState("");
+  const [contact, setContact] = useState("");
   const [coords, setCoords] = useState(null);
-  const [locating, setLocating] = useState(false);
-  const [photo, setPhoto] = useState(null);           // { file, url } — la foto dell'evento, scattata sul momento
+  const [geoState, setGeoState] = useState("idle");                   // idle | searching | found | fallback
+  const [photo, setPhoto] = useState(null);
+  const [sending, setSending] = useState(false);
   const shotRef = useRef(null);
   const onShot = e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     if (photo?.url) URL.revokeObjectURL(photo.url);
-    setPhoto({ file: f, url: URL.createObjectURL(f) });
-    e.target.value = "";
+    setPhoto({ file: f, url: URL.createObjectURL(f) }); e.target.value = "";
   };
-  useEffect(() => { if (geo && !coords) setCoords({ lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) }); }, [geo]);   // posizione viva, subito
-  const locate = () => {
-    setLocating(true);
-    if (!navigator.geolocation) { setCoords(geo ? { ...geo } : { ...BASE_COORDS, approx: true }); setLocating(false); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => { setCoords({ lat: +pos.coords.latitude.toFixed(5), lng: +pos.coords.longitude.toFixed(5) }); setLocating(false); },
-      () => { setCoords(geo ? { ...geo } : { ...BASE_COORDS, approx: true }); setLocating(false); },   // ripiego: la posizione viva dell'app
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+  // l'indirizzo diventa coordinate; senza dati (o se non trova) → posizione attuale
+  const resolveCoords = async () => {
+    const q = [address.trim(), city.trim()].filter(Boolean).join(", ");
+    if (q) {
+      setGeoState("searching");
+      const c = await geocodeAddress(q);
+      if (c) { setCoords(c); setGeoState("found"); return c; }
+    }
+    const c = geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : null;
+    setCoords(c); setGeoState(q ? "fallback" : "idle"); return c;
   };
-  const submit = () => {
-    if (!title.trim()) return;
-    const c = coords || (geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : { lat: +(BASE_COORDS.lat + (Math.random() - .5) * .05).toFixed(5), lng: +(BASE_COORDS.lng + (Math.random() - .5) * .05).toFixed(5), approx: true });
-    const category = cat === EVENT_CATEGORIES[0] ? "" : cat;
-    const t = type === EVENT_TYPES[0] ? "" : type.split(" ")[0];
-    onAdd({ type: t, title: title.trim(), place, sev, user: user.name, lat: c.lat, lng: c.lng, cat: category, ends, file: photo?.file || null, img: photo?.url || null });
+  const submit = async () => {
+    if (!title.trim()) { alert("Serve un titolo."); return; }
+    if (kind === "social" && !startsAt) { alert("Serve la data e l'ora dell'evento."); return; }
+    setSending(true);
+    const c = coords || await resolveCoords();
+    setSending(false);
+    if (!c) { alert("Posizione non disponibile: scrivi un indirizzo o attiva il GPS."); return; }
+    const isSocial = kind === "social";
+    const endsFinal = isSocial ? (startsAt ? new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) : ends) : ends;
+    onAdd({
+      kind, type: isSocial ? "" : type.split(" ")[0], cat: isSocial ? cat : "",
+      title: title.trim(), place: city.trim() || locName || user.city, sev: isSocial ? "Bassa" : sev,
+      user: user.name, lat: c.lat, lng: c.lng, ends: endsFinal, geocoded: true,
+      description: isSocial ? description.trim() : "", startsAt: isSocial ? new Date(startsAt).toISOString() : null,
+      address: [address.trim(), city.trim()].filter(Boolean).join(", "), link: isSocial ? link.trim() : "", contact: isSocial ? contact.trim() : "",
+      file: photo?.file || null, img: photo?.url || null,
+    });
   };
+  const Pill = ({ id, label, emoji }) => (
+    <button onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: kind === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{emoji} {label}</button>
+  );
+  const AddressBlock = () => (
+    <>
+      <div style={labelStyle}>Indirizzo · città</div>
+      <input placeholder="Via / piazza (facoltativo)" value={address} onChange={e => { setAddress(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, marginBottom: 8 }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input placeholder="Città" value={city} onChange={e => { setCity(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={resolveCoords} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>📍 Trova</button>
+      </div>
+      <div style={{ fontSize: 12, marginTop: 6, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : TXT2 }}>
+        {geoState === "searching" ? "Cerco le coordinate…"
+          : geoState === "found" ? `Coordinate trovate ✓ ${coords.lat}, ${coords.lng}`
+          : geoState === "fallback" ? "Indirizzo non trovato: userò la tua posizione attuale"
+          : "Senza indirizzo verrà usata la tua posizione attuale"}
+      </div>
+    </>
+  );
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
-        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Segnala un evento</div>
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 12 }}>Segnala un evento</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}><Pill id="meteo" label="Eventi meteo" emoji="⛈️" /><Pill id="social" label="Eventi social" emoji="🎉" /></div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* 1° rigo: tipo */}
-          <select value={type} onChange={e => setType(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, color: type === EVENT_TYPES[0] ? TXT2 : TXT }}>{EVENT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
-          {/* 2° rigo: categoria evento */}
-          <select value={cat} onChange={e => setCat(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, color: cat === EVENT_CATEGORIES[0] ? TXT2 : TXT }}>{EVENT_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
-          {/* titolo */}
-          <input placeholder="Titolo (es. Temporale violento)" value={title} onChange={e => setTitle(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
-          {/* 3° rigo: localizzazione */}
-          <div>
-            <div style={{ fontSize: 11, color: TXT2, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Localizzazione</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Valido fino a</div>
-        <input type="date" value={ends} min={new Date().toISOString().slice(0, 10)} onChange={e => setEnds(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 12, width: "100%" }} />
-        <input placeholder="Luogo" value={place} onChange={e => setPlace(e.target.value)} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none" }} />
-              <button onClick={locate} style={{ flexShrink: 0, padding: "0 14px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: coords ? HBLUE : HBLUE + "10", color: coords ? "#fff" : HBLUE, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Sora',sans-serif" }}>
-                <NavIcon name="locate" size={18} color={coords ? "#fff" : HBLUE} /> {locating ? "…" : "GPS"}
-              </button>
-            </div>
-            {coords && <div style={{ marginTop: 6, fontSize: 12, color: "#3BA776", display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="check" size={14} color="#3BA776" sw={2.4} /> Posizione {coords.approx ? "approssimativa" : "acquisita"}: {coords.lat}, {coords.lng}</div>}
-          </div>
-          {/* 4° rigo: gravità */}
-          <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(s => <button key={s} onClick={() => setSev(s)} style={{ flex: 1, padding: 10, borderRadius: 10, border: sev === s ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: sev === s ? HBLUE + "12" : "#fff", color: sev === s ? HBLUE : TXT2, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{s}</button>)}</div>
-          <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onShot} style={{ display: "none" }} />
+          {kind === "meteo" ? (
+            <>
+              <div><div style={labelStyle}>Tipo</div>
+                <select value={type} onChange={e => setType(e.target.value)} style={inputStyle}>{EVENT_TYPES.slice(1).map(t => <option key={t}>{t}</option>)}</select></div>
+              <div><div style={labelStyle}>Titolo</div><input placeholder="Es. Temporale violento sul porto" value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Severità</div>
+                <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HBLUE : LINE}`, background: sev === x ? HBLUE + "12" : "#fff", color: sev === x ? HBLUE : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{x}</button>)}</div></div>
+              <div><div style={labelStyle}>Valido fino a</div><input type="date" value={ends} min={new Date().toISOString().slice(0, 10)} onChange={e => setEnds(e.target.value)} style={inputStyle} /></div>
+              <div><AddressBlock /></div>
+            </>
+          ) : (
+            <>
+              <div><div style={labelStyle}>Titolo</div><input placeholder="Es. Aperitivo al tramonto" value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Categoria</div>
+                <select value={cat} onChange={e => setCat(e.target.value)} style={inputStyle}>{EVENT_CATEGORIES.slice(1).map(c => <option key={c}>{c}</option>)}</select></div>
+              <div><div style={labelStyle}>Descrizione dell'evento</div>
+                <textarea rows={5} placeholder={"Racconta l'evento: programma, ospiti, cosa aspettarsi…\nVai a capo per i paragrafi."} value={description} onChange={e => setDescription(e.target.value)} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} /></div>
+              <div><div style={labelStyle}>Data e ora</div><input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={inputStyle} /></div>
+              <div><AddressBlock /></div>
+              <div><div style={labelStyle}>Link di info (facoltativo)</div><input placeholder="https://…" inputMode="url" value={link} onChange={e => setLink(e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Contatto dell'organizzatore</div><input placeholder="Telefono, WhatsApp o email" value={contact} onChange={e => setContact(e.target.value)} style={inputStyle} /></div>
+            </>
+          )}
+          <input ref={shotRef} type="file" accept="image/*" {...(kind === "meteo" ? { capture: "environment" } : {})} onChange={onShot} style={{ display: "none" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 12, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "10px 12px" }}>
-            {photo
-              ? <img src={photo.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${ACCENT}` }} />
-              : <div style={{ width: 56, height: 56, borderRadius: 10, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📸</div>}
+            {photo ? <img src={photo.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${HBLUE}` }} />
+                   : <div style={{ width: 56, height: 56, borderRadius: 10, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{kind === "meteo" ? "📸" : "🖼️"}</div>}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{photo ? "Foto pronta ✓" : "Aggiungi una foto"}</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>{photo ? "Comparirà in miniatura sull'evento" : "Facoltativa · scattata sul momento"}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{photo ? "Immagine pronta ✓" : kind === "meteo" ? "Aggiungi una foto" : "Logo o immagine"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{photo ? "Comparirà sull'evento" : kind === "meteo" ? "Facoltativa · scattata sul momento" : "Facoltativa · dal telefono"}</div>
             </div>
-            <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Rifai" : "Scatta"}</button>
-            {photo && <button onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }} title="Rimuovi" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="close" size={18} color={TXT2} sw={2.2} /></button>}
+            <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Cambia" : kind === "meteo" ? "Scatta" : "Scegli"}</button>
+            {photo && <button onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="close" size={18} color={TXT2} sw={2.2} /></button>}
           </div>
-          <button onClick={submit} style={{ padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Pubblica evento</button>
+          <button onClick={submit} disabled={sending} style={{ padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: sending ? .7 : 1 }}>{sending ? "Cerco la posizione…" : kind === "meteo" ? "Pubblica evento meteo" : "Pubblica evento social"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── AVATAR EDITOR ────────────────────────────────────────────────────────────
 function AvatarEditor({ current, onPick, onClose }) {
   const emojis = ["🌤️", "🌻", "🦋", "🌺", "⚡", "🌊", "🔥", "❄️", "🍃", "☀️", "🌈", "🌙", "⛅", "🌧️", "🐞", "🦉"];
   const fileRef = useRef(null);
@@ -2582,36 +2713,19 @@ function EventMapView({ event, onBack }) {
           <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[event.sev], background: sevColor[event.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{event.sev}</span>
         </div>
 
-        {/* cartina schematica */}
-        <div style={{ position: "relative", margin: "0 14px", height: 320, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A` }}>
-          <svg viewBox="0 0 360 320" style={{ width: "100%", height: "100%", display: "block" }}>
-            <rect width="360" height="320" fill="#E7EFE3" />
-            {/* blocchi/isolati */}
-            {[[18, 20], [150, 18], [255, 30], [30, 130], [240, 150], [60, 235], [230, 250]].map((b, i) => <rect key={i} x={b[0]} y={b[1]} width="70" height="52" rx="6" fill="#DCE6D5" />)}
-            {/* corsi d'acqua / verde */}
-            <path d="M0 300 Q120 250 200 300 T360 290 L360 320 L0 320 Z" fill="#BFE0EA" />
-            {/* strade */}
-            <line x1="0" y1="110" x2="360" y2="125" stroke="#fff" strokeWidth="10" />
-            <line x1="0" y1="210" x2="360" y2="200" stroke="#fff" strokeWidth="8" />
-            <line x1="120" y1="0" x2="135" y2="320" stroke="#fff" strokeWidth="9" />
-            <line x1="245" y1="0" x2="230" y2="320" stroke="#fff" strokeWidth="7" />
-            {/* alone precisione */}
-            <circle cx="180" cy="160" r="40" fill={HBLUE} opacity="0.12" />
-            <circle cx="180" cy="160" r="40" fill="none" stroke={HBLUE} strokeOpacity="0.3" strokeWidth="1.5" />
-          </svg>
-          {/* pin */}
-          <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-100%)", animation: "drop .5s cubic-bezier(.2,.8,.3,1) both" }}>
-            <svg width="44" height="56" viewBox="0 0 44 56">
-              <path d="M22 2C11 2 2 11 2 22c0 14 20 32 20 32s20-18 20-32C42 11 33 2 22 2z" fill={sevColor[event.sev]} stroke="#fff" strokeWidth="2.5" />
-              <circle cx="22" cy="22" r="8" fill="#fff" />
-              <text x="22" y="28" fontSize="13" textAnchor="middle">{event.type || (event.cat ? event.cat.split(" ")[0] : "📍")}</text>
-            </svg>
-          </div>
-          {/* chip coordinate */}
-          <div style={{ position: "absolute", left: 12, bottom: 12, background: "rgba(255,255,255,.92)", borderRadius: 10, padding: "6px 10px", fontSize: 12, color: TXT, fontFamily: "'Space Grotesk',sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.12)" }}>
-            📍 {lat}, {lng}
-          </div>
+        {/* cartina vera: Google Maps (incorporata, senza chiave) */}
+        <div style={{ position: "relative", margin: "0 14px", height: 320, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3" }}>
+          <iframe title="mappa" src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`} style={{ width: "100%", height: "100%", border: "none" }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
         </div>
+        {event.kind === "social" && (event.description || event.startsAt || event.address || event.link || event.contact) && (
+          <div style={{ background: "#fff", margin: 14, borderRadius: 14, padding: 14, boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13.5, color: TXT, lineHeight: 1.5 }}>
+            {event.startsAt && <div style={{ fontWeight: 700, marginBottom: 6 }}>🗓️ {fmtWhen(event.startsAt)}</div>}
+            {event.address && <div style={{ color: TXT2, marginBottom: 6 }}>📍 {event.address}</div>}
+            {event.description && <div style={{ whiteSpace: "pre-wrap", marginBottom: 8 }}>{event.description}</div>}
+            {event.link && <div>🔗 <a href={/^https?:/i.test(event.link) ? event.link : "https://" + event.link} target="_blank" rel="noopener" style={{ color: HBLUE }}>{event.link}</a></div>}
+            {event.contact && <div>📞 {event.contact}</div>}
+          </div>
+        )}
 
         <div style={{ padding: 14 }}>
           <button onClick={() => window.open(mapsUrl, "_blank")} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>
@@ -2691,15 +2805,12 @@ function PermissionsPanel({ onGeoGranted }) {
 
 // ── Storico reel: l'alveare dei mesi ─────────────────────────────────────────
 const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-const HONEY_BG = "linear-gradient(180deg,#FFF6DF 0%,#FBEBC2 100%)";
-function HexCell({ label, sub, onClick, size = 96, active }) {
-  const clip = "polygon(25% 3%, 75% 3%, 98% 50%, 75% 97%, 25% 97%, 2% 50%)";
+const DEEP_BLUE_BAND = "#1B4E96";
+function MonthBar({ label, count, onClick }) {
   return (
-    <button onClick={onClick} style={{ width: size, height: size * 1.05, border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-      <div style={{ width: "100%", height: "100%", clipPath: clip, background: active ? "linear-gradient(135deg,#F0B929,#E0A315)" : "linear-gradient(135deg,#FFD97A,#F2B84B)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#4A3407", boxShadow: "inset 0 0 0 3px rgba(255,255,255,.35)" }}>
-        <div style={{ fontWeight: 800, fontSize: 13.5, lineHeight: 1.1 }}>{label}</div>
-        {sub != null && <div style={{ fontSize: 11.5, fontWeight: 700, opacity: .85, marginTop: 2 }}>{sub}</div>}
-      </div>
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px 14px", marginBottom: 8, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif", boxShadow: `0 2px 8px ${HBLUE}0D` }}>
+      <span>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>· {count} {count === 1 ? "cielo" : "cieli"}</span>
     </button>
   );
 }
@@ -2717,30 +2828,24 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
   }, [groups]);
   const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Reel precedenti";
   return (
-    <div style={{ position: "absolute", inset: 0, background: HONEY_BG, zIndex: 90, display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "absolute", inset: 0, background: "#E3EBF4", zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
-      <div style={{ background: "#8A5A12", color: "#FFE9B8", fontSize: 11.5, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>🗄️ Storico · i cieli dei mesi passati</div>
+      <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 11.5, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>🗄️ Storico · i cieli dei mesi passati</div>
       <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
-        {loading ? <div style={{ textAlign: "center", color: "#8A5A12", padding: 40 }}>Apro l'archivio dell'alveare…</div>
+        {loading ? <div style={{ textAlign: "center", color: TXT2, padding: 40 }}>Apro l'archivio dell'alveare…</div>
         : !sel ? (
-          years.length === 0 ? <div style={{ textAlign: "center", color: "#8A5A12", padding: 40, lineHeight: 1.5 }}>Nessun reel archiviato ancora.<br />Il 1° di ogni mese, i cieli più vecchi di due mesi vengono messi qui al sicuro.</div>
+          years.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 40, lineHeight: 1.5 }}>Nessun reel archiviato ancora.<br />Il 1° di ogni mese, i cieli più vecchi di due mesi vengono messi qui al sicuro.</div>
           : years.map(([yy, keys]) => (
             <div key={yy} style={{ marginBottom: 18 }}>
-              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 22, color: "#8A5A12", margin: "4px 4px 8px" }}>{yy}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-                {keys.map((k, i) => (
-                  <div key={k} style={{ marginTop: i % 2 ? 24 : 0 }}>
-                    <HexCell label={MESI[+k.split("-")[1] - 1].slice(0, 3)} sub={`${groups[k].length} ${groups[k].length === 1 ? "cielo" : "cieli"}`} onClick={() => setSel(k)} />
-                  </div>
-                ))}
-              </div>
+              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 20, color: HBLUE, margin: "4px 4px 10px" }}>{yy}</div>
+              {keys.map(k => <MonthBar key={k} label={MESI[+k.split("-")[1] - 1]} count={groups[k].length} onClick={() => setSel(k)} />)}
             </div>
           ))
         ) : (
           <>
-            <div style={{ fontSize: 12.5, color: "#8A5A12", marginBottom: 10 }}>{groups[sel]?.length || 0} cieli · foto conservate su beeweat.com</div>
+            <div style={{ fontSize: 12.5, color: TXT2, marginBottom: 10 }}>{groups[sel]?.length || 0} cieli nello storico</div>
             {(groups[sel] || []).map(p => (
-              <PostCard key={p.id} post={{ ...p, img: p.thumb || p.img }} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} onView={onView}
+              <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} onView={onView}
                 onOpenPhoto={() => onOpenPhoto && onOpenPhoto({ img: p.img, caption: `${p.user} · ${p.city}${p.caption ? " — " + p.caption : ""}` })} />
             ))}
           </>
@@ -3678,6 +3783,7 @@ function AppInner() {
       setEvents(rows.map(r => ({
         id: r.id, uid: r.user_id, user: r.profiles?.name || "Utente", ava: r.profiles?.avatar_url || null,
         type: r.type, cat: r.cat, title: r.title, place: r.place, sev: r.sev, img: r.image_url || null,
+        kind: r.kind || "meteo", description: r.description || "", startsAt: r.starts_at || null, address: r.address || "", link: r.link || "", contact: r.contact || "",
         lat: r.lat, lng: r.lng, ends: r.ends, time: fmtPostTime(r.created_at),
         dist: geo && r.lat != null ? Math.round(haversine(geo, { lat: r.lat, lng: r.lng }) * 10) / 10 : 999,
       })));
@@ -3779,6 +3885,16 @@ function AppInner() {
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
   const [admins, setAdmins] = useState(null);   // gli amministratori, per il Centro assistenza
+  const [splash, setSplash] = useState(true);   // lo splash d'avvio: logo e numeri dell'alveare
+  const [userCount, setUserCount] = useState(null);
+  const [onlineCount, setOnlineCount] = useState(null);
+  useEffect(() => { const t = setTimeout(() => setSplash(false), 2200); return () => clearTimeout(t); }, []);
+  useEffect(() => { if (sb?.isConfigured && sb.getUserCount) sb.getUserCount().then(setUserCount).catch(() => {}); }, [sb, user]);
+  useEffect(() => {   // presence: solo gli admin ne hanno bisogno, ma tutti "segnano presenza" (leggero)
+    if (!sb?.isConfigured || !myUid || !sb.subscribePresence) return;
+    let unsub = null; sb.subscribePresence(myUid, setOnlineCount).then(u => { unsub = u; }).catch(() => {});
+    return () => { if (unsub) unsub(); };
+  }, [sb, myUid]);
   const [myPostCount, setMyPostCount] = useState(null);   // i miei post vivi, contati dal database
   const [archive, setArchive] = useState({ posts: null, loading: false });   // lo storico dei miei reel
   const openArchive = async () => {
@@ -4151,7 +4267,7 @@ function AppInner() {
           if (/temporale|tempesta/i.test(cond || "")) {
             try {
               const ends = new Date(Date.now() + 3 * 3600 * 1000).toISOString();          // vive 3 ore
-              await sb.createEvent({ type: "⛈️", cat: "Meteo", title: `Temporale segnalato a ${postCity}`, place: postCity, sev: "Alta", lat: geo.lat, lng: geo.lng, ends });
+              await sb.createEvent({ kind: "meteo", type: "⛈️", cat: "", title: `Temporale segnalato a ${postCity}`, place: postCity, sev: "Alta", lat: geo.lat, lng: geo.lng, ends });
               setSocialTick(t => t + 1);                                                  // gli eventi si ricaricano da soli
             } catch (er) { console.warn("allerta temporale:", er?.message || er); }
           }
@@ -4265,7 +4381,7 @@ function AppInner() {
   const addEvent = async e => {
     setOverlay(null);
     let ee = { ...e };
-    if (ee.place && locName && ee.place.trim().toLowerCase() !== locName.trim().toLowerCase()) {
+    if (!ee.geocoded && ee.place && locName && ee.place.trim().toLowerCase() !== locName.trim().toLowerCase()) {
       const c = await geocodeCity(ee.place);                         // città diversa da qui → coordinate della città
       if (c) { ee.lat = c.lat; ee.lng = c.lng; }
     }
@@ -4296,7 +4412,7 @@ function AppInner() {
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
@@ -4444,6 +4560,16 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#F3F8FD,#E6F0F9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 36, letterSpacing: ".04em", color: "#2A7DC4" }}>BEEWEAT</div>
+        <div style={{ fontSize: 14, color: "#6E8BA6", fontWeight: 500 }}>Mille occhi, un solo cielo.</div>
+        <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          {userCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: HBLUE }}>🐝 {userCount} api nell'alveare</span>}
+          {isAdmin && onlineCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: "#2C7A57" }}>● {onlineCount} online</span>}
+        </div>
+        <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
+      </div>}
       {geoInvite === true && <PermissionInvite emoji="🌍" title="Dove sei, ape?"
         lines={[["📍", "Beeweat racconta il tempo posto per posto: con la tua posizione i tuoi cieli finiscono sulla mappa giusta, e tu vedi cosa succede intorno a te."],
                 ["⛈️", "Ricevi le allerte del tuo raggio: il temporale che arriva, la mareggiata, la neve in valle."],
@@ -4478,7 +4604,7 @@ function AppInner() {
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
