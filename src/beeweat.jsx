@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.6";
+const APP_VERSION = "12.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2192,7 +2192,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
@@ -2282,6 +2282,9 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
         <div style={{ padding: "18px 16px 20px" }}>
+          {onArchive && <button onClick={onArchive} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 14px", marginBottom: 14, borderRadius: 10, border: "1.5px solid #E0A315", background: "linear-gradient(135deg,#FFF3D1,#FFE7A8)", color: "#8A5A12", fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+            <span>🗄️</span> Reel precedenti <NavIcon name="chevron" size={15} color="#8A5A12" sw={2.4} />
+          </button>}
           <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
           {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
         </div>
@@ -2686,6 +2689,66 @@ function PermissionsPanel({ onGeoGranted }) {
   );
 }
 
+// ── Storico reel: l'alveare dei mesi ─────────────────────────────────────────
+const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const HONEY_BG = "linear-gradient(180deg,#FFF6DF 0%,#FBEBC2 100%)";
+function HexCell({ label, sub, onClick, size = 96, active }) {
+  const clip = "polygon(25% 3%, 75% 3%, 98% 50%, 75% 97%, 25% 97%, 2% 50%)";
+  return (
+    <button onClick={onClick} style={{ width: size, height: size * 1.05, border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+      <div style={{ width: "100%", height: "100%", clipPath: clip, background: active ? "linear-gradient(135deg,#F0B929,#E0A315)" : "linear-gradient(135deg,#FFD97A,#F2B84B)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#4A3407", boxShadow: "inset 0 0 0 3px rgba(255,255,255,.35)" }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, lineHeight: 1.1 }}>{label}</div>
+        {sub != null && <div style={{ fontSize: 11.5, fontWeight: 700, opacity: .85, marginTop: 2 }}>{sub}</div>}
+      </div>
+    </button>
+  );
+}
+function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpenPhoto, onView }) {
+  const [sel, setSel] = useState(null);   // "YYYY-MM"
+  const groups = useMemo(() => {
+    const m = {};
+    (posts || []).forEach(p => { const d = new Date(p.ts); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; (m[k] = m[k] || []).push(p); });
+    return m;
+  }, [posts]);
+  const years = useMemo(() => {
+    const y = {};
+    Object.keys(groups).forEach(k => { const [yy] = k.split("-"); (y[yy] = y[yy] || []).push(k); });
+    return Object.keys(y).sort((a, b) => b - a).map(yy => [yy, y[yy].sort((a, b) => b.localeCompare(a))]);
+  }, [groups]);
+  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Reel precedenti";
+  return (
+    <div style={{ position: "absolute", inset: 0, background: HONEY_BG, zIndex: 90, display: "flex", flexDirection: "column" }}>
+      <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <div style={{ background: "#8A5A12", color: "#FFE9B8", fontSize: 11.5, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>🗄️ Storico · i cieli dei mesi passati</div>
+      <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        {loading ? <div style={{ textAlign: "center", color: "#8A5A12", padding: 40 }}>Apro l'archivio dell'alveare…</div>
+        : !sel ? (
+          years.length === 0 ? <div style={{ textAlign: "center", color: "#8A5A12", padding: 40, lineHeight: 1.5 }}>Nessun reel archiviato ancora.<br />Il 1° di ogni mese, i cieli più vecchi di due mesi vengono messi qui al sicuro.</div>
+          : years.map(([yy, keys]) => (
+            <div key={yy} style={{ marginBottom: 18 }}>
+              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 800, fontSize: 22, color: "#8A5A12", margin: "4px 4px 8px" }}>{yy}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+                {keys.map((k, i) => (
+                  <div key={k} style={{ marginTop: i % 2 ? 24 : 0 }}>
+                    <HexCell label={MESI[+k.split("-")[1] - 1].slice(0, 3)} sub={`${groups[k].length} ${groups[k].length === 1 ? "cielo" : "cieli"}`} onClick={() => setSel(k)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, color: "#8A5A12", marginBottom: 10 }}>{groups[sel]?.length || 0} cieli · foto conservate su beeweat.com</div>
+            {(groups[sel] || []).map(p => (
+              <PostCard key={p.id} post={{ ...p, img: p.thumb || p.img }} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} onView={onView}
+                onOpenPhoto={() => onOpenPhoto && onOpenPhoto({ img: p.img, caption: `${p.user} · ${p.city}${p.caption ? " — " + p.caption : ""}` })} />
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 // ── Centro assistenza: "Come possiamo aiutarti" (domande frequenti) ──────────
 const HELP_FAQ = [
   { q: "La posizione non viene rilevata", a: "Beeweat pubblica solo cieli con il loro posto vero. Su iPhone: Impostazioni → Privacy → Localizzazione → Siti web Safari → \"Mentre usi l'app\", poi Impostazioni → Safari → Posizione → Chiedi. Su Android: icona 🔒 nella barra → Posizione → Consenti. Poi ricarica l'app." },
@@ -3373,7 +3436,7 @@ function AppInner() {
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
-          img: r.image_url, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
+          img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
     finally { setFeedReady(true); }
@@ -3575,7 +3638,7 @@ function AppInner() {
       city: titleCase(r.city || pr.city || ""),
       dist: Math.round(dist * 10) / 10,
       bearing: geo && r.lat != null ? bearingDeg(geo, { lat: r.lat, lng: r.lng }) : 0,
-      img: r.image_url, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), cond: r.condition || "☀️ Sereno",
+      img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), cond: r.condition || "☀️ Sereno",
       stars: r.stars_count || 0, starred: !!r.starred_by_me, comments: r.comments_count || 0, views: r.views_count || 0,
       camDir: r.cam_dir || null,
     };
@@ -3676,7 +3739,7 @@ function AppInner() {
   const withRank = list => (list || []).map(p => ({ ...p, stars_rank: rankOf[p.uid] ?? rankOf[p.user] ?? 0 }));
   const feedShown = useMemo(() => {
     let base;
-    if (!feedWorld) base = posts;
+    if (!feedWorld) base = posts.filter(p => !p.archivedAt);
     else {
       const ids = new Set(posts.map(p => p.id));
       base = [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
@@ -3717,6 +3780,15 @@ function AppInner() {
   const [editTarget, setEditTarget] = useState(null);
   const [admins, setAdmins] = useState(null);   // gli amministratori, per il Centro assistenza
   const [myPostCount, setMyPostCount] = useState(null);   // i miei post vivi, contati dal database
+  const [archive, setArchive] = useState({ posts: null, loading: false });   // lo storico dei miei reel
+  const openArchive = async () => {
+    setArchive({ posts: null, loading: true }); setOverlay("archive");
+    try {
+      const rows = await sb.getArchivedPosts(myUid);
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      setArchive({ posts: rows.map(r => mapRemoteRow(r, au?.id)), loading: false });
+    } catch (e) { console.warn("storico:", e?.message || e); setArchive({ posts: [], loading: false }); }
+  };
   useEffect(() => {
     if (!sb?.isConfigured || !myUid || !sb.getUserPostCount) return;
     sb.getUserPostCount(myUid).then(setMyPostCount).catch(() => {});
@@ -4223,7 +4295,8 @@ function AppInner() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
