@@ -51,6 +51,15 @@ export async function beeEye(imageDataUrl, hints) {
 async function enrichCounts(rows) {
   const ids = (rows || []).map(r => r.id);
   if (!ids.length) return rows || [];
+  // via veloce: il database conta e manda solo i totali (beeweat-indici.sql); se manca, si scende alla via classica
+  try {
+    const { data: cnt, error } = await supabase.rpc("post_counts", { p_ids: ids });
+    if (!error && Array.isArray(cnt)) {
+      const m = {}; cnt.forEach(c => { m[c.post_id] = c; });
+      rows.forEach(r => { const c = m[r.id] || {}; r.stars_count = c.stars_count || 0; r.views_count = c.views_count || 0; r.comments_count = c.comments_count || 0; r.starred_by_me = !!c.starred_by_me; });
+      return rows;
+    }
+  } catch (_) {}
   const [st, vw, cm, me] = await Promise.all([
     supabase.from("stars").select("post_id").in("post_id", ids),
     supabase.from("post_views").select("post_id").in("post_id", ids),
@@ -440,9 +449,13 @@ export async function getProfiles() {
   const { data, error } = await supabase.from("profiles").select("id,name,city,avatar_url").order("name");
   if (error) throw error;
   const profs = data || [];
-  try {                                   // le stelle: quanti post vivi ha ciascuna ape
-    const { data: rows } = await supabase.from("posts").select("user_id");
-    const tally = (rows || []).reduce((m, r) => (m[r.user_id] = (m[r.user_id] || 0) + 1, m), {});
+  try {                                   // le stelle: quanti post vivi ha ciascuna ape (contati dal database)
+    let tally = null;
+    try { const { data: c, error } = await supabase.rpc("profile_post_counts"); if (!error && Array.isArray(c)) { tally = {}; c.forEach(x => { tally[x.user_id] = x.posts_count; }); } } catch (_) {}
+    if (!tally) {                         // via classica se la funzione non c'è ancora
+      const { data: rows } = await supabase.from("posts").select("user_id").is("archived_at", null);
+      tally = (rows || []).reduce((m, r) => (m[r.user_id] = (m[r.user_id] || 0) + 1, m), {});
+    }
     profs.forEach(p => { p.posts_count = tally[p.id] || 0; });
   } catch (_) {}
   return profs;
