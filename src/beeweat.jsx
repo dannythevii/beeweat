@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "12.9";
+const APP_VERSION = "13.0";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -558,7 +558,8 @@ const analyzePhoto = async fullCanvas => {
   const humanHint = preds.some(p => /\b(face|person|people|man|woman|girl|boy|child|baby|hand|arm|selfie|portrait)\b/i.test(p.className || ""));
   if (skin > 0.28 && (weakPerson || humanHint))
     return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
-  const skinSuspect = skin > 0.28;   // colore-pelle senza persona: monumento? viso di profilo? decide Bee-Eye
+  const warmSky = !!(maskGood && mask.warm > 0.25);   // tramonto/alba: il cielo stesso è color pesca
+  const skinSuspect = skin > 0.28 && !warmSky;   // colore-pelle senza persona: monumento? viso di profilo? decide Bee-Eye (ma non per i tramonti)
   // Schermi e display: sempre bocciati (il cielo in TV non è il tuo cielo)
   const screenObj = dets.find(x => SCREEN_OBJECTS.includes(x.class) && x.score > 0.45);
   const screenPred = preds.slice(0, 3).find(p => SCREEN_RX.test(p.className) && p.probability > 0.15);
@@ -600,7 +601,8 @@ const analyzePhoto = async fullCanvas => {
   // la flaggo solo se è buio O se la scena non è esterna (outdoorHit la disinnesca di giorno)
   const artificialLight = lights.clusters >= 2 && lights.maxSize <= 55
     && !(isDaytime && outdoorHit)           // scena esterna di giorno → flare solare, non lampade
-    && !(isDaytime && mask && mask.blue > 0.15); // cielo azzurro visibile → sole, non faretti
+    && !(isDaytime && mask && mask.blue > 0.15) // cielo azzurro visibile → sole, non faretti
+    && !(maskGood && mask.warm > 0.25);      // tramonto/alba: il sole basso abbaglia, non sono lampade
   const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
   // muro/superficie uniforme: riempie tutto, senza azzurro e senza il gradiente naturale del cielo
   const uniformWall = !!(mask && mask.frac > 0.8 && mask.blue < 0.12 && mask.gradient < 6);
@@ -1969,12 +1971,14 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
   const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+  const cloudCheck = onCloudCheck ? ((img, hints) => withTimeout(onCloudCheck(img, hints), 9000).catch(() => null)) : null;   // Bee-Eye risponde entro 9 s o passa la mano
   const runAI = () => {
     const c = canvasRef.current; if (!c) return;
     const my = ++aiSeqRef.current;                     // ogni analisi ha il suo numero
     if (!navigator.onLine) { setAi({ offline: true }); return; }   // senza rete: si pubblica nello zaino, controllo al rientro
     setAi({ checking: true });
-    analyzePhoto(c).then(async v => {
+    withTimeout(analyzePhoto(c), 12000).then(async v => {
       if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
       // ── CASCATA: sui casi incerti si chiede il secondo parere a Bee-Eye ──
       const uncertain = onCloudCheck && (
@@ -1997,11 +2001,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
         const k = Math.min(1, 384 / c.width);
         t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
         t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
-        const verdict = await onCloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls });
+        const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls });
         if (aiSeqRef.current !== my) return;
         if (!verdict) {
-          if (v.conflict) { setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" }); return; }
-          setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return;
+          const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
+          if (v.conflict && !soft) { setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" }); return; }
+          setAi({ ...v, conflict: false }); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return;   // giudice muto, dubbio lieve: vale l'occhio locale
         }
         if (verdict.persone_in_primo_piano)
           setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
@@ -2016,14 +2021,16 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
           setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. Alza l'obiettivo. 🌤️"), cls: "not_sky" });
       } catch (_) {
         if (aiSeqRef.current === my) {
-          if (v.conflict) setAi({ block: true, reason: "Questa sembra una scena d'interni. Inquadra il cielo vero. 🌤️", cls: "not_sky" });
-          else { setAi(v); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
+          const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
+          if (v.conflict && !soft) setAi({ block: true, reason: "Questa sembra una scena d'interni. Inquadra il cielo vero. 🌤️", cls: "not_sky" });
+          else { setAi({ ...v, conflict: false }); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
         }
       }
     }).catch(async e => {
       if (aiSeqRef.current !== my) return;
       console.warn("AI:", e?.message || e);
       if (!navigator.onLine) { setAi({ offline: true }); return; }
+      if (e?.message === "timeout") { setAi({ offline: true, slow: true }); return; }   // analisi troppo lenta: si pubblica, controllo in coda
       if (onCloudCheck) {                                  // occhi locali indisponibili ma rete c'è: giudica Bee-Eye
         try {
           setAi({ checking: true, secondOpinion: true });
@@ -2031,7 +2038,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
           const k = Math.min(1, 384 / c.width);
           t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
           t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
-          const verdict = await onCloudCheck(t.toDataURL("image/jpeg", 0.8), {});
+          const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), {});
           if (aiSeqRef.current !== my) return;
           if (verdict) {
             if (verdict.persone_in_primo_piano)
@@ -2096,7 +2103,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null }); }, 600); };
+  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !!ai?.offline }); }, 600); };
   const GeoChip = () => geoReal ? null : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
@@ -2110,7 +2117,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   const OfflineChip = () => ai?.offline ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ACCENT + "22", color: "#8A5A12", border: `1px solid ${ACCENT}66` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>🎒</span>
-      <span><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</span>
+      <span>{ai?.slow ? <><b>L'analisi sta impiegando troppo</b> — pubblica pure: la foto va in coda, viene controllata e spedita da sola tra pochi istanti.</> : <><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</>}</span>
     </div>
   ) : null;
   const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
@@ -2192,7 +2199,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.checking ? "Analisi foto…" : ai?.offline ? "Metti nello zaino 🎒" : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.checking ? "Analisi foto…" : ai?.offline ? (ai?.slow ? "Pubblica (controllo in coda) 🎒" : "Metti nello zaino 🎒") : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -4241,7 +4248,7 @@ function AppInner() {
     };
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
-  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null }) => {
+  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
@@ -4249,10 +4256,11 @@ function AppInner() {
       box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
-      alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
+      if (navigator.onLine) setTimeout(() => flushOutbox(), 800);   // rete c'è: il controllo in coda parte subito
+      else alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
     };
     if (sb?.isConfigured) {
-      if (!navigator.onLine) { toOutbox(); }
+      if (!navigator.onLine || deferred) { toOutbox(); }   // senza rete, o senza verdetto: in coda con controllo prima della partenza
       else (async () => {
         // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
         setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
