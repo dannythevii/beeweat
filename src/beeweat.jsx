@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.1";
+const APP_VERSION = "13.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2425,7 +2425,7 @@ function SocialMap({ events, me, onPick }) {
     return () => { alive = false; };
   }, [events, me?.lat, me?.lng]);
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
-  return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12 }} />;
+  return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12, position: "relative", zIndex: 0, isolation: "isolate" }} />;
 }
 const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
 function SocialEventCard({ e, onOpen, focused }) {
@@ -2521,10 +2521,10 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
       file: photo?.file || null, img: photo?.url || null,
     });
   };
-  const Pill = ({ id, label, emoji }) => (
-    <button onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: kind === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{emoji} {label}</button>
+  const pill = (id, label, emoji) => (
+    <button key={id} onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: kind === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{emoji} {label}</button>
   );
-  const AddressBlock = () => (
+  const addressBlock = (
     <>
       <div style={labelStyle}>Indirizzo · città</div>
       <input placeholder="Via / piazza (facoltativo)" value={address} onChange={e => { setAddress(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, marginBottom: 8 }} />
@@ -2541,11 +2541,11 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
     </>
   );
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1200, display: "flex", alignItems: "flex-end" }}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
         <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 12 }}>Segnala un evento</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}><Pill id="meteo" label="Eventi meteo" emoji="⛈️" /><Pill id="social" label="Eventi social" emoji="🎉" /></div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>{pill("meteo", "Eventi meteo", "⛈️")}{pill("social", "Eventi social", "🎉")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {kind === "meteo" ? (
             <>
@@ -2555,7 +2555,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
               <div><div style={labelStyle}>Severità</div>
                 <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HBLUE : LINE}`, background: sev === x ? HBLUE + "12" : "#fff", color: sev === x ? HBLUE : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{x}</button>)}</div></div>
               <div><div style={labelStyle}>Valido fino a</div><input type="date" value={ends} min={new Date().toISOString().slice(0, 10)} onChange={e => setEnds(e.target.value)} style={inputStyle} /></div>
-              <div><AddressBlock /></div>
+              <div>{addressBlock}</div>
             </>
           ) : (
             <>
@@ -2565,7 +2565,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
               <div><div style={labelStyle}>Descrizione dell'evento</div>
                 <textarea rows={5} placeholder={"Racconta l'evento: programma, ospiti, cosa aspettarsi…\nVai a capo per i paragrafi."} value={description} onChange={e => setDescription(e.target.value)} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} /></div>
               <div><div style={labelStyle}>Data e ora</div><input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={inputStyle} /></div>
-              <div><AddressBlock /></div>
+              <div>{addressBlock}</div>
               <div><div style={labelStyle}>Link di info (facoltativo)</div><input placeholder="https://…" inputMode="url" value={link} onChange={e => setLink(e.target.value)} style={inputStyle} /></div>
               <div><div style={labelStyle}>Contatto dell'organizzatore</div><input placeholder="Telefono, WhatsApp o email" value={contact} onChange={e => setContact(e.target.value)} style={inputStyle} /></div>
             </>
@@ -3997,6 +3997,11 @@ function AppInner() {
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
   };
+  useEffect(() => {   // battito sociale: ogni 3 minuti i conteggi (stelline, post) si rinfrescano da soli
+    if (!sb?.isConfigured || !user) return;
+    const iv = setInterval(() => setSocialTick(t => t + 1), 180 * 1000);
+    return () => clearInterval(iv);
+  }, [sb, user]);
   // Contatti reali: gli utenti Beeweat dal database (escluso me)
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
@@ -4281,6 +4286,7 @@ function AppInner() {
           }
           await loadFeed();                                                              // il feed vero rimpiazza la card provvisoria
           if (sb.getUserPostCount && myUid) sb.getUserPostCount(myUid).then(n => { setMyPostCount(n); celebrateRank(n); }).catch(() => {});
+          setSocialTick(t => t + 1);                                                    // stelline e conteggi freschi per tutti
         } catch (e) {
           clearTemp();
           if (isNetErr(e)) toOutbox();
