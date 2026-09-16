@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.2";
+const APP_VERSION = "13.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -558,8 +558,6 @@ const analyzePhoto = async fullCanvas => {
   const humanHint = preds.some(p => /\b(face|person|people|man|woman|girl|boy|child|baby|hand|arm|selfie|portrait)\b/i.test(p.className || ""));
   if (skin > 0.28 && (weakPerson || humanHint))
     return { block: true, reason: `Sembra esserci pelle in primissimo piano (${Math.round(skin * 100)}% dell'inquadratura): per privacy e pertinenza, inquadra il cielo. 📷`, cls: "skin", score: Math.round(skin * 100) / 100 };
-  const warmSky = !!(maskGood && mask.warm > 0.25);   // tramonto/alba: il cielo stesso è color pesca
-  const skinSuspect = skin > 0.28 && !warmSky;   // colore-pelle senza persona: monumento? viso di profilo? decide Bee-Eye (ma non per i tramonti)
   // Schermi e display: sempre bocciati (il cielo in TV non è il tuo cielo)
   const screenObj = dets.find(x => SCREEN_OBJECTS.includes(x.class) && x.score > 0.45);
   const screenPred = preds.slice(0, 3).find(p => SCREEN_RX.test(p.className) && p.probability > 0.15);
@@ -571,6 +569,8 @@ const analyzePhoto = async fullCanvas => {
   const sky = classifySky(canvas);
   const mask = skyMask(canvas);
   const maskGood = mask && mask.frac >= 0.05 && mask.microRough < 10;   // cielo trovato: liscio anche da vicino (le trame tradiscono)
+  const warmSky = !!(maskGood && mask.warm > 0.25);   // tramonto/alba: il cielo stesso è color pesca
+  const skinSuspect = skin > 0.28 && !warmSky;        // colore-pelle senza persona: monumento? viso di profilo? decide Bee-Eye (ma non per i tramonti)
   const grain = fineRough(canvas);                                      // grana di tutta la foto: asfalto/ghiaia/intonaco
   const hourN = new Date().getHours();
   const isNightNow = hourN >= 21 || hourN <= 5;
