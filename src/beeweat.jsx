@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.4";
+const APP_VERSION = "13.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1073,28 +1073,88 @@ function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
   );
 }
 
-function EditEventModal({ ev, onSave, onDelete, onClose }) {
+function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
+  const isSocial = (ev.kind || "meteo") === "social";
   const [title, setTitle] = useState(ev.title || "");
-  const [place, setPlace] = useState(ev.place || "");
+  const [type, setType] = useState((ev.type && EVENT_TYPES.find(t => t.startsWith(ev.type))) || EVENT_TYPES[1]);
+  const [cat, setCat] = useState(ev.cat || EVENT_CATEGORIES[1]);
   const [sev, setSev] = useState(ev.sev || "Media");
-  const [cat, setCat] = useState(ev.cat || EVENT_CATEGORIES[0]);
   const [ends, setEnds] = useState(ev.ends || new Date().toISOString().slice(0, 10));
-  const F = { width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 10, fontFamily: "'Sora',sans-serif" };
+  const [description, setDescription] = useState(ev.description || "");
+  const toLocal = iso => { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const [startsAt, setStartsAt] = useState(toLocal(ev.startsAt));
+  const [link, setLink] = useState(ev.link || "");
+  const [contact, setContact] = useState(ev.contact || "");
+  const initialAddr = useMemo(() => { const a = parseAddress(ev.address || ""); if (!a.city) a.city = ev.place || ""; return a; }, []);
+  const [addr, setAddr] = useState(initialAddr);
+  const [coords, setCoords] = useState(null);
+  const [geoState, setGeoState] = useState("idle");
+  const [precision, setPrecision] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const addrChanged = addressString(addr) !== addressString(initialAddr);
+  const find = async () => {
+    const q = addressString(addr); if (!q) { setGeoState("idle"); return null; }
+    setGeoState("searching");
+    const near = geo ? { lat: +geo.lat.toFixed(4), lng: +geo.lng.toFixed(4) } : (ev.lat != null ? { lat: ev.lat, lng: ev.lng } : null);
+    const c = await geocodeAddress(q, near, { street: streetLine(addr), city: addr.city.trim(), cloud: onGeocode });
+    if (c) { setCoords({ lat: c.lat, lng: c.lng }); setPrecision(c.precision || "address"); setGeoState("found"); return c; }
+    setCoords(null); setPrecision(null); setGeoState("notfound"); return null;
+  };
+  const save = async () => {
+    if (!title.trim()) { alert("Il titolo è obbligatorio."); return; }
+    if (isSocial && !startsAt) { alert("Serve la data e l'ora dell'evento."); return; }
+    setSaving(true);
+    let c = coords;
+    if (!c && addrChanged) c = await find();
+    setSaving(false);
+    const patch = { title: title.trim(), place: addr.city.trim() || ev.place || "", address: addressString(addr), ends };
+    if (isSocial) Object.assign(patch, { cat, description: description.trim(), startsAt: new Date(startsAt).toISOString(), link: link.trim(), contact: contact.trim(), ends: new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) });
+    else Object.assign(patch, { type: type.split(" ")[0], sev });
+    if (c) { patch.lat = c.lat; patch.lng = c.lng; }
+    onSave(patch);
+  };
+  const F = { ...inputStyle, marginBottom: 10 };
+  const L = { ...labelStyle };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
-        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica evento</div>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", width: "100%", maxWidth: 480, maxHeight: "92%", overflowY: "auto", boxShadow: "0 -8px 34px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
+        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 12 }}>{isSocial ? "Modifica evento social 🎉" : "Modifica evento meteo ⛈️"}</div>
+        <div style={L}>Titolo</div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titolo" style={F} />
-        <input value={place} onChange={e => setPlace(e.target.value)} placeholder="Luogo" style={F} />
-        <select value={cat} onChange={e => setCat(e.target.value)} style={F}>{EVENT_CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
-        <select value={sev} onChange={e => setSev(e.target.value)} style={F}>{["Alta", "Media", "Bassa"].map(x => <option key={x}>{x}</option>)}</select>
-        <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Valido fino a</div>
-        <input type="date" value={ends} onChange={e => setEnds(e.target.value)} style={{ ...F, marginBottom: 14 }} />
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
-          <button onClick={() => { if (!title.trim()) { alert("Il titolo è obbligatorio."); return; } onSave({ title: title.trim(), place: place.trim(), sev, cat, ends }); }} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
+        {isSocial ? (
+          <>
+            <div style={L}>Categoria</div>
+            <select value={cat} onChange={e => setCat(e.target.value)} style={F}>{EVENT_CATEGORIES.slice(1).map(c => <option key={c}>{c}</option>)}</select>
+            <div style={L}>Descrizione dell'evento</div>
+            <textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} style={{ ...F, resize: "vertical", lineHeight: 1.5 }} />
+            <div style={L}>Data e ora</div>
+            <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={F} />
+          </>
+        ) : (
+          <>
+            <div style={L}>Tipo</div>
+            <select value={type} onChange={e => setType(e.target.value)} style={F}>{EVENT_TYPES.slice(1).map(t => <option key={t}>{t}</option>)}</select>
+            <div style={L}>Severità</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HBLUE : LINE}`, background: sev === x ? HBLUE + "12" : "#fff", color: sev === x ? HBLUE : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{x}</button>)}</div>
+            <div style={L}>Valido fino a</div>
+            <input type="date" value={ends} onChange={e => setEnds(e.target.value)} style={F} />
+          </>
+        )}
+        <div style={{ marginBottom: 10 }}>
+          <AddressFields a={addr} onChange={v => { setAddr(v); setCoords(null); setGeoState("idle"); }} onFind={find} geoState={geoState} precision={precision} coords={coords} keepText="Posto non trovato sulla mappa: la spilla resta dov'era (l'indirizzo scritto viene salvato)" />
         </div>
-        <button onClick={() => { if (window.confirm(`Eliminare definitivamente l'evento "${ev.title}"?`)) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>
+        {isSocial && <>
+          <div style={L}>Link di info (facoltativo)</div>
+          <input inputMode="url" value={link} onChange={e => setLink(e.target.value)} placeholder="https://…" style={F} />
+          <div style={L}>Contatto dell'organizzatore</div>
+          <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Telefono, WhatsApp o email" style={F} />
+        </>}
+        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
+          <button onClick={save} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: saving ? .7 : 1 }}>{saving ? "Cerco la posizione…" : "Salva modifiche"}</button>
+        </div>
+        <button onClick={() => { if (window.confirm(`Eliminare definitivamente l'evento "${ev.title}"?\nNon si può annullare.`)) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Elimina evento</button>
       </div>
     </div>
   );
@@ -1546,7 +1606,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
         <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
       </div>
       {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
-      {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} /> : (
+      {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || e.user === userName || (myUid && e.uid === myUid))} onEdit={onEditEnds} /> : (
         <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", transition: "box-shadow .3s" }}>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
             <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
@@ -2435,7 +2495,7 @@ function SocialMap({ events, me, onPick }) {
   return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12, position: "relative", zIndex: 0, isolation: "isolate" }} />;
 }
 const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
-function SocialEventCard({ e, onOpen, focused }) {
+function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
   const [more, setMore] = useState(false);
   return (
     <div id={"event-" + e.id} className="fade-up" style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, border: `1px solid ${LINE}` }}>
@@ -2448,6 +2508,7 @@ function SocialEventCard({ e, onOpen, focused }) {
           {e.startsAt && <div style={{ fontSize: 13, color: TXT, marginTop: 5, fontWeight: 600 }}>🗓️ {fmtWhen(e.startsAt)}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 3 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.address || e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
         </div>
+        {canEdit && <button onClick={ev => { ev.stopPropagation(); onEdit && onEdit(e); }} title="Modifica o elimina l'evento" style={{ alignSelf: "flex-start", background: HBLUE + "12", border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
       </div>
       {e.description && <div onClick={() => setMore(m => !m)} style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 10, whiteSpace: "pre-wrap", cursor: "pointer", ...(more ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{e.description}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
@@ -2459,9 +2520,11 @@ function SocialEventCard({ e, onOpen, focused }) {
     </div>
   );
 }
-// ── Geocodifica di un indirizzo/città: tre motori (Photon → Nominatim → Open-Meteo) e più tentativi ──
-// Ogni motore ha 6 s di tempo. Si prova prima l'indirizzo intero, poi la via senza numero civico,
-// infine la sola città. Il risultato dice quanto è preciso: "address" | "street" | "city"; null se nessuno trova.
+// ── Geocodifica di un indirizzo/città ────────────────────────────────────────
+// Ordine: 0) l'alveare (edge function "geocode": il server interroga i motori con le credenziali giuste,
+// niente blocchi del telefono) → 1) Nominatim STRUTTURATO (via + città) → 2) Photon/Nominatim a testo libero
+// → 3) la via senza numero civico → 4) la sola città (Open-Meteo, poi gli altri). 6 s per motore.
+// Ritorna { lat, lng, precision: "address" | "street" | "city" } oppure null.
 const fetchJsonQuick = async (url, ms = 6000) => {
   const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
   const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
@@ -2472,44 +2535,101 @@ const fetchJsonQuick = async (url, ms = 6000) => {
   } catch (_) { return null; }
   finally { if (tm) clearTimeout(tm); }
 };
+const precOfPhoton = p => /^(house|building)$/.test(p?.type || "") ? "address" : p?.type === "street" || p?.osm_key === "highway" ? "street" : null;
+const precOfNomi = r => /^(house|building|residential|amenity|shop|tourism|leisure|office)$/.test(r?.addresstype || "") || r?.class === "building" || (r?.class === "place" && r?.type === "house") ? "address" : r?.class === "highway" ? "street" : null;
 const geocodeOnce = async (t, near) => {
   const bias = near ? `&lat=${near.lat}&lon=${near.lng}` : "";
   const ph = await fetchJsonQuick(`https://photon.komoot.io/api/?q=${encodeURIComponent(t)}&limit=1${bias}`);   // (senza lang=it: Photon accetta solo en/de/fr)
-  const pc = ph?.features?.[0]?.geometry?.coordinates;
-  if (pc && Number.isFinite(+pc[1]) && Number.isFinite(+pc[0])) return { lat: +(+pc[1]).toFixed(5), lng: +(+pc[0]).toFixed(5) };
+  const f = ph?.features?.[0], pc = f?.geometry?.coordinates;
+  if (pc && Number.isFinite(+pc[1]) && Number.isFinite(+pc[0])) return { lat: +(+pc[1]).toFixed(5), lng: +(+pc[0]).toFixed(5), prec: precOfPhoton(f.properties) };
   const nm = await fetchJsonQuick(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q=${encodeURIComponent(t)}`);
-  if (nm?.[0] && Number.isFinite(+nm[0].lat)) return { lat: +(+nm[0].lat).toFixed(5), lng: +(+nm[0].lon).toFixed(5) };
+  if (nm?.[0] && Number.isFinite(+nm[0].lat)) return { lat: +(+nm[0].lat).toFixed(5), lng: +(+nm[0].lon).toFixed(5), prec: precOfNomi(nm[0]) };
   return null;
 };
-const geocodeAddress = async (q, near = null) => {
+const geocodeAddress = async (q, near = null, opts = {}) => {
   const t = (q || "").replace(/\s+/g, " ").trim(); if (!t) return null;
   const parts = t.split(",").map(x => x.trim()).filter(Boolean);
-  const city = parts.length > 1 ? parts[parts.length - 1] : "";
-  const street = parts.length > 1 ? parts.slice(0, -1).join(", ") : parts[0];
-  // 1) indirizzo intero
-  let c = await geocodeOnce(t, near);
-  if (c) return { ...c, precision: city ? "address" : "city" };
-  // 2) la via senza numero civico / senza CAP (Nominatim inciampa spesso sui civici)
+  const city = (opts.city || (parts.length > 1 ? parts[parts.length - 1] : "")).trim();
+  const street = (opts.street || (parts.length > 1 ? parts.slice(0, -1).join(", ") : "")).trim();
+  const fin = (c, dflt) => ({ lat: +(+c.lat).toFixed(5), lng: +(+c.lng).toFixed(5), precision: c.prec || c.precision || dflt });
+  // 0) l'alveare
+  if (opts.cloud) {
+    try {
+      const c = await Promise.race([opts.cloud({ q: t, street, city, near }), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 9000))]);
+      if (c && Number.isFinite(+c.lat) && Number.isFinite(+c.lng)) return fin(c, street ? "address" : "city");
+    } catch (_) {}
+  }
+  let c = null;
+  // 1) Nominatim strutturato: via e città in campi separati (molto più affidabile del testo libero)
+  if (street && city) {
+    const nm = await fetchJsonQuick(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&street=${encodeURIComponent(street)}&city=${encodeURIComponent(city)}`);
+    if (nm?.[0] && Number.isFinite(+nm[0].lat)) return fin({ lat: nm[0].lat, lng: nm[0].lon, prec: precOfNomi(nm[0]) }, "address");
+  }
+  // 2) testo libero
+  c = await geocodeOnce(t, near);
+  if (c && (street ? c.prec !== "city" : true)) return fin(c, street ? "address" : "city");
+  // 3) la via senza numero civico / senza CAP (Nominatim inciampa spesso sui civici)
   const noNum = street.replace(/\b\d{5}\b/g, "").replace(/\b(n\.?|nr\.?|numero)?\s*\d+[a-zA-Z\/-]*\s*$/i, "").replace(/,\s*$/, "").trim();
   if (city && noNum && noNum !== street) {
+    const nm = await fetchJsonQuick(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&street=${encodeURIComponent(noNum)}&city=${encodeURIComponent(city)}`);
+    if (nm?.[0] && Number.isFinite(+nm[0].lat)) return fin({ lat: nm[0].lat, lng: nm[0].lon }, "street");
     c = await geocodeOnce(`${noNum}, ${city}`, near);
-    if (c) return { ...c, precision: "street" };
+    if (c) return fin(c, "street");
   }
-  // 3) la sola città: Open-Meteo (lo stesso motore delle temperature, sempre raggiungibile) poi gli altri
-  if (city) {
-    c = await geocodeCity(city);
-    if (!c) c = await geocodeOnce(city, near);
-    if (c) return { lat: +(+c.lat).toFixed(5), lng: +(+c.lng).toFixed(5), precision: "city" };
-  } else {
-    c = await geocodeCity(t);
-    if (c) return { lat: +(+c.lat).toFixed(5), lng: +(+c.lng).toFixed(5), precision: "city" };
-  }
+  // 4) la sola città: Open-Meteo (lo stesso motore delle temperature, sempre raggiungibile) poi gli altri
+  const cityQ = city || t;
+  c = await geocodeCity(cityQ);
+  if (!c) c = await geocodeOnce(cityQ, near);
+  if (c) return fin(c, "city");
   return null;
 };
+// ── Indirizzo a campi separati: tipo (Via/Piazza…) · nome della strada · numero · città ──
+const STREET_TYPES = ["Via", "Piazza", "Corso", "Viale", "Largo", "Vicolo", "Lungomare", "Piazzale", "Salita", "Strada", "Località", "Contrada", "Traversa", "Altro"];
+const parseAddress = str => {
+  const out = { stype: "Via", street: "", num: "", city: "" };
+  const t = (str || "").replace(/\s+/g, " ").trim(); if (!t) return out;
+  const parts = t.split(",").map(x => x.trim()).filter(Boolean);
+  let line = parts[0] || "";
+  const m = line.match(/^(\S+)\s+(.*)$/);
+  const st = m && STREET_TYPES.find(x => x.toLowerCase() === m[1].toLowerCase());
+  if (parts.length > 1) out.city = parts[parts.length - 1];
+  else if (!st) { out.city = line; return out; }                       // "Capri" da sola: è la città
+  if (st) { out.stype = st; line = m[2]; } else out.stype = "Altro";
+  const n = line.match(/^(.*?)[,\s]+(?:n\.?\s*)?(\d+[a-zA-Z\/-]*)$/);
+  if (n) { out.street = n[1].trim(); out.num = n[2]; } else out.street = line.trim();
+  return out;
+};
+const streetLine = a => (a.street || "").trim() ? [a.stype !== "Altro" ? a.stype : "", a.street.trim(), (a.num || "").trim()].filter(Boolean).join(" ").trim() : "";   // senza nome della strada, niente via
+const addressString = a => [streetLine(a), (a.city || "").trim()].filter(Boolean).join(", ");
 const inputStyle = { background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 12px", fontSize: 14, color: TXT, outline: "none", width: "100%", fontFamily: "'Sora',sans-serif", boxSizing: "border-box" };
 const labelStyle = { fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 };
+function AddressFields({ a, onChange, onFind, geoState, precision, coords, keepText }) {
+  const set = k => e => onChange({ ...a, [k]: e.target.value });
+  return (
+    <>
+      <div style={labelStyle}>Indirizzo</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <select value={a.stype} onChange={set("stype")} style={{ ...inputStyle, width: 96, flexShrink: 0, padding: "11px 6px" }}>{STREET_TYPES.map(x => <option key={x}>{x}</option>)}</select>
+        <input placeholder="Nome della strada" value={a.street} onChange={set("street")} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+        <input placeholder="N°" inputMode="numeric" value={a.num} onChange={set("num")} style={{ ...inputStyle, width: 58, flexShrink: 0, textAlign: "center", padding: "11px 6px" }} />
+      </div>
+      <div style={labelStyle}>Città</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input placeholder="Città (es. Napoli)" value={a.city} onChange={set("city")} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={onFind} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>📍 Trova</button>
+      </div>
+      <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.4, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : geoState === "notfound" ? "#C43C41" : TXT2 }}>
+        {geoState === "searching" ? "Cerco il posto sulla mappa…"
+          : geoState === "found" ? (precision === "city" ? "Trovata la città ✓ — la spilla cadrà sul centro (via non riconosciuta)" : precision === "street" ? "Trovata la via ✓ (senza numero civico)" : `Posizione trovata ✓ ${coords?.lat}, ${coords?.lng}`)
+          : geoState === "fallback" ? "Posto non trovato sulla mappa: userò la tua posizione attuale 📍 (l'indirizzo scritto resta nella scheda)"
+          : geoState === "notfound" ? (keepText || "Posto non trovato e GPS spento: controlla la città scritta per esteso")
+          : "Compila i campi e tocca Trova; senza indirizzo verrà usata la tua posizione attuale"}
+      </div>
+    </>
+  );
+}
 
-function AddEventModal({ onAdd, onClose, user, geo, locName }) {
+function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode }) {
   const [kind, setKind] = useState("meteo");                          // "meteo" | "social"
   const [type, setType] = useState(EVENT_TYPES[1]);
   const [cat, setCat] = useState(EVENT_CATEGORIES[1]);
@@ -2518,8 +2638,8 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
   const [startsAt, setStartsAt] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState(locName || user.city || "");
+  const [addr, setAddr] = useState({ stype: "Via", street: "", num: "", city: locName || user.city || "" });
+  const city = addr.city;
   const [link, setLink] = useState("");
   const [contact, setContact] = useState("");
   const [coords, setCoords] = useState(null);
@@ -2535,11 +2655,11 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
   // l'indirizzo diventa coordinate; senza dati (o se non trova) → posizione attuale
   const [precision, setPrecision] = useState(null);                   // "address" | "street" | "city"
   const resolveCoords = async () => {
-    const q = [address.trim(), city.trim()].filter(Boolean).join(", ");
+    const q = addressString(addr);
     if (q) {
       setGeoState("searching");
       const near = geo ? { lat: +geo.lat.toFixed(4), lng: +geo.lng.toFixed(4) } : null;
-      const c = await geocodeAddress(q, near);
+      const c = await geocodeAddress(q, near, { street: streetLine(addr), city: addr.city.trim(), cloud: onGeocode });
       if (c) { setCoords({ lat: c.lat, lng: c.lng }); setPrecision(c.precision || "address"); setGeoState("found"); return c; }
     }
     const c = geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : null;
@@ -2559,30 +2679,14 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
       title: title.trim(), place: city.trim() || locName || user.city, sev: isSocial ? "Bassa" : sev,
       user: user.name, lat: c.lat, lng: c.lng, ends: endsFinal, geocoded: true,
       description: isSocial ? description.trim() : "", startsAt: isSocial ? new Date(startsAt).toISOString() : null,
-      address: [address.trim(), city.trim()].filter(Boolean).join(", "), link: isSocial ? link.trim() : "", contact: isSocial ? contact.trim() : "",
+      address: addressString(addr), link: isSocial ? link.trim() : "", contact: isSocial ? contact.trim() : "",
       file: photo?.file || null, img: photo?.url || null,
     });
   };
   const pill = (id, label, emoji) => (
     <button key={id} onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? `linear-gradient(135deg,${HBLUE},#1B4E96)` : "#fff", color: kind === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{emoji} {label}</button>
   );
-  const addressBlock = (
-    <>
-      <div style={labelStyle}>Indirizzo · città</div>
-      <input placeholder="Via / piazza (facoltativo)" value={address} onChange={e => { setAddress(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, marginBottom: 8 }} />
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input placeholder="Città" value={city} onChange={e => { setCity(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, flex: 1 }} />
-        <button onClick={resolveCoords} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>📍 Trova</button>
-      </div>
-      <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.4, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : geoState === "notfound" ? "#C43C41" : TXT2 }}>
-        {geoState === "searching" ? "Cerco il posto sulla mappa…"
-          : geoState === "found" ? (precision === "city" ? `Trovata la città ✓ — la spilla cadrà sul centro (via non riconosciuta)` : precision === "street" ? `Trovata la via ✓ (senza numero civico)` : `Posizione trovata ✓ ${coords.lat}, ${coords.lng}`)
-          : geoState === "fallback" ? "Posto non trovato sulla mappa: userò la tua posizione attuale 📍 (l'indirizzo scritto resta nella scheda)"
-          : geoState === "notfound" ? "Posto non trovato e GPS spento: prova con la sola città scritta per esteso"
-          : "Scrivi la città (o tocca Trova); senza indirizzo verrà usata la tua posizione attuale"}
-      </div>
-    </>
-  );
+  const addressBlock = <AddressFields a={addr} onChange={v => { setAddr(v); setCoords(null); setGeoState("idle"); }} onFind={resolveCoords} geoState={geoState} precision={precision} coords={coords} />;
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1200, display: "flex", alignItems: "flex-end" }}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
@@ -4429,18 +4533,19 @@ function AppInner() {
     }
   };
   const [editEventTarget, setEditEventTarget] = useState(null);
+  const cloudGeocode = sb?.isConfigured && sb.geocode ? (args => sb.geocode(args)) : null;   // l'alveare cerca l'indirizzo dal server
   const saveEventEdit = async patch => {
     const e = editEventTarget; setEditEventTarget(null);
     if (!e) return;
-    setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ...patch } : x));
+    const moved = patch.lat != null && patch.lng != null;
+    setEvents(ev => ev.map(x => x.id === e.id ? { ...x, ...patch, dist: moved && geo ? Math.round(haversine(geo, { lat: patch.lat, lng: patch.lng }) * 10) / 10 : x.dist } : x));
     const onDb = sb?.isConfigured && typeof e.id === "string" && e.id.includes("-");
-    let coords = null;
-    if (patch.place && patch.place.trim().toLowerCase() !== (e.place || "").trim().toLowerCase()) {
-      coords = await geocodeCity(patch.place);                       // città cambiata → nuove coordinate
-      if (coords) setEvents(ev => ev.map(x => x.id === e.id ? { ...x, lat: coords.lat, lng: coords.lng, dist: geo ? Math.round(haversine(geo, coords) * 10) / 10 : x.dist } : x));
+    if (onDb) {
+      const { startsAt, ...rest } = patch;
+      sb.updateEvent(e.id, { ...rest, ...(startsAt !== undefined ? { starts_at: startsAt } : {}) })
+        .then(() => setSocialTick(t => t + 1))
+        .catch(err => { alert("Modifica non salvata: " + (err?.message || err)); setSocialTick(t => t + 1); });
     }
-    if (onDb) sb.updateEvent(e.id, { ...patch, ...(coords ? { lat: coords.lat, lng: coords.lng } : {}) })
-      .catch(err => { alert("Modifica non salvata: " + (err?.message || err)); setSocialTick(t => t + 1); });
   };
   const doDeleteEvent = () => {
     const e = editEventTarget; setEditEventTarget(null);
@@ -4663,7 +4768,7 @@ function AppInner() {
              ["🐝", "Senza posizione Beeweat non può pubblicare i tuoi cieli né avvisarti dei temporali vicini."]]}
         cta="Ho riattivato, riprova 🔄" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
-      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
+      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
     </Frame>;
   }
 
@@ -4702,8 +4807,8 @@ function AppInner() {
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} />}
-      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} />}
+      {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}
+      {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
     </Frame>
   );

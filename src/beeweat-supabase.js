@@ -46,6 +46,14 @@ export async function beeEye(imageDataUrl, hints) {
   return data?.verdict || null;
 }
 
+// ── Geocodifica dal server (edge function "geocode"): via + città → coordinate, senza i blocchi del telefono ──
+export async function geocode(args) {
+  const { data, error } = await supabase.functions.invoke("geocode", { body: args });
+  if (error) throw error;
+  if (!data || !Number.isFinite(+data.lat) || !Number.isFinite(+data.lng)) return null;
+  return { lat: +data.lat, lng: +data.lng, precision: data.precision || null };
+}
+
 // ── Feed mondiale: gli ultimi cieli di tutto il pianeta ──────────────────────
 // Arricchisce righe-post con i conteggi veri (stelle, occhi, commenti, mia stella)
 async function enrichCounts(rows) {
@@ -142,7 +150,7 @@ export async function createEvent(ev) {
 }
 export async function updateEvent(id, patch) {
   const allowed = {};
-  for (const k of ["type", "cat", "title", "place", "sev", "lat", "lng", "ends"])
+  for (const k of ["type", "cat", "title", "place", "sev", "lat", "lng", "ends", "kind", "description", "starts_at", "address", "link", "contact", "image_url"])
     if (patch[k] !== undefined) allowed[k] = patch[k];
   const { error } = await supabase.from("events").update(allowed).eq("id", id);
   if (error) throw error;
