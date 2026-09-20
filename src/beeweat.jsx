@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.3";
+const APP_VERSION = "13.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -241,6 +241,7 @@ const geocodeCity = async name => {
 };
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
 const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
+const BEE_CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
 
 // ─── OCCHI AI DELL'ALVEARE: moderazione + classifica del cielo (nel telefono) ──
 let _aiModelsP = null;
@@ -1166,7 +1167,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: HBLUE, fontSize: 15, flexWrap: "wrap" }}>
             <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}</span>
             <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
-            {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#8A5A12", background: ACCENT + "33", borderRadius: 8, padding: "2px 7px" }}>🎒 in attesa di rete</span>}
+            {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: post.checking ? HBLUE : "#8A5A12", background: post.checking ? HBLUE + "14" : ACCENT + "33", borderRadius: 8, padding: "2px 7px" }}>{post.checking ? "🔎 controllo in corso" : "🎒 in attesa di rete"}</span>}
             {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: HBLUE, background: HBLUE + "14", borderRadius: 8, padding: "2px 7px" }}>⏫ pubblicazione…</span>}
             {post.dir && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><WIcon name="compass" size={16} color={HBLUE} sw={2} /><span>{post.dir.label}</span></span>}
             {onFollow && !post.mine && (
@@ -1951,9 +1952,6 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
         setErr({ kind: "busy", msg: "La fotocamera è occupata da un'altra app: chiudila e riprova." });
       else
         setErr({ kind: "err", msg: "Fotocamera non avviabile: " + (e?.message || name || "errore sconosciuto") });
-      if (n === "NotAllowedError" || n === "SecurityError") setErr({ kind: "denied", msg: "Accesso alla fotocamera negato o bloccato." });
-      else if (n === "NotFoundError" || n === "OverconstrainedError") setErr({ kind: "notfound", msg: "Nessuna fotocamera disponibile su questo dispositivo." });
-      else setErr({ kind: "blocked", msg: "Impossibile aprire la fotocamera in questa finestra." });
     }
   }, [facing]);
   const [camInvite, setCamInvite] = useState(false);   // fotocamera nativa: il telefono chiede il permesso da sé
@@ -2103,7 +2101,16 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (_) {}
   };
-  const publish = () => { if (!captured || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal) return; setPosting(true); setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ai?.cls || null, aiScore: ai?.score || null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !!ai?.offline }); }, 600); };
+  // Il verdetto è pronto solo se gli occhi hanno finito e approvato; altrimenti la foto parte lo stesso
+  // e il controllo continua in coda (zaino) — l'ape non aspetta più.
+  const verdictReady = !!ai && !ai.checking && !ai.block && !ai.error && !ai.offline;
+  const canPublish = !!captured && geoReal && !posting && !ai?.block;
+  const publish = () => {
+    if (!canPublish) return;
+    aiSeqRef.current++;                                   // un verdetto in arrivo dopo la partenza non serve più
+    setPosting(true);
+    setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: verdictReady ? (ai?.cls || null) : null, aiScore: verdictReady ? (ai?.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !verdictReady }); }, 300);
+  };
   const GeoChip = () => geoReal ? null : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
@@ -2117,7 +2124,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   const OfflineChip = () => ai?.offline ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ACCENT + "22", color: "#8A5A12", border: `1px solid ${ACCENT}66` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>🎒</span>
-      <span>{ai?.slow ? <><b>L'analisi sta impiegando troppo</b> — pubblica pure: la foto va in coda, viene controllata e spedita da sola tra pochi istanti.</> : <><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</>}</span>
+      <span>{ai?.slow ? <><b>L'analisi sta impiegando troppo</b> — pubblica pure: il controllo continua dietro le quinte e la foto parte da sola tra pochi istanti.</> : <><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</>}</span>
     </div>
   ) : null;
   const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
@@ -2128,12 +2135,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   const AiChip = () => !ai ? null : ai.error ? (
     <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
-      <span>Occhi AI non disponibili su questo dispositivo. <b>Tocca qui per riprovare</b> (proverò anche con Bee-Eye 👁️) — senza analisi la foto non può essere pubblicata.</span>
+      <span>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</span>
     </div>
   ) : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? HBLUE + "0E" : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? HBLUE : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HBLUE + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>{ai.checking ? "🐝" : ai.block ? "🚫" : "✅"}</span>
-      <span>{ai.checking ? "Gli occhi dell'alveare stanno guardando la foto…" : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
+      <span>{ai.checking ? <>Gli occhi dell'alveare stanno guardando la foto… <b>puoi pubblicare subito</b>: il controllo continua da solo dietro le quinte.</> : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
     </div>
   );
   return (
@@ -2199,7 +2206,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={posting || !ai || ai.block || ai.checking || (ai.error && !ai.offline) || !geoReal} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: (ai?.block || (ai?.error && !ai?.offline) || !ai || !geoReal) ? "not-allowed" : "pointer", opacity: posting || ai?.checking ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.checking ? "Analisi foto…" : ai?.offline ? (ai?.slow ? "Pubblica (controllo in coda) 🎒" : "Metti nello zaino 🎒") : ai?.error ? "Analisi non riuscita" : ai?.block ? "Non pubblicabile" : !ai ? "In attesa dell'analisi" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={!canPublish} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: !canPublish ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: !canPublish ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2452,18 +2459,51 @@ function SocialEventCard({ e, onOpen, focused }) {
     </div>
   );
 }
-// ── Geocodifica di un indirizzo/città (Photon → Nominatim); null se non trova ──
-const geocodeAddress = async q => {
-  const t = (q || "").trim(); if (!t) return null;
+// ── Geocodifica di un indirizzo/città: tre motori (Photon → Nominatim → Open-Meteo) e più tentativi ──
+// Ogni motore ha 6 s di tempo. Si prova prima l'indirizzo intero, poi la via senza numero civico,
+// infine la sola città. Il risultato dice quanto è preciso: "address" | "street" | "city"; null se nessuno trova.
+const fetchJsonQuick = async (url, ms = 6000) => {
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
   try {
-    const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(t)}&limit=1&lang=it`);
-    const j = await r.json(); const c = j?.features?.[0]?.geometry?.coordinates;
-    if (c) return { lat: +c[1].toFixed(5), lng: +c[0].toFixed(5) };
-  } catch (_) {}
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q=${encodeURIComponent(t)}`);
-    const j = await r.json(); if (j?.[0]) return { lat: +(+j[0].lat).toFixed(5), lng: +(+j[0].lon).toFixed(5) };
-  } catch (_) {}
+    const r = await fetch(url, ctl ? { signal: ctl.signal } : undefined);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (_) { return null; }
+  finally { if (tm) clearTimeout(tm); }
+};
+const geocodeOnce = async (t, near) => {
+  const bias = near ? `&lat=${near.lat}&lon=${near.lng}` : "";
+  const ph = await fetchJsonQuick(`https://photon.komoot.io/api/?q=${encodeURIComponent(t)}&limit=1${bias}`);   // (senza lang=it: Photon accetta solo en/de/fr)
+  const pc = ph?.features?.[0]?.geometry?.coordinates;
+  if (pc && Number.isFinite(+pc[1]) && Number.isFinite(+pc[0])) return { lat: +(+pc[1]).toFixed(5), lng: +(+pc[0]).toFixed(5) };
+  const nm = await fetchJsonQuick(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=it&q=${encodeURIComponent(t)}`);
+  if (nm?.[0] && Number.isFinite(+nm[0].lat)) return { lat: +(+nm[0].lat).toFixed(5), lng: +(+nm[0].lon).toFixed(5) };
+  return null;
+};
+const geocodeAddress = async (q, near = null) => {
+  const t = (q || "").replace(/\s+/g, " ").trim(); if (!t) return null;
+  const parts = t.split(",").map(x => x.trim()).filter(Boolean);
+  const city = parts.length > 1 ? parts[parts.length - 1] : "";
+  const street = parts.length > 1 ? parts.slice(0, -1).join(", ") : parts[0];
+  // 1) indirizzo intero
+  let c = await geocodeOnce(t, near);
+  if (c) return { ...c, precision: city ? "address" : "city" };
+  // 2) la via senza numero civico / senza CAP (Nominatim inciampa spesso sui civici)
+  const noNum = street.replace(/\b\d{5}\b/g, "").replace(/\b(n\.?|nr\.?|numero)?\s*\d+[a-zA-Z\/-]*\s*$/i, "").replace(/,\s*$/, "").trim();
+  if (city && noNum && noNum !== street) {
+    c = await geocodeOnce(`${noNum}, ${city}`, near);
+    if (c) return { ...c, precision: "street" };
+  }
+  // 3) la sola città: Open-Meteo (lo stesso motore delle temperature, sempre raggiungibile) poi gli altri
+  if (city) {
+    c = await geocodeCity(city);
+    if (!c) c = await geocodeOnce(city, near);
+    if (c) return { lat: +(+c.lat).toFixed(5), lng: +(+c.lng).toFixed(5), precision: "city" };
+  } else {
+    c = await geocodeCity(t);
+    if (c) return { lat: +(+c.lat).toFixed(5), lng: +(+c.lng).toFixed(5), precision: "city" };
+  }
   return null;
 };
 const inputStyle = { background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 12px", fontSize: 14, color: TXT, outline: "none", width: "100%", fontFamily: "'Sora',sans-serif", boxSizing: "border-box" };
@@ -2493,15 +2533,17 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
     setPhoto({ file: f, url: URL.createObjectURL(f) }); e.target.value = "";
   };
   // l'indirizzo diventa coordinate; senza dati (o se non trova) → posizione attuale
+  const [precision, setPrecision] = useState(null);                   // "address" | "street" | "city"
   const resolveCoords = async () => {
     const q = [address.trim(), city.trim()].filter(Boolean).join(", ");
     if (q) {
       setGeoState("searching");
-      const c = await geocodeAddress(q);
-      if (c) { setCoords(c); setGeoState("found"); return c; }
+      const near = geo ? { lat: +geo.lat.toFixed(4), lng: +geo.lng.toFixed(4) } : null;
+      const c = await geocodeAddress(q, near);
+      if (c) { setCoords({ lat: c.lat, lng: c.lng }); setPrecision(c.precision || "address"); setGeoState("found"); return c; }
     }
     const c = geo ? { lat: +geo.lat.toFixed(5), lng: +geo.lng.toFixed(5) } : null;
-    setCoords(c); setGeoState(q ? "fallback" : "idle"); return c;
+    setCoords(c); setPrecision(null); setGeoState(q ? (c ? "fallback" : "notfound") : "idle"); return c;
   };
   const submit = async () => {
     if (!title.trim()) { alert("Serve un titolo."); return; }
@@ -2509,7 +2551,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
     setSending(true);
     const c = coords || await resolveCoords();
     setSending(false);
-    if (!c) { alert("Posizione non disponibile: scrivi un indirizzo o attiva il GPS."); return; }
+    if (!c) { alert("Non riesco a mettere la spilla sulla mappa: controlla che la città sia scritta per esteso (es. \"Napoli\"), oppure attiva il GPS e userò la tua posizione attuale. 📍"); return; }
     const isSocial = kind === "social";
     const endsFinal = isSocial ? (startsAt ? new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) : ends) : ends;
     onAdd({
@@ -2532,11 +2574,12 @@ function AddEventModal({ onAdd, onClose, user, geo, locName }) {
         <input placeholder="Città" value={city} onChange={e => { setCity(e.target.value); setCoords(null); setGeoState("idle"); }} style={{ ...inputStyle, flex: 1 }} />
         <button onClick={resolveCoords} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>📍 Trova</button>
       </div>
-      <div style={{ fontSize: 12, marginTop: 6, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : TXT2 }}>
-        {geoState === "searching" ? "Cerco le coordinate…"
-          : geoState === "found" ? `Coordinate trovate ✓ ${coords.lat}, ${coords.lng}`
-          : geoState === "fallback" ? "Indirizzo non trovato: userò la tua posizione attuale"
-          : "Senza indirizzo verrà usata la tua posizione attuale"}
+      <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.4, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : geoState === "notfound" ? "#C43C41" : TXT2 }}>
+        {geoState === "searching" ? "Cerco il posto sulla mappa…"
+          : geoState === "found" ? (precision === "city" ? `Trovata la città ✓ — la spilla cadrà sul centro (via non riconosciuta)` : precision === "street" ? `Trovata la via ✓ (senza numero civico)` : `Posizione trovata ✓ ${coords.lat}, ${coords.lng}`)
+          : geoState === "fallback" ? "Posto non trovato sulla mappa: userò la tua posizione attuale 📍 (l'indirizzo scritto resta nella scheda)"
+          : geoState === "notfound" ? "Posto non trovato e GPS spento: prova con la sola città scritta per esteso"
+          : "Scrivi la città (o tocca Trova); senza indirizzo verrà usata la tua posizione attuale"}
       </div>
     </>
   );
@@ -4166,24 +4209,45 @@ function AppInner() {
     const rejected = [];
     for (const it of box) {
       try {
-        if (it.needsCheck) {   // il controllo rimandato: ora che c'è rete, gli occhi si aprono
-          try {
-            const imgEl = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = it.img; });
-            const cnv = document.createElement("canvas");
-            cnv.width = imgEl.naturalWidth; cnv.height = imgEl.naturalHeight;
-            cnv.getContext("2d").drawImage(imgEl, 0, 0);
-            const v = await analyzePhoto(cnv);
-            if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }   // scartata: non parte
-            it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
-          } catch (_) {
-            try {                                           // occhi locali indisponibili: il controllo lo fa Bee-Eye
-              const verdict = sb.beeEye ? await sb.beeEye(it.img, {}) : null;
-              if (!verdict) throw new Error("no-cloud");
-              if (verdict.persone_in_primo_piano || verdict.schermo_o_foto_di_foto || !(verdict.cielo_visibile || verdict.esterno)) {
-                rejected.push(verdict.motivo || "non ha superato il controllo"); continue;
+        if (it.needsCheck) {   // il controllo rimandato: stessa cascata della fotocamera, ma dietro le quinte
+          const race = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+          const imgEl = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = it.img; });
+          const cnv = document.createElement("canvas");
+          cnv.width = imgEl.naturalWidth; cnv.height = imgEl.naturalHeight;
+          cnv.getContext("2d").drawImage(imgEl, 0, 0);
+          const thumb = () => { const t = document.createElement("canvas"); const k = Math.min(1, 384 / cnv.width); t.width = Math.round(cnv.width * k); t.height = Math.round(cnv.height * k); t.getContext("2d").drawImage(cnv, 0, 0, t.width, t.height); return t.toDataURL("image/jpeg", 0.8); };
+          const askBee = async hints => { try { return sb.beeEye ? await race(sb.beeEye(thumb(), hints), 15000) : null; } catch (_) { return null; } };
+          const judgeCloud = verdict => {   // → { ok, reason, cls, score }
+            if (verdict.persone_in_primo_piano) return { ok: false, reason: "c'è una persona in primo piano" };
+            if (verdict.schermo_o_foto_di_foto) return { ok: false, reason: "sembra uno schermo o una foto ri-fotografata" };
+            if (verdict.cielo_visibile || verdict.esterno) return { ok: true, cls: BEE_CLOUD_MAP[verdict.condizione] || null, score: verdict.fiducia || 0.7 };
+            return { ok: false, reason: verdict.motivo || "non si vede cielo nell'inquadratura" };
+          };
+          let v = null;
+          try { v = await race(analyzePhoto(cnv), 30000); } catch (_) { v = null; }
+          if (v) {
+            const uncertain = (v.block && v.cls === "not_sky") || (!v.block && (!v.score || v.score < 0.6)) || (!v.block && v.conflict);
+            if (!uncertain) {
+              if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }
+              it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
+            } else {
+              const verdict = await askBee({ aiClass: v.cls });
+              if (verdict) {
+                const j = judgeCloud(verdict);
+                if (!j.ok) { rejected.push(j.reason); continue; }
+                it.aiClass = j.cls || v.cls; it.aiScore = j.score; it.needsCheck = false;
+              } else {   // giudice muto: vale l'occhio locale, con la stessa prudenza della fotocamera
+                const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
+                if (v.block || (v.conflict && !soft)) { rejected.push(v.reason || "sembra una scena d'interni: inquadra il cielo vero"); continue; }
+                it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
               }
-              it.needsCheck = false;
-            } catch (_) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+            }
+          } else {   // occhi locali indisponibili: giudica Bee-Eye; se tace, si riprova più tardi
+            const verdict = await askBee({});
+            if (!verdict) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+            const j = judgeCloud(verdict);
+            if (!j.ok) { rejected.push(j.reason); continue; }
+            it.aiClass = j.cls; it.aiScore = j.score; it.needsCheck = false;
           }
         }
         if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng); } catch (_) {} }   // lo zaino la prende alla spedizione
@@ -4198,7 +4262,7 @@ function AppInner() {
     saveOutbox(remain);
     flushingRef.current = false;
     if (sent || rejected.length) { setPosts(ps => ps.filter(p => !p.pending)); await loadFeed(); }
-    if (rejected.length) alert(`🎒 ${rejected.length} foto dello zaino non ${rejected.length === 1 ? "ha" : "hanno"} superato il controllo e non ${rejected.length === 1 ? "è stata pubblicata" : "sono state pubblicate"}:\n· ` + rejected.join("\n· "));
+    if (rejected.length) alert(`🔎 ${rejected.length} foto non ${rejected.length === 1 ? "ha" : "hanno"} superato il controllo e non ${rejected.length === 1 ? "è stata pubblicata" : "sono state pubblicate"}:\n· ` + rejected.join("\n· ") + "\n\nInquadra il cielo vero e riprova. 🌤️");
   };
   useEffect(() => {
     const go = () => { flushOutbox(); };
@@ -4214,7 +4278,7 @@ function AppInner() {
     if (!box.length) return;
     setPosts(ps => {
       const have = new Set(ps.filter(p => p.pending).map(p => p.id));
-      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true }));
+      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
       return cards.length ? [...cards, ...ps] : ps;
     });
   }, [user]);
@@ -4254,14 +4318,14 @@ function AppInner() {
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
-    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending }, ...ps]); if (!pending) setNextId(n => n + 1); };
+    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
       box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
-      if (navigator.onLine) setTimeout(() => flushOutbox(), 800);   // rete c'è: il controllo in coda parte subito
+      if (navigator.onLine) setTimeout(() => flushOutbox(), 400);   // rete c'è: il controllo in coda parte subito
       else alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
     };
     if (sb?.isConfigured) {
