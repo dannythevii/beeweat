@@ -331,6 +331,9 @@ const classifySky = canvas => {
 
 // oggetti che tradiscono un interno o un soggetto ravvicinato: non è meteo
 const INDOOR_OBJECTS = ["dining table", "bowl", "cup", "bottle", "wine glass", "fork", "knife", "spoon", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "book", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "vase", "scissors", "teddy bear", "clock"];
+// Oggetti che vivono SOLO al chiuso: questi contraddicono un cielo anche quando il cielo c'è.
+// Sedie, tavolini, bicchieri, vasi e l'orologio del campanile stanno anche in piazzetta: con cielo visibile non fanno testo.
+const HARD_INDOOR_OBJECTS = ["couch", "bed", "tv", "laptop", "mouse", "remote", "keyboard", "refrigerator", "microwave", "oven", "toaster", "sink", "toilet", "teddy bear"];
 // scene da esterno riconosciute da MobileNet: cieli, mare, orizzonti, paesaggi
 const OUTDOOR_RX = /alp|seashore|lakesid|cliff|promontor|volcano|valley|geyser|sandbar|breakwater|pier|dock|lighthous|castle|church|monaster|palace|fountain|suspension bridge|viaduct|street|park bench|balloon|parachut|airship|wing|kite|windmill|barn|boathous|patio|picket fence|worm fence|stone wall|dam|megalith|obelisk|flagpole|maypole|water tower|beacon|catamaran|canoe|gondola|speedboat|liner|container ship|schooner|trimaran|yawl|sail|mountain|snow|coral reef|dome|bell cote|mosque|stupa|triumphal/i;
 // schermi e display: la loro foto non è mai cielo vero
@@ -553,9 +556,10 @@ const analyzePhoto = async fullCanvas => {
   const [dets, nsfwRes, preds] = await Promise.all([
     detector.detect(canvas), nsfw.classify(canvas), scenes.classify(canvas, 7),
   ]);
-  const bad = nsfwRes.filter(x => ["Porn", "Hentai", "Sexy"].includes(x.className))
-                     .reduce((sm, x) => sm + x.probability, 0);
+  const nsfwOf = n => (nsfwRes.find(x => x.className === n) || {}).probability || 0;
+  const bad = nsfwOf("Porn") + nsfwOf("Hentai");                      // solo il contenuto esplicito boccia da solo
   if (bad > 0.6) return { block: true, reason: "Contenuto non adatto rilevato. Beeweat è per il cielo. 🌤️", cls: "nsfw", score: Math.round(bad * 100) / 100 };
+  const sexySuspect = nsfwOf("Sexy") > 0.6 && bad <= 0.6;            // pelle al sole in terrazza: dubbio lieve, decide Bee-Eye (o passa)
   // Persone: bloccano solo se RICONOSCIBILI (vicine); i passanti lontani nel paesaggio sono benvenuti
   const areaOf = x => (x.bbox ? (x.bbox[2] * x.bbox[3]) / (canvas.width * canvas.height) : 1);
   const person = dets.find(x => x.class === "person" && x.score > 0.55 && areaOf(x) > 0.07);
@@ -616,10 +620,15 @@ const analyzePhoto = async fullCanvas => {
   const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
   // muro/superficie uniforme: riempie tutto, senza azzurro e senza il gradiente naturale del cielo
   const uniformWall = !!(mask && mask.frac > 0.8 && mask.blue < 0.12 && mask.gradient < 6);
-  const conflict = !!(maskGood && (indoorObj || confidentNotOutdoor || artificialLight || nightBright || uniformWall)) || skinSuspect;
+  // col cielo trovato, solo gli oggetti da chiuso vero contraddicono la scena (una sedia di bar no)
+  const hardIndoorObj = dets.find(x => HARD_INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
+  // e la scena "non esterna" di MobileNet vale solo se il cielo non domina l'inquadratura
+  const skyDominant = maskGood && mask.frac >= 0.2 && mask.blue > 0.15;
+  const conflict = !!(maskGood && (hardIndoorObj || (confidentNotOutdoor && !skyDominant) || artificialLight || nightBright || uniformWall)) || skinSuspect || sexySuspect;
   const conflictWhat = !conflict ? null
-    : skinSuspect && !(indoorObj || confidentNotOutdoor) ? "molto colore-pelle nell'inquadratura"
-    : indoorObj ? indoorObj.class
+    : sexySuspect && !hardIndoorObj ? "molto colore-pelle nell'inquadratura"
+    : skinSuspect && !(hardIndoorObj || confidentNotOutdoor) ? "molto colore-pelle nell'inquadratura"
+    : hardIndoorObj ? hardIndoorObj.class
     : artificialLight ? "luci artificiali"
     : nightBright ? "cielo troppo luminoso per quest'ora"
     : uniformWall ? "superficie uniforme, non un cielo"
