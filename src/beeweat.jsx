@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.5";
+const APP_VERSION = "13.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -209,7 +209,16 @@ const bearingDeg = (a, b) => {
 // "capri" e "Capri" sono lo stesso posto: normalizzazione con iniziali maiuscole
 const titleCase = s => (s || "").trim().replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
 // Geocodifica inversa: coordinate → nome città (per battezzare i post col posto vero)
-const reverseCity = async (lat, lng) => {
+// Memoria per punto (~100 m): lo stesso posto non si chiede due volte ai motori (meno rifiuti per troppe richieste)
+const REVERSE_CACHE = new Map();
+const reverseCity = (lat, lng) => {
+  const key = (+lat).toFixed(3) + "," + (+lng).toFixed(3);
+  if (REVERSE_CACHE.has(key)) return REVERSE_CACHE.get(key);
+  const p = reverseCityRaw(lat, lng).then(n => { if (!n) REVERSE_CACHE.delete(key); return n; }, () => { REVERSE_CACHE.delete(key); return null; });
+  REVERSE_CACHE.set(key, p);
+  return p;
+};
+const reverseCityRaw = async (lat, lng) => {
   try {
     const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=it`);
     const j = await r.json();
@@ -224,7 +233,7 @@ const reverseCity = async (lat, lng) => {
     if (n2) return n2;
   } catch (_) {}
   try {   // terzo motore: OpenStreetMap
-    const r3 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=it`);
+    const r3 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${lat}&lon=${lng}&accept-language=it`);
     const j3 = await r3.json();
     const a = j3?.address || {};
     return a.city || a.town || a.village || a.municipality || a.county || null;
@@ -1054,6 +1063,7 @@ function AwardModal({ post, message, onClose, onOpen }) {
 function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
   const [caption, setCaption] = useState(post.caption || "");
   const [cond, setCond] = useState(post.cond || CONDITIONS[0]);
+  const [city, setCity] = useState(post.city || "");
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
       <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
@@ -1062,9 +1072,13 @@ function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
         <select value={cond} onChange={e => setCond(e.target.value)} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14, fontFamily: "'Sora',sans-serif" }}>
           {CONDITIONS.map(c => <option key={c}>{c}</option>)}
         </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <NavIcon name="pin" size={16} color={HBLUE} sw={2} />
+          <input value={city} onChange={e => setCity(e.target.value)} placeholder="Città del post (es. Sorrento)" style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", fontFamily: "'Sora',sans-serif" }} />
+        </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
-          <button onClick={() => onSave({ caption: caption.trim(), cond })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
+          <button onClick={() => onSave({ caption: caption.trim(), cond, city: titleCase(city) || post.city || "" })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
         </div>
         {onAward && <button onClick={() => { const m = window.prompt("🏅 Premiare questa foto? Messaggio facoltativo per l'annuncio (Annulla per non premiare):", ""); if (m !== null) onAward(m.trim()); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: `1.5px solid ${ACCENT}`, background: ACCENT + "22", color: "#8A5A12", fontWeight: 700, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>🏅 Premia questa foto (annuncio a tutte le api)</button>}
         {onDelete && <button onClick={() => { if (window.confirm("Eliminare definitivamente questo post?")) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>}
@@ -3646,9 +3660,14 @@ function AppInner() {
     } : null
   } : null;
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
-  const [locName, setLocName] = useState(null);
+  // Il nome resta agganciato al punto in cui è stato trovato: spostati di oltre 2,5 km, non vale più
+  // (prima un "Positano" trovato in barca restava appiccicato ai post scattati a Sorrento)
+  const [locAt, setLocAt] = useState(null);                 // { name, lat, lng }
+  const locName = locAt && geo && haversine(locAt, geo) <= 2.5 ? locAt.name : null;
+  const locKey = geo ? geo.lat.toFixed(3) + "," + geo.lng.toFixed(3) : null;   // ~100 m: i motori si interrogano solo quando ci si sposta davvero
   useEffect(() => {
     if (!geo || (!geoReal && !geoRestored)) return;   // solo posizioni vere (fresche o ricordate): mai il "Sorrento" di fabbrica
+    if (locAt && haversine(locAt, geo) <= 0.3) return;   // stesso posto di prima: il nome è già noto
     let stop = false, timer = null;
     const attempt = async () => {
       let name = await reverseCity(geo.lat, geo.lng);
@@ -3658,7 +3677,7 @@ function AppInner() {
         if (near && near.dist <= 25 && near.name) name = near.name;
       }
       if (name) {
-        setLocName(name);
+        setLocAt({ name, lat: geo.lat, lng: geo.lng });
         // la città del profilo segue la realtà: addio "Sorrento" di fabbrica
         let cityManual = false; try { cityManual = localStorage.getItem("bw_city_manual") === "1"; } catch (_) {}
         if (user && user.city !== name && !cityManual) {
@@ -3670,7 +3689,16 @@ function AppInner() {
     };
     attempt();
     return () => { stop = true; if (timer) clearTimeout(timer); };
-  }, [geo, geoReal]);
+  }, [locKey, geoReal]);
+  // Città per un post scattato in (lat,lng): nome attuale → motori → luogo vicino noto → città del profilo (ultima spiaggia)
+  const cityForPost = async (lat, lng) => {
+    if (locName) return locName;
+    const n = await reverseCity(lat, lng);
+    if (n) return n;
+    const near = placesRef.current && placesRef.current[0];
+    if (near && near.dist <= 25 && near.name) return near.name;
+    return (user && user.city) || "";
+  };
   const dataURLtoBlob = du => { const [h, b] = du.split(","); const mime = (h.match(/data:(.*?);/) || [])[1] || "image/jpeg"; const bin = atob(b); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
   const kmDist = (a, b) => { const R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180; const q = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
   const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
@@ -4063,12 +4091,13 @@ function AppInner() {
     if (!sb?.isConfigured || !myUid || !sb.getUserPostCount) return;
     sb.getUserPostCount(myUid).then(setMyPostCount).catch(() => {});
   }, [sb, myUid, socialTick, overlay === "profile"]);
-  const saveEdit = ({ caption, cond }) => {
+  const saveEdit = ({ caption, cond, city }) => {
     const p = editTarget; setEditTarget(null);
     if (!p) return;
-    setPosts(ps => ps.map(x => x.id === p.id ? { ...x, caption, cond } : x));
+    const cityChanged = city != null && city !== (p.city || "");
+    setPosts(ps => ps.map(x => x.id === p.id ? { ...x, caption, cond, ...(cityChanged ? { city } : {}) } : x));
     if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
-      sb.updatePost(p.id, { caption, condition: cond }).catch(e => { alert("Modifica non salvata: " + (e?.message || e)); loadFeed(); });
+      sb.updatePost(p.id, { caption, condition: cond, ...(cityChanged ? { city } : {}) }).catch(e => { alert("Modifica non salvata: " + (e?.message || e)); loadFeed(); });
   };
   // Cancellazione post (autore o admin) — senza doppia conferma (il modale l'ha già chiesta)
   const doDeletePost = p => {
@@ -4355,7 +4384,8 @@ function AppInner() {
           }
         }
         if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng); } catch (_) {} }   // lo zaino la prende alla spedizione
-        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: it.city, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
+        const itCity = it.city || await cityForPost(it.lat, it.lng);                       // zaino: il nome del posto si decide alla partenza
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: itCity, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -4382,7 +4412,7 @@ function AppInner() {
     if (!box.length) return;
     setPosts(ps => {
       const have = new Set(ps.filter(p => p.pending).map(p => p.id));
-      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
+      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city || locName || user.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
       return cards.length ? [...cards, ...ps] : ps;
     });
   }, [user]);
@@ -4426,7 +4456,7 @@ function AppInner() {
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
-      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || user.city, aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
+      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       if (navigator.onLine) setTimeout(() => flushOutbox(), 400);   // rete c'è: il controllo in coda parte subito
@@ -4441,7 +4471,7 @@ function AppInner() {
         try {
           const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
             img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
-            (async () => locName || await reverseCity(geo.lat, geo.lng) || user.city)(),
+            cityForPost(geo.lat, geo.lng),
           ]);
           await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
           // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
