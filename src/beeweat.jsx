@@ -2082,7 +2082,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
         const k = Math.min(1, 384 / c.width);
         t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
         t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
-        const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls });
+        const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls, dubbio: v.conflictWhat || (v.block ? v.reason : null) });
         if (aiSeqRef.current !== my) return;
         if (!verdict) {
           const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
@@ -4373,7 +4373,7 @@ function AppInner() {
               if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }
               it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
             } else {
-              const verdict = await askBee({ aiClass: v.cls });
+              const verdict = await askBee({ aiClass: v.cls, dubbio: v.conflictWhat || (v.block ? v.reason : null) });
               if (verdict) {
                 const j = judgeCloud(verdict);
                 if (!j.ok) { rejected.push(j.reason); continue; }
