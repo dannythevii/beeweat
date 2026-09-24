@@ -626,14 +626,20 @@ export async function uploadPhoto(file) {
 // ============================================================================
 
 // Crea un post: prima carica la foto, poi salva il record
-export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp }) {
+export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
-  const { data, error } = await supabase.from("posts").insert({
+  const row = {
     user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
     cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null, temp: (temp === null || temp === undefined || temp === "") ? null : Number(temp),
-  }).select().single();
+    precision: precision ?? null,                       // "gps" | "city" (beeweat-privacy-posizione.sql)
+  };
+  let { data, error } = await supabase.from("posts").insert(row).select().single();
+  if (error && /precision/i.test(error.message || "")) {   // colonna non ancora creata: si pubblica lo stesso, senza il dato
+    delete row.precision;
+    ({ data, error } = await supabase.from("posts").insert(row).select().single());
+  }
   if (error) throw error;
   return data;
 }

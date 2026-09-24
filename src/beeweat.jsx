@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.6";
+const APP_VERSION = "13.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -194,6 +194,19 @@ const playChime = () => {
   } catch (_) {}
 };
 // Distanza (km) e direzione (gradi) tra due coordinate — matematica del grande cerchio
+// ── Privacy della posizione: sul server arriva sempre e solo la zona (~1 km), mai il punto esatto ──
+const blurCoords = (lat, lng) => ({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
+// Posizione approssimativa dalla rete (api/geo.js su Vercel legge la città dall'indirizzo IP): niente permessi, niente popup
+const fetchNetGeo = async () => {
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch("/api/geo", { signal: ctrl.signal, cache: "no-store" }); clearTimeout(t);
+    if (!r.ok || r.status === 204) return null;
+    const j = await r.json();
+    if (!Number.isFinite(+j?.lat) || !Number.isFinite(+j?.lng)) return null;
+    return { lat: +j.lat, lng: +j.lng, city: j.city || "", approx: true };
+  } catch (_) { return null; }
+};
 const haversine = (a, b) => {
   const R = Math.PI / 180;
   const dLat = (b.lat - a.lat) * R, dLng = (b.lng - a.lng) * R;
@@ -1032,7 +1045,7 @@ function ReportModal({ post, onSubmit, onClose }) {
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
-function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater }) {
+function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLabel }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
       <div className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
@@ -1042,7 +1055,7 @@ function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater }) {
           {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8, marginTop: i ? 6 : 0 }}><span>{l[0]}</span><span>{l[1]}</span></div>)}
         </div>
         <button onClick={onAccept} style={{ marginTop: 18, width: "100%", padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{cta}</button>
-        {onLater && <button onClick={onLater} style={{ marginTop: 8, width: "100%", padding: 10, borderRadius: 12, border: "none", background: "none", color: TXT2, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Più tardi</button>}
+        {onLater && <button onClick={onLater} style={{ marginTop: 8, width: "100%", padding: 10, borderRadius: 12, border: "none", background: "none", color: TXT2, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{laterLabel || "Più tardi"}</button>}
         <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Al prossimo passo il telefono ti chiederà conferma: tocca <b>Consenti</b> 🐝</div>
       </div>
     </div>
@@ -1248,7 +1261,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         <div style={{ flex: 1, minWidth: 0 }}>
           <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 500, fontSize: 21, color: HBLUE, lineHeight: 1.15, cursor: onOpenUser && !post.mine ? "pointer" : "default", display: "inline-block" }}>{post.user}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, color: HBLUE, fontSize: 15, flexWrap: "wrap" }}>
-            <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}</span>
+            <NavIcon name="pin" size={16} color={HBLUE} sw={2} /><span>{post.city}{post.precision === "city" && <span title="posizione approssimativa (solo città)" style={{ fontSize: 11.5, color: TXT2, marginLeft: 4 }}>≈</span>}</span>
             <NavIcon name="clock" size={16} color={HBLUE} sw={2} /><span>{post.time}</span>
             {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: post.checking ? HBLUE : "#8A5A12", background: post.checking ? HBLUE + "14" : ACCENT + "33", borderRadius: 8, padding: "2px 7px" }}>{post.checking ? "🔎 controllo in corso" : "🎒 in attesa di rete"}</span>}
             {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: HBLUE, background: HBLUE + "14", borderRadius: 8, padding: "2px 7px" }}>⏫ pubblicazione…</span>}
@@ -1929,7 +1942,7 @@ const fetchTempAt = async (lat, lng) => {
     return typeof t === "number" ? Math.round(t) : null;
   } catch (_) { return null; }
 };
-function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
+function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
     if (!geo) return;
@@ -2187,17 +2200,29 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   // Il verdetto è pronto solo se gli occhi hanno finito e approvato; altrimenti la foto parte lo stesso
   // e il controllo continua in coda (zaino) — l'ape non aspetta più.
   const verdictReady = !!ai && !ai.checking && !ai.block && !ai.error && !ai.offline;
-  const canPublish = !!captured && geoReal && !posting && !ai?.block;
+  const canPublish = !!captured && (geoReal || geoApprox) && !posting && !ai?.block;
+  // Invito GPS: una sola volta, al primo cielo, e solo se l'ape non ha mai risposto (né spento il GPS dal Profilo)
+  const [geoAsk, setGeoAsk] = useState(false);
+  useEffect(() => {
+    if (!captured || geoReal || geoOff || !navigator.geolocation) return;
+    let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {}
+    if (!asked) setGeoAsk(true);
+  }, [captured, geoReal, geoOff]);
   const publish = () => {
     if (!canPublish) return;
     aiSeqRef.current++;                                   // un verdetto in arrivo dopo la partenza non serve più
     setPosting(true);
     setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: verdictReady ? (ai?.cls || null) : null, aiScore: verdictReady ? (ai?.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !verdictReady }); }, 300);
   };
-  const GeoChip = () => geoReal ? null : (
+  const GeoChip = () => geoReal ? null : geoApprox ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: HBLUE + "0E", color: HBLUE, border: `1px solid ${HBLUE}33` }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
+      <span><b>{locName ? locName + " (circa)" : "Zona approssimativa"}</b> — il cielo sarà pubblicato con la sola città.{!geoOff && onAskGeo && <> Vuoi il punto preciso sulla mappa? <b onClick={onAskGeo} style={{ cursor: "pointer", textDecoration: "underline" }}>Attiva la posizione</b>.</>}</span>
+    </div>
+  ) : (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
-      <span><b>Posizione non rilevata</b> — Beeweat pubblica solo cieli con il loro posto vero.{" "}
+      <span><b>Posizione non rilevata</b> — serve almeno la città, oppure la posizione del telefono.{" "}
         {/iPhone|iPad/i.test(navigator.userAgent)
           ? <>Su iPhone: <b>Impostazioni → Privacy → Localizzazione → Siti web Safari → "Mentre usi l'app"</b>, poi <b>Impostazioni → Safari → Posizione → "Chiedi"</b>, quindi ricarica Beeweat e tocca Consenti. Ancora meglio: installa l'app (Condividi ⬆️ → Aggiungi alla schermata Home).</>
           : <>Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</>}
@@ -2229,6 +2254,12 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
   return (
     <>
       <Header title="Nuovo Post" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      {geoAsk && <PermissionInvite emoji="🌍" title="Dove mettiamo questo cielo?"
+        lines={[["📍", "Con la posizione del telefono il tuo cielo finisce sul punto giusto della mappa, e tu vedi cosa succede intorno a te."],
+                ["🔒", "Beeweat vede solo la zona (circa 1 km), mai la tua casa: il punto esatto non lascia il telefono."],
+                ["🏙️", locName ? `Oppure pubblica con la sola città: ${locName}.` : "Oppure pubblica con la sola città."]]}
+        cta="Attiva la posizione 📍" onAccept={() => { setGeoAsk(false); onAskGeo && onAskGeo(); }}
+        onLater={() => { setGeoAsk(false); onCityOnly && onCityOnly(); }} laterLabel="Usa solo la mia città" />}
       {camInvite && <PermissionInvite emoji="📸" title="Apri gli occhi dell'alveare"
         lines={[["☁️", "Ogni cielo che fotografi diventa meteo vero per tutti — la nuvola che vedi tu, nessun satellite la vede così."],
                 ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
@@ -2289,7 +2320,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
               <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={!canPublish} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: !canPublish ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: !canPublish ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !geoReal ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
+              <button onClick={publish} disabled={!canPublish} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: !canPublish ? "#9AA7B8" : `linear-gradient(135deg,${HBLUE},#1B4E96)`, color: "#fff", fontWeight: 600, cursor: !canPublish ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2299,7 +2330,7 @@ function CameraView({ onPost, onBack, geoReal, onCloudCheck, geo }) {
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo }) {
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
@@ -2375,6 +2406,16 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <div style={{ width: 44, height: 26, borderRadius: 13, background: user.readReceipts !== false ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
               <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
+            </div>
+          </button>}
+          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📍</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · i cieli vanno sul punto giusto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
+            </div>
+            <div style={{ width: 44, height: 26, borderRadius: 13, background: geoPrecise ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
           {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2C7A57", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
@@ -3033,6 +3074,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
 }
 // ── Centro assistenza: "Come possiamo aiutarti" (domande frequenti) ──────────
 const HELP_FAQ = [
+  { q: "Cosa vede Beeweat della mia posizione?", a: "La zona, mai la tua casa. All'ingresso Beeweat usa solo la città ricavata dalla rete (nessun permesso richiesto). Se attivi la posizione del telefono, le coordinate vengono arrotondate sul telefono a circa 1 km prima di partire: sul server e sulla mappa arriva solo la zona. Puoi pubblicare anche con la sola città (il cielo mostra un ≈ accanto al nome) e accendere o spegnere la posizione precisa quando vuoi dal Profilo." },
   { q: "La posizione non viene rilevata", a: "Beeweat pubblica solo cieli con il loro posto vero. Su iPhone: Impostazioni → Privacy → Localizzazione → Siti web Safari → \"Mentre usi l'app\", poi Impostazioni → Safari → Posizione → Chiedi. Su Android: icona 🔒 nella barra → Posizione → Consenti. Poi ricarica l'app." },
   { q: "La fotocamera non si apre", a: "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri beeweat.vercel.app in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera)." },
   { q: "La mia foto è stata respinta", a: "Gli occhi dell'alveare accettano solo cieli veri, scattati dal vivo: niente persone in primo piano, schermi, interni, muri o superfici. Alza l'obiettivo e fai entrare più cielo nell'inquadratura." },
@@ -3526,7 +3568,10 @@ function AppInner() {
     return BASE_COORDS;
   });
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
+  const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
+  const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
+  const [geoOff, setGeoOff] = useState(() => { try { return localStorage.getItem("bw_geo_off") === "1"; } catch (_) { return false; } });   // l'ape ha scelto: solo città, niente GPS
   useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
     const t = setTimeout(() => { loadAIModels().catch(() => {}); }, 2500);
     return () => clearTimeout(t);
@@ -3537,33 +3582,45 @@ function AppInner() {
   useEffect(() => {
     if (!navigator.geolocation) return;
     const go = () => setGeoGo(true);
-    // Regola: si chiede al primo accesso; se la risposta è no, si richiede a ogni accesso finché non arriva il sì.
-    // Con il "no" di sistema il telefono non lascia richiedere: l'invito spiega come riattivare.
-    // In ogni caso il GPS parte comunque entro pochi secondi (l'invito non è mai un cancello).
+    // Regola (13.7): all'avvio NESSUNA richiesta di posizione. Il GPS parte da solo solo se l'ape ha già detto sì
+    // in passato (e non l'ha spento dal Profilo). Chi non l'ha mai concesso entra con la zona ricavata dalla rete
+    // e vedrà l'invito una sola volta, al momento giusto: quando scatta il primo cielo.
     let okBefore = false; try { okBefore = localStorage.getItem("bw_geo_ok") === "1"; } catch (_) {}
-    if (okBefore) { go(); return; }                     // il sì è già arrivato in passato: GPS immediato, come sempre
-    const watchdog = setTimeout(go, 6000);
-    if (navigator.permissions?.query) {
-      navigator.permissions.query({ name: "geolocation" })
-        .then(st => {
-          if (st.state === "granted") go();
-          else if (st.state === "denied") { setGeoInvite("denied"); go(); }
-          else setGeoInvite(true);
-        })
-        .catch(() => { let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {} if (asked) go(); else setGeoInvite(true); });
-    } else { let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {} if (asked) go(); else setGeoInvite(true); }
-    return () => clearTimeout(watchdog);
+    let off = false; try { off = localStorage.getItem("bw_geo_off") === "1"; } catch (_) {}
+    if (okBefore && !off) go();
+    if (navigator.permissions?.query) {   // permesso già concesso a livello di sistema (senza popup): si può usare in silenzio
+      navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted" && !off) go(); }).catch(() => {});
+    }
   }, []);
-  const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); setGeoGo(true); setGeoTick(t => t + 1); };
-  const laterGeoInvite = () => { setGeoInvite(false); setGeoGo(true); };   // "più tardi" non toglie la posizione a nessuno
+  const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); localStorage.removeItem("bw_geo_off"); } catch (_) {} setGeoOff(false); setGeoInvite(false); setGeoGo(true); setGeoTick(t => t + 1); };
+  const laterGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); };   // "solo la mia città": nessun GPS, nessuna insistenza
+  // Interruttore nel Profilo: posizione precisa (GPS) sì/no
+  const setGeoPrecise = on => {
+    if (on) { acceptGeoInvite(); return; }
+    try { localStorage.setItem("bw_geo_off", "1"); } catch (_) {}
+    setGeoOff(true); setGeoGo(false); setGeoReal(false);
+  };
+  // Zona dalla rete: appena l'app parte, se non c'è ancora un fix GPS (una sola volta per sessione)
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      const g = await fetchNetGeo();
+      if (stop || !g) return;
+      setGeoApprox(true);
+      // un fix GPS (fresco, o ricordato e ancora abilitato) vale più della rete; altrimenti si parte dalla zona
+      setGeo(cur => ((cur && cur.__real) || (geoRestored && !geoOff)) ? cur : { lat: g.lat, lng: g.lng, approx: true });
+      if (g.city) setLocAt(cur => cur || { name: g.city, lat: g.lat, lng: g.lng, approx: true });
+    })();
+    return () => { stop = true; };
+  }, []);
   useEffect(() => {
     if (!navigator.geolocation || !geoGo) return;
     // monitoraggio continuo: aggancia il permesso anche se concesso dopo, e segue gli spostamenti
     const id = navigator.geolocation.watchPosition(
       p => {
-        const g = { lat: p.coords.latitude, lng: p.coords.longitude };
+        const g = { lat: p.coords.latitude, lng: p.coords.longitude, __real: true };
         setGeo(g); setGeoReal(true);
-        try { localStorage.setItem("bw_last_geo", JSON.stringify(g)); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
+        try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
       },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
@@ -3671,11 +3728,10 @@ function AppInner() {
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   // Il nome resta agganciato al punto in cui è stato trovato: spostati di oltre 2,5 km, non vale più
   // (prima un "Positano" trovato in barca restava appiccicato ai post scattati a Sorrento)
-  const [locAt, setLocAt] = useState(null);                 // { name, lat, lng }
   const locName = locAt && geo && haversine(locAt, geo) <= 2.5 ? locAt.name : null;
   const locKey = geo ? geo.lat.toFixed(3) + "," + geo.lng.toFixed(3) : null;   // ~100 m: i motori si interrogano solo quando ci si sposta davvero
   useEffect(() => {
-    if (!geo || (!geoReal && !geoRestored)) return;   // solo posizioni vere (fresche o ricordate): mai il "Sorrento" di fabbrica
+    if (!geo || (!geoReal && !geoRestored && !geoApprox)) return;   // solo posizioni vere (fresche, ricordate o dalla rete): mai il "Sorrento" di fabbrica
     if (locAt && haversine(locAt, geo) <= 0.3) return;   // stesso posto di prima: il nome è già noto
     let stop = false, timer = null;
     const attempt = async () => {
@@ -3698,7 +3754,7 @@ function AppInner() {
     };
     attempt();
     return () => { stop = true; if (timer) clearTimeout(timer); };
-  }, [locKey, geoReal]);
+  }, [locKey, geoReal, geoApprox]);
   // Città per un post scattato in (lat,lng): nome attuale → motori → luogo vicino noto → città del profilo (ultima spiaggia)
   const cityForPost = async (lat, lng) => {
     if (locName) return locName;
@@ -3728,7 +3784,7 @@ function AppInner() {
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null,
           time: fmtPostTime(r.created_at),
           ts: r.created_at,
-          city: titleCase(r.city || pr.city || ""), dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
+          city: titleCase(r.city || pr.city || ""), precision: r.precision || null, dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
           comments: r.comments_count || 0, views: r.views_count || 0,
@@ -3893,7 +3949,7 @@ function AppInner() {
   // posizione per lo scanner delle allerte (solo con allerte attive)
   useEffect(() => {
     if (!sb?.isConfigured || !user || !geo || !notif?.enabled || !notif?.allerte) return;
-    sb.saveMyLocation(geo.lat, geo.lng).catch(() => {});
+    const gb = blurCoords(geo.lat, geo.lng); sb.saveMyLocation(gb.lat, gb.lng).catch(() => {});   // la zona, mai la casa
   }, [sb, user, geoKey, notif?.enabled, notif?.allerte]);
   // Memoria di scorrimento: al ritorno da post/chat/profili si resta dove si era
   const scrollMem = useRef({});
@@ -4394,7 +4450,7 @@ function AppInner() {
         }
         if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng); } catch (_) {} }   // lo zaino la prende alla spedizione
         const itCity = it.city || await cityForPost(it.lat, it.lng);                       // zaino: il nome del posto si decide alla partenza
-        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, camDeg: it.camDeg, camDir: it.camDir, city: itCity, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -4461,11 +4517,13 @@ function AppInner() {
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
-    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
+    const gp = blurCoords(geo.lat, geo.lng);                                   // sul server va la zona (~1 km), mai il punto esatto
+    const precision = geoReal ? "gps" : "city";                                // con la sola città il cielo è "approssimativo"
+    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
-      box.push({ ts: pendTs, img, caption, cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
+      box.push({ ts: pendTs, img, caption, cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
       if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       if (navigator.onLine) setTimeout(() => flushOutbox(), 400);   // rete c'è: il controllo in coda parte subito
@@ -4475,19 +4533,19 @@ function AppInner() {
       if (!navigator.onLine || deferred) { toOutbox(); }   // senza rete, o senza verdetto: in coda con controllo prima della partenza
       else (async () => {
         // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
-        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
+        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
         const clearTemp = () => setPosts(ps => ps.filter(p => p.id !== "tx_" + pendTs));
         try {
           const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
             img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
             cityForPost(geo.lat, geo.lng),
           ]);
-          await sb.createPost({ file, caption, condition: cond, lat: geo.lat, lng: geo.lng, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
+          await sb.createPost({ file, caption, condition: cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
           // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
           if (/temporale|tempesta/i.test(cond || "")) {
             try {
               const ends = new Date(Date.now() + 3 * 3600 * 1000).toISOString();          // vive 3 ore
-              await sb.createEvent({ kind: "meteo", type: "⛈️", cat: "", title: `Temporale segnalato a ${postCity}`, place: postCity, sev: "Alta", lat: geo.lat, lng: geo.lng, ends });
+              await sb.createEvent({ kind: "meteo", type: "⛈️", cat: "", title: `Temporale segnalato a ${postCity}`, place: postCity, sev: "Alta", lat: gp.lat, lng: gp.lng, ends });
               setSocialTick(t => t + 1);                                                  // gli eventi si ricaricano da soli
             } catch (er) { console.warn("allerta temporale:", er?.message || er); }
           }
@@ -4631,10 +4689,10 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={geoGo && !geoOff} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
@@ -4792,20 +4850,7 @@ function AppInner() {
         </div>
         <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
       </div>}
-      {geoInvite === true && <PermissionInvite emoji="🌍" title="Dove sei, ape?"
-        lines={[["📍", "Beeweat racconta il tempo posto per posto: con la tua posizione i tuoi cieli finiscono sulla mappa giusta, e tu vedi cosa succede intorno a te."],
-                ["⛈️", "Ricevi le allerte del tuo raggio: il temporale che arriva, la mareggiata, la neve in valle."],
-                ["🔒", "La posizione resta tua: non compare mai l'indirizzo esatto, solo il luogo."]]}
-        cta="Consenti la posizione 📍" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
-      {geoInvite === "denied" && <PermissionInvite emoji="📍" title="La posizione è spenta"
-        lines={/iPhone|iPad/i.test(navigator.userAgent)
-          ? [["1️⃣", "Impostazioni → Privacy e sicurezza → Localizzazione → attiva, e \"Siti web Safari\" → Mentre usi l'app"],
-             ["2️⃣", "Impostazioni → Safari → Posizione → Chiedi (o Consenti)"],
-             ["🐝", "Senza posizione Beeweat non può pubblicare i tuoi cieli né avvisarti dei temporali vicini."]]
-          : [["1️⃣", "Tocca l'icona 🔒 nella barra dell'indirizzo → Posizione → Consenti"],
-             ["2️⃣", "Oppure: impostazioni del browser → Siti → beeweat → Posizione → Consenti"],
-             ["🐝", "Senza posizione Beeweat non può pubblicare i tuoi cieli né avvisarti dei temporali vicini."]]}
-        cta="Ho riattivato, riprova 🔄" onAccept={acceptGeoInvite} onLater={laterGeoInvite} />}
+      {/* 13.7: nessun invito alla posizione all'avvio — si chiede al primo cielo, dalla fotocamera */}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
     </Frame>;
