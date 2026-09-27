@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.7";
+const APP_VERSION = "13.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2205,7 +2205,9 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const [geoAsk, setGeoAsk] = useState(false);
   useEffect(() => {
     if (!captured || geoReal || geoOff || !navigator.geolocation) return;
-    let asked = false; try { asked = localStorage.getItem("bw_geo_invited") === "1"; } catch (_) {}
+    let asked = false, okBefore = false;
+    try { asked = localStorage.getItem("bw_geo_invited") === "1"; okBefore = localStorage.getItem("bw_geo_ok") === "1"; } catch (_) {}
+    if (okBefore) { onAskGeo && onAskGeo(); return; }   // sì già dato in passato: GPS allo scatto, senza invito (il telefono conferma da sé)
     if (!asked) setGeoAsk(true);
   }, [captured, geoReal, geoOff]);
   const publish = () => {
@@ -3585,10 +3587,10 @@ function AppInner() {
     // Regola (13.7): all'avvio NESSUNA richiesta di posizione. Il GPS parte da solo solo se l'ape ha già detto sì
     // in passato (e non l'ha spento dal Profilo). Chi non l'ha mai concesso entra con la zona ricavata dalla rete
     // e vedrà l'invito una sola volta, al momento giusto: quando scatta il primo cielo.
-    let okBefore = false; try { okBefore = localStorage.getItem("bw_geo_ok") === "1"; } catch (_) {}
+    // 13.8: bw_geo_ok NON basta più per avviare il GPS all'ingresso — Safari richiede il permesso a ogni visita,
+    // quindi chi aveva detto sì in passato rivedeva il popup. Il GPS parte solo allo scatto (CameraView).
     let off = false; try { off = localStorage.getItem("bw_geo_off") === "1"; } catch (_) {}
-    if (okBefore && !off) go();
-    if (navigator.permissions?.query) {   // permesso già concesso a livello di sistema (senza popup): si può usare in silenzio
+    if (navigator.permissions?.query) {   // permesso ricordato dal sistema (Chrome/Android): si usa in silenzio, senza popup
       navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted" && !off) go(); }).catch(() => {});
     }
   }, []);
