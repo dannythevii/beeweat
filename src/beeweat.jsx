@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.9";
+const APP_VERSION = "14.10";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1611,11 +1611,6 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
             <button key={id} onClick={() => { setView(id); setSel(null); }} style={{ flex: 1, height: 36, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
           ))}
         </div>
-        {setKm && <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
-          <input type="range" min={0} max={108} value={idx} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE2} ${pct}%, ${HBLUE2} 100%)` }} />
-          <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 800, minWidth: 58, textAlign: "right" }}>{kmLabel}</span>
-        </div>}
       </div>
       {/* disco */}
       <div style={{ position: "relative", background: "#0F2F55", borderRadius: 24, padding: 10, boxShadow: "0 8px 24px rgba(15,47,85,.28)", overflow: "hidden" }}>
@@ -4899,7 +4894,7 @@ function AppInner() {
   }
 
   const showWeather = tab === "feed";
-  const showRadar = tab === "feed" || tab === "contatti" || tab === "beecast" || tab === "eventi";
+  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast" || tab === "eventi";
   const feedTitle = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <NavIcon name="pin" size={18} color="#fff" sw={2} />
