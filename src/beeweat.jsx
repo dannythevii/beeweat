@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.7";
+const APP_VERSION = "14.8";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1518,7 +1518,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 }
 
 // ─── VICINI (mappa radar) ───────────────────────────────────────────────────
-function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow }) {
+function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow, onOpenPost }) {
   const [sel, setSel] = useState(null);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 320, h: 320 });
   const svgRef = useRef(null);
@@ -1661,14 +1661,14 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
       </div>
       {/* cielo toccato */}
       {sel
-        ? <div ref={selRef} className="fade-up" style={{ marginTop: 12, borderRadius: 20, background: "#fff", padding: 12, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 6px 20px rgba(18,60,107,.10)", border: `2px solid ${ACCENT}` }}>
-            <div onClick={() => onChat && onChat(sel)} style={{ width: 72, height: 72, borderRadius: 14, overflow: "hidden", background: "#dfe8f1", flexShrink: 0, cursor: "pointer" }}><img src={sel.thumb || sel.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
+        ? <div ref={selRef} className="fade-up" onClick={() => onOpenPost && onOpenPost(sel)} style={{ marginTop: 12, borderRadius: 20, background: "#fff", padding: 12, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 6px 20px rgba(18,60,107,.10)", border: `2px solid ${ACCENT}`, cursor: "pointer" }}>
+            <div style={{ width: 72, height: 72, borderRadius: 14, overflow: "hidden", background: "#dfe8f1", flexShrink: 0 }}><img src={sel.thumb || sel.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span onClick={() => onOpenUser && !sel.mine && onOpenUser(sel)} style={{ fontWeight: 700, fontSize: 15, color: TXT, cursor: onOpenUser && !sel.mine ? "pointer" : "default", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.user}</span>{sel.stars_rank > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em" }}>{"★".repeat(sel.stars_rank)}</span>}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span onClick={e => { if (onOpenUser && !sel.mine) { e.stopPropagation(); onOpenUser(sel); } }} style={{ fontWeight: 700, fontSize: 15, color: TXT, cursor: onOpenUser && !sel.mine ? "pointer" : "default", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.user}</span>{sel.stars_rank > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em" }}>{"★".repeat(sel.stars_rank)}</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT }}><b>{sel.cond.replace(/^[^ ]+ /, "")}{sel.temp != null && Number.isFinite(sel.temp) ? ` · ${Math.round(sel.temp)}°` : ""}</b>{sel.dir ? ` · verso ${sel.dir.label}` : (sel.bearing != null ? ` · verso ${dirName(sel.bearing)}` : "")}</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{sel.city} · {sel.dist} km · {agoText(sel.ts)}</div>
             </div>
-            <button onClick={() => onChat && onChat(sel)} title="Apri il cielo" style={{ width: 40, height: 40, borderRadius: 20, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
+            <button onClick={e => { e.stopPropagation(); onOpenPost && onOpenPost(sel); }} title="Vai al cielo nel Feed" style={{ width: 40, height: 40, borderRadius: 20, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
           </div>
         : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · pizzica per zoomare</div>}
     </div>
@@ -4127,6 +4127,11 @@ function AppInner() {
   const [feedWorld, setFeedWorld] = useState(false);
   const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
   const [focusPost, setFocusPost] = useState(null);        // il post del faro: vive qui, i ricarichi non lo toccano
+  const goToPost = p => {                                   // 14.8: dal Radar al Feed, dritti sulla card del cielo
+    setFocusPost(p); setOverlay(null); setTab("feed"); setFeedWorld(false); setFocusPostId(p.id);
+    setTimeout(() => { try { document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {} }, 300);
+    setTimeout(() => setFocusPostId(null), 4500);
+  };
   const [focusEventId, setFocusEventId] = useState(null);  // l'evento da mettere in luce
   const [award, setAward] = useState(null);   // { award, post }: la foto premiata (vive 24 ore)
   const [awardShow, setAwardShow] = useState(false);   // in cima al Feed per 20 secondi all'apertura
@@ -4949,7 +4954,7 @@ function AppInner() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
-        {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
+        {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
