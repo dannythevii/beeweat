@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.5";
+const APP_VERSION = "14.6";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1721,7 +1721,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup, following, onFollowUser, placeFavs, onTogglePlaceFav }) {
+function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup, following, onFollowUser, placeFavs, onTogglePlaceFav, onlineCount }) {
   const [favQ, setFavQ] = useState("");
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
@@ -1756,16 +1756,28 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
     );
   };
   return (
-    <div className="scr" style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
-      {/* schede: Contatti | Preferiti */}
-      <div style={{ display: "flex", gap: 22, padding: "12px 16px 0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-        {[["contatti", "BeePaper"], ["preferiti", "Seguiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY }}>{/* 14.6 */}
+      <div style={{ padding: "4px 16px 14px", background: HBLUE, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
+          {[["contatti", "BeePaper"], ["preferiti", "Seguiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
+            <button key={id} onClick={() => setSub(id)} style={{ flex: 1, height: 36, borderRadius: 12, border: "none", background: sub === id ? "#fff" : "transparent", color: sub === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+          ))}
+        </div>
+        {sub === "contatti" && <div style={{ display: "flex", alignItems: "center", gap: 10, height: 46, padding: "0 8px 0 14px", borderRadius: 16, background: HBLUE2 }}>
+          <NavIcon name="search" size={18} color="#B9CCE3" sw={2.4} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Sora',sans-serif" }} />
+          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color="#B9CCE3" sw={2.2} /></button>}
+          <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
+        </div>}
+      </div>
+      <div style={{ display: "none" }}>
+        {[].map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? HBLUE : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
         ))}
       </div>
 
       {sub === "preferiti" ? (
-        <>
+        <div style={{ margin: 16, background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
           <div style={{ padding: "10px 16px 0" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", borderRadius: 12, padding: "9px 12px", border: `1px solid ${LINE}` }}>
               <NavIcon name="search" size={17} color={TXT2} />
@@ -1787,9 +1799,9 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           ))}
           <div style={{ padding: "18px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Tutti gli utenti</div>
           {(people || []).filter(p => !favQ.trim() || (p.name || "").toLowerCase().includes(favQ.trim().toLowerCase()) || (p.city || "").toLowerCase().includes(favQ.trim().toLowerCase())).map(p => <FavRow key={p.id} p={p} />)}
-        </>
+        </div>
       ) : sub === "gruppi" ? (
-        <>
+        <div style={{ margin: 16, background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
           <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi gruppi ({(groups || []).length})</div>
           {(!groups || groups.length === 0)
             ? <div style={{ padding: "26px 16px", color: TXT2, fontSize: 14, textAlign: "center" }}>Nessun gruppo ancora.<br />Creane uno con l'icona 👥+ in alto!</div>
@@ -1806,55 +1818,45 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
               </div>
               </div>
             ))}
-        </>
+        </div>
       ) : (
         <>
-      {/* campo cerca contatti */}
-      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${LINE}`, position: "sticky", top: 0, zIndex: 30, background: "#fff" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: BODY, borderRadius: 12, padding: "9px 12px" }}>
-          <NavIcon name="search" size={17} color={TXT2} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca tra i contatti…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
-          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
-          <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
-        </div>
-      </div>
 
-      {/* luoghi vicini (chat pubbliche + eventi per luogo, in base al raggio) */}
+      {/* luoghi vicini come chip: tocca = chat del luogo · ★ segui · 📅 eventi */}
       {!ql && (places.length > 0 || inf) && (
-        <div>
-          <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>{inf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</div>
-          {places.map(p => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${LINE}` }}>
-              <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 10px", display: "flex", flexShrink: 0 }}><NavIcon name={(placeFavs || []).includes(p.name) ? "starFill" : "star"} size={22} color={(placeFavs || []).includes(p.name) ? STAR : TXT2} /></button>
-              <button onClick={() => onOpenPlace(p)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 8px 12px 6px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 18, color: HBLUE, lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: HBLUE, fontSize: 15, marginTop: 3 }}><NavIcon name="pin" size={15} color={HBLUE} sw={2} /> {fmt(p.dist)} <span style={{ color: TXT2, fontSize: 12 }}>da te</span></div>
-                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 2 }}>{p.photos ?? 0} post · {p.events ?? 0} eventi · {p.users?.length ?? 0} utenti</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, minWidth: 60, justifyContent: "flex-end" }}>
-                  <WIcon name="chat" size={21} color={HBLUE} sw={1.9} />
-                </div>
-              </button>
-              <button onClick={() => onOpenPlaceEvents(p)} style={{ display: "flex", alignItems: "center", gap: 6, color: HBLUE, padding: "12px 16px 12px 10px", background: "none", border: "none", cursor: "pointer" }}>
-                <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 600, fontSize: 17 }}>{p.events}</span><NavIcon name="eventi" size={18} color={HBLUE} sw={1.8} />
-              </button>
-            </div>
-          ))}
+        <div style={{ padding: "14px 0 0" }}>
+          <div style={{ padding: "0 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>{inf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</div>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 4px", scrollbarWidth: "none" }}>
+            {places.map((p, i) => { const on = (placeFavs || []).includes(p.name); const first = i === 0 && !inf; return (
+              <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", height: 40, borderRadius: 20, background: first ? HBLUE : "#fff", border: first ? "none" : `1.5px solid ${LINE}`, color: first ? "#fff" : TXT, flexShrink: 0, overflow: "hidden" }}>
+                <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px 0 10px", display: "flex" }}><NavIcon name={on ? "starFill" : "star"} size={15} color={on ? ACCENT : (first ? "#B9CCE3" : TXT2)} sw={2} /></button>
+                <button onClick={() => onOpenPlace(p)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 6px 0 2px", fontFamily: "'Sora',sans-serif", fontSize: 13, fontWeight: 600, color: "inherit", whiteSpace: "nowrap" }}>{p.name}{p.dist != null ? ` · ${fmt(p.dist)}` : ""}</button>
+                {p.events > 0 && <button onClick={() => onOpenPlaceEvents(p)} title="Eventi del luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 10px 0 2px", display: "flex", alignItems: "center", gap: 3, color: "inherit", fontFamily: "'Sora',sans-serif", fontSize: 12, fontWeight: 700 }}><NavIcon name="eventi" size={14} color={first ? "#fff" : HBLUE} sw={2} />{p.events}</button>}
+                {!(p.events > 0) && <span style={{ width: 8 }} />}
+              </div>
+            ); })}
+          </div>
         </div>
       )}
 
-      {!ql && <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>BeeWorld</div>}
+      {!ql && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 16px 8px" }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Le api</div>
+        <div style={{ fontSize: 12, color: TXT2 }}>{contacts.length} nell'alveare{onlineCount != null ? <> · <b style={{ color: "#1F6B45" }}>{onlineCount} online</b></> : null}</div>
+      </div>}
       {list.length === 0
         ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
-        : list.map(c => (
-          <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: c.me ? HBLUE + "08" : "transparent" }}>
-            <UserAvatar src={c.ava} size={56} stars={beeStars(c.postsCount)} />
-            <div style={{ flex: 1, fontSize: 19, color: HBLUE, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>{c.name}{c.me && <span style={{ fontSize: 13.5, color: TXT2, fontWeight: 500 }}>(tu)</span>} <NavIcon name="pin" size={16} color={HBLUE} /> <span>{titleCase(c.city)}</span></div>
-            {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><WIcon name="chat" size={19} color="#fff" sw={2} /></button>}
+        : <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>{list.map(c => { const st = beeStars(c.postsCount); const on = (following || []).includes(c.name); return (
+          <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 18, background: "#fff", boxShadow: "0 4px 14px rgba(18,60,107,.08)", cursor: "pointer", border: c.me ? `1.5px solid ${ACCENT}` : "none" }}>
+            <UserAvatar src={c.ava} size={48} stars={0} />
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: HBLUE + "12", color: HBLUE, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
+              <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
+            </div>
+            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} style={{ height: 36, padding: "0 12px", borderRadius: 18, border: on ? "none" : `1.5px solid ${HBLUE}`, background: on ? HBLUE + "12" : "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
+            {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 40, height: 40, borderRadius: 20, background: ACCENT, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WIcon name="chat" size={18} color={TXT} sw={2.2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
-        ))}
+        ); })}</div>}
       </>
       )}
     </div>
@@ -4943,7 +4945,7 @@ function AppInner() {
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
+        {tab === "contatti" && <ContattiScreen onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
             if (name === null) return;
