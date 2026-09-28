@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "13.8";
+const APP_VERSION = "13.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1620,11 +1620,11 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me }) {
+function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me, view, onView }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
-  const [view, setView] = useState("meteo");   // Eventi meteo | Eventi social
+  const setView = v => onView && onView(v);   // Eventi meteo | Eventi social — la vista vive in AppInner (13.9)
   const alive = events.filter(e => !e.ends || e.ends >= today);
   const visible = alive.filter(e =>
     (inf || e.dist <= km) &&
@@ -2695,8 +2695,8 @@ function AddressFields({ a, onChange, onFind, geoState, precision, coords, keepT
   );
 }
 
-function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode }) {
-  const [kind, setKind] = useState("meteo");                          // "meteo" | "social"
+function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialKind }) {
+  const [kind, setKind] = useState(initialKind === "social" ? "social" : "meteo");                          // "meteo" | "social"
   const [type, setType] = useState(EVENT_TYPES[1]);
   const [cat, setCat] = useState(EVENT_CATEGORIES[1]);
   const [title, setTitle] = useState("");
@@ -4660,8 +4660,10 @@ function AppInner() {
     setUser(null);
     return true;
   };
+  const [evView, setEvView] = useState("meteo");   // vista corrente della pagina Eventi: meteo | social
   const addEvent = async e => {
     setOverlay(null);
+    setEvView((e.kind || "meteo") === "social" ? "social" : "meteo");   // si resta dove è nato l'evento
     let ee = { ...e };
     if (!ee.geocoded && ee.place && locName && ee.place.trim().toLowerCase() !== locName.trim().toLowerCase()) {
       const c = await geocodeCity(ee.place);                         // città diversa da qui → coordinate della città
@@ -4873,7 +4875,7 @@ function AppInner() {
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
@@ -4893,7 +4895,7 @@ function AppInner() {
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}
+      {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} initialKind={evView} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
     </Frame>
