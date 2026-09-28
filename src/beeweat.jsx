@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.8";
+const APP_VERSION = "14.9";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1417,31 +1417,35 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
     { h: "+6h", e: "☁️", t: 21 }, { h: "+8h", e: "🌧️", t: 19 }, { h: "+10h", e: "🌧️", t: 18 }, { h: "+12h", e: "⛅", t: 18 },
   ];
   return (
-    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
-      {/* riquadro principale */}
-      <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", boxShadow: `0 4px 16px ${HBLUE}26` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <NavIcon name="beecast" size={20} color="#fff" sw={2} />
-          <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18 }}>BeeCast</span>
-          <span style={{ marginLeft: "auto", fontSize: 11, background: "rgba(255,255,255,.2)", borderRadius: 12, padding: "3px 10px", fontWeight: 600 }}>{S.conf}</span>
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "0 16px 16px" }}>{/* 14.9 */}
+      {/* riquadro principale: dentro la testata blu */}
+      <div style={{ margin: "0 -16px 0", padding: "4px 16px 14px", background: HBLUE }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 10 }}>Previsione collaborativa · {km} km</div>
+        <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <NavIcon name="beecast" size={20} color={ACCENT} sw={2.2} />
+            <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18 }}>BeeCast</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, background: HBLUE, borderRadius: 12, padding: "4px 10px", fontWeight: 700, color: "#B9CCE3" }}>{S.conf}</span>
+          </div>
+          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 19, fontWeight: 700, lineHeight: 1.25 }}>{S.text}</div>
+          <div style={{ fontSize: 12.5, color: "#D6E4F3", lineHeight: 1.5 }}>{S.why}</div>
         </div>
-        <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3 }}>{S.text}</div>
-        <div style={{ fontSize: 12, opacity: .92, marginTop: 6, lineHeight: 1.5 }}>{S.why}</div>
       </div>
 
       {/* allerta di prossimità (dalle foto della community) */}
-      <div style={{ marginTop: 12, background: "#fff", borderRadius: 14, border: `1.5px solid ${ACCENT}`, boxShadow: `0 2px 10px ${HBLUE}0D`, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 14px", background: ACCENT + "1F" }}>
-          <span style={{ fontSize: 26, lineHeight: 1 }}>{AL.icon}</span>
+      <div style={{ marginTop: 14, background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ width: 58, height: 58, borderRadius: 16, background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{AL.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: "#8A5A12" }}>{AL.title}</div>
-            <div style={{ fontSize: 12, color: "#9A6B25", marginTop: 1 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
+            {sense && sense.alert && <div style={{ fontSize: 11, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>Maltempo in avvicinamento</div>}
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
+            <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
         </div>
-        <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, fontSize: 11.5, color: TXT2, lineHeight: 1.4 }}>{AL.speed ? `Fenomeno in avvicinamento a ~${AL.speed} km/h. ` : ""}Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
-          <button onClick={armAlert} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 20, border: "none", background: alertOn ? "#3BA776" : `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-            <NavIcon name={alertOn ? "check" : "bell"} size={15} color="#fff" sw={2} />{alertOn ? "Allerte attive" : "Avvisami"}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ flex: 1, fontSize: 12, color: TXT2, lineHeight: 1.4 }}>{AL.speed ? `Fenomeno in avvicinamento a ~${AL.speed} km/h. ` : ""}Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
+          <button onClick={armAlert} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 14px", borderRadius: 19, border: "none", background: alertOn ? "#2E9E63" : ACCENT, color: alertOn ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+            <NavIcon name={alertOn ? "check" : "bell"} size={15} color={alertOn ? "#fff" : TXT} sw={2.2} />{alertOn ? "Allerte attive" : "Avvisami"}
           </button>
         </div>
       </div>
@@ -1458,22 +1462,22 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       )}
 
       {/* prossime 12 ore */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
-      <div style={{ background: "#fff", borderRadius: 14, padding: "12px 6px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex", overflowX: "auto", gap: 2 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
+      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
         {(wxHours || HOURS).map((x, i) => (
           <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
             <div style={{ fontSize: 11, color: TXT2, fontWeight: 600 }}>{x.h}</div>
             <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: TXT, fontFamily: "'Bricolage Grotesque',sans-serif" }}>{x.t}°</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }}>{x.t}°</div>
           </div>
         ))}
       </div>
 
       {/* sole e luna */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Sole e luna</div>
-      <div style={{ background: "#fff", borderRadius: 14, padding: "12px 8px", boxShadow: `0 2px 10px ${HBLUE}0D`, display: "flex" }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Sole e luna</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
         {SKY.map((s, i) => (
-          <div key={i} style={{ flex: 1, textAlign: "center", borderRight: i < SKY.length - 1 ? `1px solid ${LINE}` : "none" }}>
+          <div key={i} style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", textAlign: "center", padding: "12px 6px" }}>
             {s.kind === "moon" ? <div style={{ fontSize: 26, lineHeight: "30px" }}>{s.time}</div> : <SkyIcon kind={s.kind} />}
             <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif", marginTop: 3 }}>{s.kind === "moon" ? "" : s.time}</div>
             <div style={{ fontSize: 10.5, color: TXT2, marginTop: 1 }}>{s.label}</div>
@@ -1482,12 +1486,12 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       </div>
 
       {/* stato del mare */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Stato del mare</div>
-      <div style={{ background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: `0 2px 10px ${HBLUE}0D` }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Stato del mare</div>
+      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <WaveIcon />
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WaveIcon /></div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: TXT }}>{(wxSea || SEA).state}</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT }}>{(wxSea || SEA).state}</div>
             <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>
               {wxSea
                 ? <>Onda {wxSea.wave} da {wxSea.dir}{wxSea.period ? ` · periodo ${wxSea.period}` : ""}{wxSea.sst ? ` · mare ${wxSea.sst}` : ""}</>
@@ -1500,7 +1504,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
         <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
           {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ height: 6, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? HBLUE : LINE }} />
+              <div style={{ height: 7, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? ACCENT : "#E6EEF6" }} />
               <div style={{ fontSize: 8.5, color: i === (wxSea || SEA).scale - 1 ? HBLUE : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 3 }}>{s}</div>
             </div>
           ))}
@@ -1508,8 +1512,8 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       </div>
 
       {/* come funziona */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
-      <div style={{ background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
+      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
         BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({S.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
         <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
       </div>
