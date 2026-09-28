@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.1";
+const APP_VERSION = "14.2";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -934,20 +934,20 @@ function Header({ title, left, right }) {
 // ─── WEATHER PANEL ────────────────────────────────────────────────────────────
 function WeatherPanel({ commentCount, wx, onOpenChat }) {
   const W = wx || WEATHER;
-  const M = ({ icon, children }) => <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, borderRadius: 12, background: HBLUE, padding: "7px 10px", fontSize: 12, minWidth: 0 }}><WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
+  const M = ({ icon, children }) => <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, borderRadius: 11, background: HBLUE, padding: "5px 9px", fontSize: 11.5, minWidth: 0 }}><WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
   return (
-    <div style={{ background: HBLUE, padding: "0 16px 12px", flexShrink: 0 }}>
-      <div style={{ background: HBLUE2, color: "#fff", borderRadius: 22, padding: "12px 16px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ background: HBLUE, padding: "0 14px 10px", flexShrink: 0 }}>
+      <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "9px 14px 10px", display: "flex", flexDirection: "column", gap: 7 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 50, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingBottom: 3 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
-              <div style={{ fontSize: 11.5, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
+              <div style={{ fontSize: 11, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 40, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 30, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
             <button onClick={onOpenChat} title="Chat pubblica del posto" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 700, background: ACCENT, color: TXT, border: "none", borderRadius: 10, padding: "3px 8px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
           </div>
         </div>
@@ -982,7 +982,7 @@ function RadarBar({ km, setKm }) {
   const idx = kmToIdx(km);
   const pct = (idx / 108) * 100;
   return (
-    <div style={{ background: HBLUE2, padding: "10px 18px 12px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>{/* 14.0b */}
+    <div style={{ background: HBLUE2, padding: "8px 18px 30px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>{/* 14.2: il cursore sta in alto, sotto resta lo spazio del bottone miele */}
       <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
       <input type="range" min={0} max={108} value={idx} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE} ${pct}%, ${HBLUE} 100%)` }} />
       <span style={{ color: "#fff", fontWeight: 800, fontSize: 17, fontFamily: "'Bricolage Grotesque',sans-serif", minWidth: 64, textAlign: "right" }}>{km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`}</span>
