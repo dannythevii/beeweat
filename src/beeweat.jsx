@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.4";
+const APP_VERSION = "14.5";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1518,7 +1518,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 }
 
 // ─── VICINI (mappa radar) ───────────────────────────────────────────────────
-function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, following, onFollow }) {
+function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow }) {
   const [sel, setSel] = useState(null);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 320, h: 320 });
   const svgRef = useRef(null);
@@ -1578,24 +1578,35 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
     return () => { el.removeEventListener("touchstart", onStart); el.removeEventListener("touchmove", onMove); el.removeEventListener("touchend", onEnd); el.removeEventListener("wheel", onWheel); };
   }, []);
 
-  const EMERG = /🌧|⛈|❄|🌨|🌫|🌬/;
-  const [view, setView] = useState("meteo");                                     // Meteo | Eventi: il radar mostra una cosa alla volta
   const SIX_H = 6 * 3600 * 1000;
   const nowMs = Date.now();
   const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
   const nowIso = new Date().toISOString();
   const allEvents = (events || []).filter(e => e.dist <= km && (!e.ends || e.ends >= nowIso));   // niente allerte scadute sul radar
-  const visible = view === "meteo" ? allWeather : [];
-  const evVisible = view === "eventi" ? allEvents : [];
   const R = 150, cx = 160, cy = 160;
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
+  const dirName = b => { const n = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]; return n[Math.round(((b % 360) + 360) % 360 / 45) % 8]; };
+  const agoText = ts => { const m = Math.max(0, Math.round((nowMs - new Date(ts).getTime()) / 60000)); return m < 60 ? `${m} min fa` : `${Math.floor(m / 60)} h fa`; };
+  const zoomIn = () => setVb(v => { const w = Math.max(MINW, v.w / 1.6); const c = { x: v.x + v.w / 2, y: v.y + v.h / 2 }; return { x: c.x - w / 2, y: c.y - w / 2, w, h: w }; });
+  const idx = kmToIdx(km), pct = (idx / 108) * 100;
+  const kmLabel = km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`;
   return (
-    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: 16 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {[["meteo", `Meteo 6h (${allWeather.length})`], ["eventi", `Eventi (${allEvents.length})`]].map(([id, label]) => (
-          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: view === id ? "none" : `1.5px solid ${LINE}`, background: view === id ? `${HBLUE}` : "#fff", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", transition: "background .15s" }}>{label}</button>
-        ))}
+    <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "0 16px 16px" }}>{/* 14.5 */}
+      {/* testata del radar: ultime 6 ore · conteggio · raggio */}
+      <div style={{ margin: "0 -16px 14px", padding: "4px 16px 14px", background: HBLUE, color: "#fff", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>Ultime 6 ore</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 14px", borderRadius: 18, background: HBLUE2, fontSize: 13, fontWeight: 600 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: allWeather.length + allEvents.length ? "#2E9E63" : "#9FB8D6" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span>
+          </div>
+        </div>
+        {setKm && <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
+          <input type="range" min={0} max={108} value={idx} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE2} ${pct}%, ${HBLUE2} 100%)` }} />
+          <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 800, minWidth: 58, textAlign: "right" }}>{kmLabel}</span>
+        </div>}
       </div>
+      {/* disco */}
       <div style={{ position: "relative", background: "#0F2F55", borderRadius: 24, padding: 10, boxShadow: "0 8px 24px rgba(15,47,85,.28)", overflow: "hidden" }}>
         <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", display: "block", touchAction: "none", cursor: zoomed ? "grab" : "default" }}>
           <defs><radialGradient id="bwsweep" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#2F73B8" stopOpacity=".55" /><stop offset="100%" stopColor="#2F73B8" stopOpacity="0" /></radialGradient></defs>
@@ -1606,50 +1617,53 @@ function ViciniScreen({ posts, events, km, onChat, onEvent, onOpenUser, followin
           <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke="#2A5A8F" strokeWidth="1" />
           <text x={cx - 6} y={cy - R + 12} fill="#fff" fontSize="10" fontWeight="700" textAnchor="end" fontFamily="Sora">N</text>
           {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 5} y={cy - R * f + 14} fill="#9FB8D6" fontSize="10.5" fontWeight="600" fontFamily="Sora">{km < 1 ? `${Math.round(km * f * 1000)} m` : `${Math.round(km * f)} km`}</text>)}
-          {/* user center */}
+          {/* io */}
           <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
-          {/* posts */}
-          {visible.map(p => {
+          {/* cieli (ultime 6 ore) */}
+          {allWeather.map(p => {
             const a = (p.bearing - 90) * Math.PI / 180, r = (p.dist / km) * R;
             const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+            const on = sel && sel.id === p.id;
             return (
-              <g key={p.id} onClick={() => setSel(p)} style={{ cursor: "pointer" }}>
-                <circle cx={x} cy={y} r="16" fill="#fff" stroke={HBLUE} strokeWidth="2" />
+              <g key={p.id} onClick={() => setSel(on ? null : p)} style={{ cursor: "pointer" }}>
+                {on && <circle cx={x} cy={y} r="24" fill={ACCENT} opacity=".35" />}
+                <circle cx={x} cy={y} r={on ? 19 : 16} fill={on ? ACCENT : "#fff"} stroke={on ? "#fff" : "#2F73B8"} strokeWidth={on ? 2.5 : 2} />
                 <text x={x} y={y + 5} fontSize="15" textAnchor="middle" style={{ pointerEvents: "none" }}>{p.cond.split(" ")[0]}</text>
               </g>
             );
           })}
-          {/* eventi: cerchio rosso con piccolo filo radiale sulla circonferenza */}
-          {evVisible.map(e => {
+          {/* allerte: bordo corallo */}
+          {allEvents.map(e => {
             const a = (bearingOf(e) - 90) * Math.PI / 180, r = (e.dist / km) * R;
             const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
-            const ux = Math.cos(a), uy = Math.sin(a), rc = 12;
             return (
               <g key={"ev" + e.id} onClick={() => onEvent && onEvent(e)} style={{ cursor: "pointer" }}>
-                <circle cx={x} cy={y} r={rc} fill="#fff" stroke="#E5484D" strokeWidth="2.5" />
-                <line x1={x + ux * rc} y1={y + uy * rc} x2={x + ux * (rc + 8)} y2={y + uy * (rc + 8)} stroke="#E5484D" strokeWidth="2.5" strokeLinecap="round" style={{ pointerEvents: "none" }} />
+                <circle cx={x} cy={y} r="20" fill="#D9482B" opacity=".18" />
+                <circle cx={x} cy={y} r="15" fill="#fff" stroke="#D9482B" strokeWidth="2.5" />
                 <text x={x} y={y + 5} fontSize="13" textAnchor="middle" style={{ pointerEvents: "none" }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</text>
               </g>
             );
           })}
         </svg>
-        {zoomed && <button onClick={() => setVb({ x: 0, y: 0, w: 320, h: 320 })} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.92)", border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif", boxShadow: "0 2px 8px rgba(0,0,0,.12)" }}>Reimposta</button>}
+        <div style={{ position: "absolute", left: 18, bottom: 18, display: "flex", gap: 6 }}>
+          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #2F73B8" }} />cielo</span>
+          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #D9482B" }} />allerta</span>
+        </div>
+        <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} style={{ position: "absolute", right: 18, bottom: 18, width: 36, height: 36, borderRadius: 18, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Sora',sans-serif" }}>{zoomed ? "−" : "+"}</button>
       </div>
-      {/* legenda */}
-      <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 10, fontSize: 11, color: TXT2 }}>
-        {view === "meteo" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: `2px solid ${HBLUE}`, background: "#fff", display: "inline-block" }} /> Maltempo</span>}
-        {view === "eventi" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #E5484D", background: "#fff", display: "inline-block" }} /> Eventi</span>}
-      </div>
-      <div style={{ textAlign: "center", color: TXT2, fontSize: 11, marginTop: 6 }}>Pizzica per zoomare · trascina per spostarti</div>
+      {/* cielo toccato */}
       {sel
-        ? <div ref={selRef} className="fade-up" style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-              <button onClick={() => setSel(null)} style={{ background: "none", border: "none", color: TXT2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", gap: 4 }}><NavIcon name="close" size={13} color={TXT2} sw={2.2} /> Chiudi</button>
+        ? <div ref={selRef} className="fade-up" style={{ marginTop: 12, borderRadius: 20, background: "#fff", padding: 12, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 6px 20px rgba(18,60,107,.10)", border: `2px solid ${ACCENT}` }}>
+            <div onClick={() => onChat && onChat(sel)} style={{ width: 72, height: 72, borderRadius: 14, overflow: "hidden", background: "#dfe8f1", flexShrink: 0, cursor: "pointer" }}><img src={sel.thumb || sel.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span onClick={() => onOpenUser && !sel.mine && onOpenUser(sel)} style={{ fontWeight: 700, fontSize: 15, color: TXT, cursor: onOpenUser && !sel.mine ? "pointer" : "default", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.user}</span>{sel.stars_rank > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em" }}>{"★".repeat(sel.stars_rank)}</span>}</div>
+              <div style={{ fontSize: 12.5, color: TXT }}><b>{sel.cond.replace(/^[^ ]+ /, "")}{sel.temp != null && Number.isFinite(sel.temp) ? ` · ${Math.round(sel.temp)}°` : ""}</b>{sel.dir ? ` · verso ${sel.dir.label}` : (sel.bearing != null ? ` · verso ${dirName(sel.bearing)}` : "")}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{sel.city} · {sel.dist} km · {agoText(sel.ts)}</div>
             </div>
-            <PostCard post={sel} onStar={() => {}} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(sel.user)} onFollow={onFollow} />
+            <button onClick={() => onChat && onChat(sel)} title="Apri il cielo" style={{ width: 40, height: 40, borderRadius: 20, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
           </div>
-        : <div style={{ textAlign: "center", color: TXT2, fontSize: 13, marginTop: 10 }}>Radar delle emergenze: 🔵 maltempo · 🔴 eventi. Nessun segnale = tutto tranquillo nel raggio. 🌤️</div>}
+        : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · pizzica per zoomare</div>}
     </div>
   );
 }
@@ -4866,8 +4880,8 @@ function AppInner() {
     />);
   }
 
-  const showWeather = tab === "feed" || tab === "vicini";
-  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast" || tab === "eventi";
+  const showWeather = tab === "feed";
+  const showRadar = tab === "feed" || tab === "contatti" || tab === "beecast" || tab === "eventi";
   const feedTitle = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <NavIcon name="pin" size={18} color="#fff" sw={2} />
@@ -4926,7 +4940,7 @@ function AppInner() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
-        {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
+        {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
