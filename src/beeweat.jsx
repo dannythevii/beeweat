@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.6";
+const APP_VERSION = "14.7";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -721,8 +721,8 @@ const G = `
   input, textarea, select { font-family: 'Sora', sans-serif; }
   input::placeholder, textarea::placeholder { color: ${TXT2}; }
   input[type=range] { -webkit-appearance:none; appearance:none; height:5px; border-radius:5px; outline:none; cursor:pointer; }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
-  input[type=range]::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:9px; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
+  input[type=range]::-moz-range-thumb { width:22px; height:22px; border-radius:8px; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
 `;
 
 // ─── INFORMATIVA PRIVACY ──────────────────────────────────────────────────────
@@ -1583,6 +1583,8 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
   const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
   const nowIso = new Date().toISOString();
   const allEvents = (events || []).filter(e => e.dist <= km && (!e.ends || e.ends >= nowIso));   // niente allerte scadute sul radar
+  const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
+  const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
   const R = 150, cx = 160, cy = 160;
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
   const dirName = b => { const n = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]; return n[Math.round(((b % 360) + 360) % 360 / 45) % 8]; };
@@ -1599,6 +1601,11 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 14px", borderRadius: 18, background: HBLUE2, fontSize: 13, fontWeight: 600 }}>
             <span style={{ width: 8, height: 8, borderRadius: 4, background: allWeather.length + allEvents.length ? "#2E9E63" : "#9FB8D6" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span>
           </div>
+        </div>
+        <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
+          {[["meteo", `Meteo · ${allWeather.length}`, "beecast"], ["eventi", `Eventi · ${allEvents.length}`, "eventi"]].map(([id, label, ic]) => (
+            <button key={id} onClick={() => { setView(id); setSel(null); }} style={{ flex: 1, height: 36, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
+          ))}
         </div>
         {setKm && <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
@@ -1621,7 +1628,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
           {/* cieli (ultime 6 ore) */}
-          {allWeather.map(p => {
+          {showWx.map(p => {
             const a = (p.bearing - 90) * Math.PI / 180, r = (p.dist / km) * R;
             const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
             const on = sel && sel.id === p.id;
@@ -1634,7 +1641,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
             );
           })}
           {/* allerte: bordo corallo */}
-          {allEvents.map(e => {
+          {showEv.map(e => {
             const a = (bearingOf(e) - 90) * Math.PI / 180, r = (e.dist / km) * R;
             const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
             return (
