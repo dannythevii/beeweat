@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.0";
+const APP_VERSION = "14.1";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -992,13 +992,14 @@ function RadarBar({ km, setKm }) {
 
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
 function BottomNav({ tab, setTab, onPlus }) {
+  // 14.1: cinque voci fisse. Al centro il bottone miele è il Feed; dentro il Feed diventa la fotocamera.
   const tabs = [
     { id: "vicini", icon: "vicini", label: "Radar" },
     { id: "beecast", icon: "beecast", label: "BeeCast" },
-    { id: "feed", icon: "feed", label: "Feed" },
     { id: "eventi", icon: "eventi", label: "Eventi" },
     { id: "contatti", icon: "contatti", label: "BeeWorld" },
   ];
+  const onFeed = tab === "feed";
   const Tab = t => {
     const a = tab === t.id;
     return (
@@ -1011,9 +1012,12 @@ function BottomNav({ tab, setTab, onPlus }) {
   return (
     <div style={{ display: "flex", alignItems: "center", background: NAV, minHeight: 66, padding: "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0 }}>
       {tabs.slice(0, 2).map(Tab)}
-      {onPlus
-        ? <button onClick={onPlus} title="Nuovo cielo" style={{ width: 62, height: 62, marginTop: -34, borderRadius: "50%", border: "none", background: ACCENT, color: TXT, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, boxShadow: `0 8px 18px rgba(255,198,30,.45), 0 0 0 5px ${NAV}` }}><NavIcon name="camera" size={28} color={TXT} sw={2.3} /></button>
-        : null}
+      <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+        <span style={{ width: 58, height: 58, marginTop: -32, borderRadius: "50%", background: ACCENT, color: TXT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 8px 18px rgba(255,198,30,.45), 0 0 0 5px ${NAV}` }}>
+          <NavIcon name={onFeed && onPlus ? "camera" : "feed"} size={27} color={TXT} sw={2.3} />
+        </span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: NAVACT }}>{onFeed && onPlus ? "Scatta" : "Feed"}</span>
+      </button>
       {tabs.slice(2).map(Tab)}
     </div>
   );
@@ -1649,7 +1653,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
       <div style={{ display: "flex", gap: 4, marginBottom: 10, padding: 4, borderRadius: 16, background: "#DDE7F1" }}>{/* 14.0b */}
         {[["meteo", "Eventi meteo"], ["social", "Eventi social"]].map(([id, label]) => (
-          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", boxShadow: view === id ? "0 2px 8px rgba(18,60,107,.12)" : "none", color: view === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", boxShadow: view === id ? "0 2px 8px rgba(18,60,107,.12)" : "none", color: view === id ? HBLUE : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
