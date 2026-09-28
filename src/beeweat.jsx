@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.2";
+const APP_VERSION = "14.3";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1059,7 +1059,23 @@ function ReportModal({ post, onSubmit, onClose }) {
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
-function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLabel }) {
+function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLabel, sheet }) {
+  if (sheet) return (   // 14.3: foglio dal basso (invito posizione allo scatto)
+    <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.55)", display: "flex", alignItems: "flex-end" }}>
+      <div className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "28px 28px 0 0", padding: "14px 22px calc(28px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -10px 30px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+        <div style={{ width: 44, height: 5, borderRadius: 3, background: LINE, alignSelf: "center" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={28} color={HBLUE} sw={2.2} /></div>
+          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 21, fontWeight: 700, color: TXT, lineHeight: 1.15 }}>{title}</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13.5, lineHeight: 1.5, color: TXT }}>
+          {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: HBLUE, fontWeight: 700, minWidth: 12 }}>{l[0]}</span><span>{l[1]}</span></div>)}
+        </div>
+        <button onClick={onAccept} style={{ height: 52, borderRadius: 16, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{cta}</button>
+        {onLater && <button onClick={onLater} style={{ height: 44, borderRadius: 16, border: `1.5px solid ${LINE}`, background: "#fff", color: TXT, fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>{laterLabel || "Più tardi"}</button>}
+      </div>
+    </div>
+  );
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
       <div className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
@@ -1651,11 +1667,11 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
   const avaOf = name => (PEOPLE.find(p => p.name === name) || {}).ava || null;
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
-      <div style={{ display: "flex", gap: 4, marginBottom: 10, padding: 4, borderRadius: 16, background: "#DDE7F1" }}>{/* 14.0b */}
-        {[["meteo", "Eventi meteo"], ["social", "Eventi social"]].map(([id, label]) => (
-          <button key={id} onClick={() => setView(id)} style={{ flex: 1, padding: "9px 10px", borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", boxShadow: view === id ? "0 2px 8px rgba(18,60,107,.12)" : "none", color: view === id ? HBLUE : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+      <div style={{ margin: "-14px -14px 12px", padding: "0 16px 14px", background: HBLUE }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>{/* 14.3: il selettore vive nella testata */}
+        {[["meteo", "Meteo", "beecast"], ["social", "Social", "groups"]].map(([id, label, ic]) => (
+          <button key={id} onClick={() => setView(id)} style={{ flex: 1, height: 38, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
         ))}
-      </div>
+      </div></div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {view === "social" ? "social" : "meteo"} {inf ? "in tutto il mondo" : "nella zona"}</span>
         <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
@@ -2275,10 +2291,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   return (
     <>
       <Header title="Nuovo cielo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
-      {geoAsk && <PermissionInvite emoji="📍" title="Dove mettiamo la tua foto?"
+      {geoAsk && <PermissionInvite sheet emoji="📍" title="Dove mettiamo la tua foto?"
         lines={[["1", "Con la posizione del telefono finisce sul punto giusto della mappa."],
                 ["2", "Beeweat vede solo la zona (circa 1 km), mai la tua casa."]]}
-        cta="Attiva la posizione 📍" onAccept={() => { setGeoAsk(false); onAskGeo && onAskGeo(); }}
+        cta="Attiva la posizione" onAccept={() => { setGeoAsk(false); onAskGeo && onAskGeo(); }}
         onLater={() => { setGeoAsk(false); onCityOnly && onCityOnly(); }} laterLabel="Usa solo la mia città" />}
       {camInvite && <PermissionInvite emoji="📸" title="Apri gli occhi dell'alveare"
         lines={[["☁️", "Ogni cielo che fotografi diventa meteo vero per tutti — la nuvola che vedi tu, nessun satellite la vede così."],
@@ -2356,11 +2372,14 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
   const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
   const stars = mine.reduce((s, p) => s + p.stars, 0);
   const [editing, setEditing] = useState(false);
+  const [showAll, setShowAll] = useState(false);   // 14.3: lista completa dei cieli sotto la griglia
   return (
     <>
-      <Header title="Profilo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
-        <div style={{ background: `linear-gradient(180deg, ${HBLUE} 0%, #2F73B8 55%, #9CCBF0 100%)`, height: 110 }} />{/* 14.0b */}
+        <div style={{ position: "relative", background: `linear-gradient(180deg, ${HBLUE} 0%, #2F73B8 55%, #9CCBF0 100%)`, height: 150, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "content-box" }}>{/* 14.3: copertina con i tasti */}
+          <button onClick={onBack} title="Indietro" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", left: 16, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={24} color="#fff" /></button>
+          <button onClick={onOpenNotif} title="Impostazioni" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", right: 16, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="gear" size={21} color="#fff" sw={1.9} /></button>
+        </div>
         <div style={{ padding: "0 20px", marginTop: -46 }}>
           <button onClick={() => setEditing(true)} style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
             <div style={{ width: 92, height: 92, borderRadius: "50%", background: "#fff", border: `4px solid ${BODY}`, boxShadow: `0 0 0 3px ${ACCENT}, 0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -2368,23 +2387,36 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <div style={{ position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: "50%", background: HBLUE, border: "2.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={15} color="#fff" sw={2} /></div>
           </button>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8 }}>{user.name}
-            {onRename && <button onClick={onRename} title="Modifica nome" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{user.name}
+              {isAdmin && <span style={{ height: 20, padding: "0 8px", borderRadius: 10, background: HBLUE + "12", color: HBLUE, fontSize: 10, fontWeight: 700, fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
+            </div>
+            {onRename && <button onClick={onRename} title="Modifica nome" style={{ height: 38, padding: "0 14px", borderRadius: 19, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
           </div>
-          {beeStars(nMine) > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 5, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "3px 9px", fontSize: 12, fontWeight: 700 }}>{"⭐".repeat(beeStars(nMine))} {beeRank(nMine)}</div>}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4 }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4, flexWrap: "wrap" }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
+            {beeStars(nMine) > 0 && <><span style={{ color: "#B8860B", letterSpacing: ".04em", fontSize: 12, marginLeft: 6 }}>{"★".repeat(beeStars(nMine))}</span><span>{beeRank(nMine)}</span></>}
             {onRenameCity && <button onClick={onRenameCity} title="Modifica città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={13} color={HBLUE} sw={1.9} /></button>}
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, margin: "16px 16px 0" }}>
-          {[{ l: "cieli", v: nMine }, { l: "stelle", v: stars }, { l: "giorni", v: 7 }].map((s, i) => (
+          {[{ l: "cieli", v: nMine }, { l: "stelle", v: stars }, { l: "seguaci", v: (followersList || []).length }].map((s, i) => (
             <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, boxShadow: "0 4px 14px rgba(18,60,107,.08)" }}>
               <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: HBLUE }}>{s.v}</div>
               <div style={{ fontSize: 11.5, color: TXT2, fontWeight: 500 }}>{s.l}</div>
             </div>
           ))}
         </div>
-        <div style={{ padding: "14px 16px 0" }}>
+        <div style={{ padding: "14px 16px 0" }}>{/* 14.3: la griglia dei cieli */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
+            {onArchive && <button onClick={onArchive} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
+          </div>
+          {mine.length === 0
+            ? <div style={{ background: "#fff", borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
+            : <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginBottom: 12 }}>
+                {mine.slice(0, mine.length > 8 ? 7 : 8).map(p => <div key={p.id} onClick={() => onOpenPhoto && onOpenPhoto(p)} style={{ aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>)}
+                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: HBLUE + "12", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
+              </div>}
           <div style={{ display: "flex", background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
             {[["Seguiti", followingList], ["Follower", followersList]].map(([label, list], i) => (
               <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? HBLUE + "0E" : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
@@ -2409,7 +2441,8 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
                 ))}
             </div>
           )}
-          <button onClick={onOpenNotif} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+          <div style={{ background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden" }}>{/* 14.3: impostazioni in una card */}
+          <button onClick={onOpenNotif} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="gear" size={21} color={HBLUE} sw={1.8} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Configurazione</div>
@@ -2417,7 +2450,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
-          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
+          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: HBLUE, letterSpacing: "-1px" }}>✓✓</div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Conferma di lettura</div>
@@ -2427,8 +2460,8 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
               <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
-          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} style={{ width: "100%", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📍</div>
+          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={HBLUE} sw={2} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · i cieli vanno sul punto giusto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
@@ -2437,6 +2470,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
               <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
+          </div>
           {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2C7A57", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
           {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: "#fff", border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
@@ -2450,10 +2484,10 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
           <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
-        <div style={{ padding: "18px 16px 20px" }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>I miei post</div>
+        {showAll && <div style={{ padding: "18px 16px 20px" }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: TXT, marginBottom: 12 }}>Tutti i miei cieli</div>
           {mine.length === 0 ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post ancora — scatta il tuo meteo!</div> : mine.map(p => <PostCard key={p.id} post={p} onStar={() => {}} canDelete onDelete={onDelete} onEdit={onEdit} onOpenPhoto={onOpenPhoto} />)}
-        </div>
+        </div>}
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
     </>
@@ -2560,11 +2594,11 @@ function SocialMap({ events, me, onPick }) {
       const map = mapRef.current;
       if (map._bwLayer) map.removeLayer(map._bwLayer);
       const layer = L.layerGroup().addTo(map); map._bwLayer = layer;
-      if (me) L.circleMarker([me.lat, me.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#235C9C", fillOpacity: 1 }).addTo(layer).bindTooltip("Tu");
+      if (me) { L.circleMarker([me.lat, me.lng], { radius: 14, color: "#123C6B", weight: 0, fillColor: "#123C6B", fillOpacity: .18 }).addTo(layer); L.circleMarker([me.lat, me.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#123C6B", fillOpacity: 1 }).addTo(layer).bindTooltip("Tu"); }
       const pts = [];
       events.forEach(e => {
         if (e.lat == null) return;
-        const icon = L.divIcon({ className: "", html: `<div style="width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid #235C9C;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 8px rgba(0,0,0,.25)">${(e.cat || "🎉").split(" ")[0]}</div>`, iconSize: [34, 34], iconAnchor: [17, 17] });
+        const icon = L.divIcon({ className: "", html: `<div style="width:42px;height:42px;border-radius:50%;background:#fff;border:3px solid #123C6B;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 4px 10px rgba(0,0,0,.22)">${(e.cat || "🎉").split(" ")[0]}</div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
         L.marker([e.lat, e.lng], { icon }).addTo(layer).on("click", () => onPick && onPick(e)).bindTooltip(e.title);
         pts.push([e.lat, e.lng]);
       });
