@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.3";
+const APP_VERSION = "14.4";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1678,31 +1678,27 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
       </div>
       {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
       {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || e.user === userName || (myUid && e.uid === myUid))} onEdit={onEditEnds} /> : (
-        <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", transition: "box-shadow .3s" }}>
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
-              {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
-              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
+        <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: e.id === focusId ? `2px solid ${ACCENT}` : "none", cursor: "pointer", transition: "box-shadow .3s" }}>{/* 14.4 */}
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: sevColor[e.sev] || HBLUE, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, flexShrink: 0 }}>
+              <div style={{ fontSize: 28, lineHeight: 1 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".08em" }}>{(e.sev || "").toUpperCase()}</div>
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
-            {e.img && <button onClick={ev => { ev.stopPropagation(); onOpenPhoto && onOpenPhoto({ img: e.img, caption: `${e.title}${e.place ? " · " + e.place : ""}` }); }} title="Apri la foto" style={{ padding: 0, border: `2px solid ${ACCENT}`, borderRadius: 10, overflow: "hidden", background: "#000", cursor: "pointer", width: 52, height: 52, flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,.2)" }}>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev] || HBLUE, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat ? e.cat.replace(/^[^ ]+ /, "") : "Segnalazione meteo"}</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
+              <div style={{ fontSize: 12.5, color: TXT2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
+            </div>
+            {e.img && <button onClick={ev => { ev.stopPropagation(); onOpenPhoto && onOpenPhoto({ img: e.img, caption: `${e.title}${e.place ? " · " + e.place : ""}` }); }} title="Apri la foto" style={{ padding: 0, border: "none", borderRadius: 14, overflow: "hidden", background: "#000", cursor: "pointer", width: 64, height: 84, flexShrink: 0 }}>
               <img src={e.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             </button>}
-            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           </div>
-          {/* terzo rigo: localizzazione (tocca per la mappa) */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "9px 10px", background: HBLUE + "0E", borderRadius: 10 }}>
-            <NavIcon name="pin" size={16} color={HBLUE} sw={2} />
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: HBLUE }}>{e.place}</span>
-            <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600 }}>Vedi sulla mappa</span>
-            <NavIcon name="back" size={14} color={HBLUE} sw={2.4} />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}` }}>
-            <UserAvatar src={e.ava || avaOf(e.user)} size={28} />
-            <span style={{ fontSize: 12, color: TXT2 }}>Segnalato da</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: HBLUE }}>{e.user}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+            <UserAvatar src={e.ava || avaOf(e.user)} size={22} />
+            <span style={{ flex: 1, fontSize: 12, color: TXT2 }}>segnalato da <b style={{ color: TXT }}>{e.user}</b></span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: HBLUE }}>Vedi sulla mappa</span>
+            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: HBLUE + "12", border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
           </div>
         </div>
       ))}
