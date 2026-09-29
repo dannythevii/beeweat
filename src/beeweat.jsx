@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.10";
+const APP_VERSION = "14.11";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1354,6 +1354,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
 function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed }) {
+  const RAW = sense && sense.raw ? sense.raw : null;   // 14.11
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
     ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
@@ -1421,14 +1422,37 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       {/* riquadro principale: dentro la testata blu */}
       <div style={{ margin: "0 -16px 0", padding: "4px 16px 14px", background: HBLUE }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 10 }}>Previsione collaborativa · {km} km</div>
-        <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <NavIcon name="beecast" size={20} color={ACCENT} sw={2.2} />
-            <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18 }}>BeeCast</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, background: HBLUE, borderRadius: 12, padding: "4px 10px", fontWeight: 700, color: "#B9CCE3" }}>{S.conf}</span>
+        <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>{/* 14.11: schema a numeri */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{RAW ? (RAW.incoming ? "🌧️" : RAW.domCond.split(" ")[0]) : "🐝"}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min` : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
+            </div>
+            <span style={{ fontSize: 11, background: RAW ? (RAW.conf === "alta" ? "#2E9E63" : RAW.conf === "media" ? ACCENT : HBLUE) : HBLUE, borderRadius: 12, padding: "5px 10px", fontWeight: 700, color: RAW && RAW.conf === "media" ? TXT : "#fff", flexShrink: 0, textTransform: "capitalize" }}>{RAW ? RAW.conf : "—"}</span>
           </div>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 19, fontWeight: 700, lineHeight: 1.25 }}>{S.text}</div>
-          <div style={{ fontSize: 12.5, color: "#D6E4F3", lineHeight: 1.5 }}>{S.why}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
+            {[
+              { v: RAW ? RAW.count : 0, l: "foto · 3 h" },
+              { v: RAW ? `${RAW.share}%` : "—", l: "concordi" },
+              { v: RAW && RAW.model ? (RAW.agree ? "✓" : "✗") : "—", l: RAW && RAW.model ? (RAW.agree ? "modello ok" : "modello corretto") : "modello" },
+            ].map((t, i) => (
+              <div key={i} style={{ borderRadius: 12, background: HBLUE, padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, color: i === 2 && RAW && RAW.model ? (RAW.agree ? "#7FE0A8" : ACCENT) : "#fff", lineHeight: 1.1 }}>{t.v}</div>
+                <div style={{ fontSize: 10.5, color: "#B9CCE3", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
+              </div>
+            ))}
+          </div>
+          {RAW && RAW.incoming && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
+            {[{ v: RAW.incoming.n, l: "foto maltempo" }, { v: RAW.incoming.dir, l: "sopravento" }, { v: `${RAW.incoming.speed}`, l: "km/h vento" }].map((t, i) => (
+              <div key={i} style={{ borderRadius: 12, background: "#D9482B", padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>{t.v}</div>
+                <div style={{ fontSize: 10.5, color: "#FBD5CC", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
+              </div>
+            ))}
+          </div>}
+          {RAW && RAW.model && <div style={{ fontSize: 11.5, color: "#B9CCE3" }}>Modello: {RAW.model}{RAW.agree ? " · confermato dalle foto" : " · le foto raccontano altro"}</div>}
+          {!RAW && <div style={{ fontSize: 12, color: "#D6E4F3", lineHeight: 1.45 }}>Nessuna foto nelle ultime 3 ore entro {km} km: appena qualcuno pubblica, i numeri si accendono.</div>}
         </div>
       </div>
 
@@ -3793,6 +3817,7 @@ function AppInner() {
       : `${beeSense.domCond} — lo dice la community (${beeSense.share}%)`,
     conf: "Affidabilità " + beeSense.conf,
     photos: beeSense.count,
+    raw: { ...beeSense, model: wx ? wx.condition : null },   // 14.11: lo schema a numeri
     why: `${beeSense.count} foto della community nelle ultime 3 ore entro ${km} km. Condizione prevalente: ${beeSense.domCond} (${beeSense.share}%). `
       + (wx ? (beeSense.agree ? `Il modello (${wx.condition}) è confermato dalle osservazioni reali.` : `Il modello indica ${wx.condition}: le osservazioni raccontano altro e lo correggono.`) : "")
       + (beeSense.incoming ? ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.` : ""),
