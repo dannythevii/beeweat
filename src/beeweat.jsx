@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.13";
+const APP_VERSION = "14.14";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2456,7 +2456,12 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginBottom: 12 }}>
-                {mine.slice(0, mine.length > 8 ? 7 : 8).map(p => <div key={p.id} onClick={() => onOpenPhoto && onOpenPhoto(p)} style={{ aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>)}
+                {mine.slice(0, mine.length > 8 ? 7 : 8).map(p => { const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || ""); return (
+                  <div key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer" }}>{/* 14.14: data e ora dello scatto */}
+                    <img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    {when && <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 5px 4px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.78) 100%)", color: "#fff", fontSize: 9.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", whiteSpace: "nowrap", letterSpacing: ".01em" }}>{when}</div>}
+                  </div>
+                ); })}
                 {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: HBLUE + "12", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
               </div>}
           <div style={{ display: "flex", background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
