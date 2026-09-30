@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.14";
+const APP_VERSION = "14.15";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2511,7 +2511,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={HBLUE} sw={2} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · i cieli vanno sul punto giusto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · il GPS parte allo scatto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
             </div>
             <div style={{ width: 44, height: 26, borderRadius: 13, background: geoPrecise ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
               <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
@@ -3739,8 +3739,12 @@ function AppInner() {
   const acceptGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); localStorage.removeItem("bw_geo_off"); } catch (_) {} setGeoOff(false); setGeoInvite(false); setGeoGo(true); setGeoTick(t => t + 1); };
   const laterGeoInvite = () => { try { localStorage.setItem("bw_geo_invited", "1"); } catch (_) {} setGeoInvite(false); };   // "solo la mia città": nessun GPS, nessuna insistenza
   // Interruttore nel Profilo: posizione precisa (GPS) sì/no
+  const [geoOk, setGeoOk] = useState(() => { try { return localStorage.getItem("bw_geo_ok") === "1"; } catch (_) { return false; } });   // 14.15: il sì dato in passato
   const setGeoPrecise = on => {
-    if (on) { acceptGeoInvite(); return; }
+    if (on) {
+      try { localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}   // 14.15: la scelta si ricorda subito, anche prima del primo fix
+      setGeoOk(true); acceptGeoInvite(); return;
+    }
     try { localStorage.setItem("bw_geo_off", "1"); } catch (_) {}
     setGeoOff(true); setGeoGo(false); setGeoReal(false);
   };
@@ -3765,6 +3769,7 @@ function AppInner() {
         const g = { lat: p.coords.latitude, lng: p.coords.longitude, __real: true };
         setGeo(g); setGeoReal(true);
         try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
+        setGeoOk(true);
       },
       () => {}, { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 });
     return () => navigator.geolocation.clearWatch(id);
@@ -4844,7 +4849,7 @@ function AppInner() {
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={geoGo && !geoOff} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
