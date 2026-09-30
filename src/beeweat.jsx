@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.11";
+const APP_VERSION = "14.12";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1741,7 +1741,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
             <UserAvatar src={e.ava || avaOf(e.user)} size={22} />
             <span style={{ flex: 1, fontSize: 12, color: TXT2 }}>segnalato da <b style={{ color: TXT }}>{e.user}</b></span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: HBLUE }}>Vedi sulla mappa</span>
+            <ShareBtn e={e} />
             {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: HBLUE + "12", border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
           </div>
         </div>
@@ -2653,6 +2653,32 @@ function SocialMap({ events, me, onPick }) {
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
   return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12, position: "relative", zIndex: 0, isolation: "isolate" }} />;
 }
+// ── Condividi un evento: foglio nativo (WhatsApp, Messaggi…) o, in mancanza, copia negli appunti (14.12) ──
+const shareEvent = async e => {
+  const social = (e.kind || "meteo") === "social";
+  const when = social ? (e.startsAt ? fmtWhen(e.startsAt) : "") : (e.time || "") + (e.ends ? ` · fino al ${String(e.ends).split("-").reverse().join("/")}` : "");
+  const lines = [
+    `${social ? "🎉" : (e.type || "⛈️")} ${e.title}`,
+    when ? `🗓️ ${when}` : null,
+    (e.address || e.place) ? `📍 ${e.address || e.place}` : null,
+    e.description ? e.description : null,
+    e.link ? e.link : null,
+    e.contact ? `Contatto: ${e.contact}` : null,
+    "— su Beeweat 🐝 " + (typeof location !== "undefined" ? location.origin : "https://beeweat.vercel.app"),
+  ].filter(Boolean);
+  const text = lines.join("\n");
+  try {
+    if (navigator.share) { await navigator.share({ title: e.title, text }); return "shared"; }
+  } catch (err) { if (err && err.name === "AbortError") return "cancel"; }
+  try { await navigator.clipboard.writeText(text); alert("Testo dell'evento copiato: incollalo dove vuoi 📋"); return "copied"; } catch (_) {}
+  try { window.prompt("Copia il testo dell'evento:", text); } catch (_) {}
+  return "prompt";
+};
+const ShareBtn = ({ e, dark }) => (
+  <button onClick={ev => { ev.stopPropagation(); shareEvent(e); }} title="Condividi l'evento" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 36, padding: "0 14px", borderRadius: 18, border: "none", background: dark ? HBLUE : ACCENT, color: dark ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
+    <NavIcon name="send" size={15} color={dark ? "#fff" : TXT} sw={2.2} />Condividi
+  </button>
+);
 const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
 function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
   const [more, setMore] = useState(false);
@@ -2681,7 +2707,7 @@ function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
         {e.link && <a href={/^https?:/i.test(e.link) ? e.link : "https://" + e.link} target="_blank" rel="noopener" style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>🔗 Info</a>}
         {e.contact && <a href={/@/.test(e.contact) ? "mailto:" + e.contact : "tel:" + e.contact.replace(/\s+/g, "")} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>📞 Contatto</a>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 12.5, color: TXT2 }}><UserAvatar src={e.ava} size={26} /> Organizzato da <b style={{ color: HBLUE }}>{e.user}</b></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 12.5, color: TXT2 }}><UserAvatar src={e.ava} size={26} /><span style={{ flex: 1, minWidth: 0 }}>Organizzato da <b style={{ color: HBLUE }}>{e.user}</b></span><ShareBtn e={e} /></div>
     </div>
   );
 }
