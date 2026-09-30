@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.12";
+const APP_VERSION = "14.13";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2667,9 +2667,21 @@ const shareEvent = async e => {
     "— su Beeweat 🐝 " + (typeof location !== "undefined" ? location.origin : "https://beeweat.vercel.app"),
   ].filter(Boolean);
   const text = lines.join("\n");
+  // 14.13: la foto intera dell'evento viaggia insieme al testo (dove il telefono lo permette)
+  let files = [];
+  if (e.img) {
+    try {
+      const blob = await (await fetch(e.img)).blob();
+      const f = new File([blob], `beeweat_evento_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) files = [f];
+    } catch (_) {}
+  }
   try {
-    if (navigator.share) { await navigator.share({ title: e.title, text }); return "shared"; }
-  } catch (err) { if (err && err.name === "AbortError") return "cancel"; }
+    if (navigator.share) { await navigator.share(files.length ? { title: e.title, text, files } : { title: e.title, text }); return "shared"; }
+  } catch (err) {
+    if (err && err.name === "AbortError") return "cancel";
+    if (files.length) { try { await navigator.share({ title: e.title, text }); return "shared"; } catch (e2) { if (e2 && e2.name === "AbortError") return "cancel"; } }   // senza foto, se il foglio rifiuta i file
+  }
   try { await navigator.clipboard.writeText(text); alert("Testo dell'evento copiato: incollalo dove vuoi 📋"); return "copied"; } catch (_) {}
   try { window.prompt("Copia il testo dell'evento:", text); } catch (_) {}
   return "prompt";
