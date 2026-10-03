@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.15";
+const APP_VERSION = "14.16";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3767,7 +3767,9 @@ function AppInner() {
     const id = navigator.geolocation.watchPosition(
       p => {
         const g = { lat: p.coords.latitude, lng: p.coords.longitude, __real: true };
-        setGeo(g); setGeoReal(true);
+        // 14.16: un nuovo oggetto solo se ci si è spostati di più di ~50 m: altrimenti ogni fix rilanciava feed e meteo
+        setGeo(cur => (cur && cur.__real && Math.abs(cur.lat - g.lat) < 0.0005 && Math.abs(cur.lng - g.lng) < 0.0005) ? cur : g);
+        setGeoReal(true);
         try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
         setGeoOk(true);
       },
@@ -3919,8 +3921,14 @@ function AppInner() {
   const bearingTo = (a, b) => (Math.atan2(b.lng - a.lng, b.lat - a.lat) * 180 / Math.PI + 360) % 360;
   // Feed reale dal database (quando Supabase è collegato)
   const [feedReady, setFeedReady] = useState(false);
+  const geoRef = useRef(geo); geoRef.current = geo;                 // 14.16: la posizione si legge da qui, senza ricreare loadFeed
+  const feedKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : "";   // 14.16: il feed cambia solo se cambia la zona (~1 km)
+  const feedBusy = useRef(false); const feedAgain = useRef(false);   // 14.16: una ricarica alla volta, al massimo una in coda
   const loadFeed = useCallback(async () => {
     if (!sb?.isConfigured || !user) return;
+    if (feedBusy.current) { feedAgain.current = true; return; }
+    feedBusy.current = true;
+    const geo = geoRef.current;
     try {
       const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
       const { data: { user: au } } = await sb.supabase.auth.getUser();
@@ -3941,8 +3949,9 @@ function AppInner() {
           img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
     } catch (e) { console.warn("feed:", e?.message || e); }
-    finally { setFeedReady(true); }
-  }, [sb, user, geo]);
+    finally { setFeedReady(true); feedBusy.current = false; if (feedAgain.current) { feedAgain.current = false; setTimeout(loadFeedRef.current, 400); } }
+  }, [sb, user, feedKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const loadFeedRef = useRef(loadFeed); loadFeedRef.current = loadFeed;
   // niente attese infinite: dopo il login, al massimo 5s di caricamento
   useEffect(() => {
     if (!user) { setFeedReady(false); return; }
@@ -4501,17 +4510,17 @@ function AppInner() {
   // Aggiornamento automatico del feed: al ritorno sull'app, ogni 60s e in tempo reale
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
-    const onVis = () => { if (!document.hidden) { loadFeed(); setSocialTick(t => t + 1); } };
+    const onVis = () => { if (!document.hidden) { loadFeedRef.current(); setSocialTick(t => t + 1); } };
     document.addEventListener("visibilitychange", onVis);
-    const iv = setInterval(() => { loadFeed(); setSocialTick(t => t + 1); }, 60000);
+    const iv = setInterval(() => { if (document.hidden) return; loadFeedRef.current(); setSocialTick(t => t + 1); }, 60000);   // 14.16: niente ricariche in background
     let ch = null;
     try {
       ch = sb.supabase.channel("posts-feed")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, () => loadFeed())
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, () => loadFeedRef.current())
         .subscribe();
     } catch (_) {}
     return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(iv); try { if (ch) sb.supabase.removeChannel(ch); } catch (_) {} };
-  }, [sb, user, loadFeed]);
+  }, [sb, user]);   // 14.16: una sola sottoscrizione per sessione (prima si rifaceva a ogni fix GPS)
 
   const totalComments = useMemo(() => posts.reduce((s, p) => s + p.stars, 0), [posts]);
 
