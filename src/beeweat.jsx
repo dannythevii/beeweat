@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.26";
+const APP_VERSION = "14.27";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1833,19 +1833,29 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
           {/* cieli (ultime 6 ore) */}
           {wxGroups.map(g => {
-            const { x, y } = g; const n = g.items.length;
-            const on = sel && g.items.some(p => p.id === sel.id);
-            const p = on ? sel : g.items[0];
+            // 14.27: stesso punto → spille a ventaglio (anello di raggio crescente col numero; oltre 8 un secondo anello)
+            const n = g.items.length;
+            const place = i => {
+              if (n === 1) return { x: g.x, y: g.y, r: 16 };
+              const ring = i < 8 ? 0 : 1, k = ring === 0 ? Math.min(n, 8) : n - 8, j = ring === 0 ? i : i - 8;
+              const rad = ring === 0 ? (n <= 3 ? 18 : n <= 5 ? 22 : 27) : 50;
+              const a = -Math.PI / 2 + (2 * Math.PI * j) / k;
+              return { x: g.x + rad * Math.cos(a), y: g.y + rad * Math.sin(a), r: n <= 3 ? 15 : 13 };
+            };
             return (
-              <g key={g.items[0].id} onClick={() => setSel(on ? null : g.items[0])} style={{ cursor: "pointer" }}>
-                {on && <circle cx={x} cy={y} r="24" fill={ACCENT} opacity=".35" />}
-                {n > 1 && <circle cx={x + 3} cy={y + 3} r={on ? 19 : 16} fill="#DCE6F1" stroke="#2F73B8" strokeWidth="1.5" />}{/* seconda "carta" sotto: si capisce che sono tanti */}
-                <circle cx={x} cy={y} r={on ? 19 : 16} fill={on ? ACCENT : "#fff"} stroke={on ? "#fff" : "#2F73B8"} strokeWidth={on ? 2.5 : 2} />
-                <text x={x} y={y + 5} fontSize="15" textAnchor="middle" style={{ pointerEvents: "none" }}>{p.cond.split(" ")[0]}</text>
-                {n > 1 && <g style={{ pointerEvents: "none" }}>
-                  <rect x={x + 8} y={y - 24} width={n > 9 ? 30 : 24} height="17" rx="8.5" fill={HBLUE} stroke="#fff" strokeWidth="1.5" />
-                  <text x={x + 8 + (n > 9 ? 15 : 12)} y={y - 11.5} fontSize="11" fontWeight="700" fill="#fff" textAnchor="middle" fontFamily="Sora">×{n}</text>
-                </g>}
+              <g key={g.items[0].id}>
+                {n > 1 && <circle cx={g.x} cy={g.y} r={n <= 3 ? 18 : n <= 5 ? 22 : 27} fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="1" strokeDasharray="3 3" />}
+                {g.items.map((p, i) => {
+                  const { x, y, r } = place(i);
+                  const on = sel && sel.id === p.id;
+                  return (
+                    <g key={p.id} onClick={() => setSel(on ? null : p)} style={{ cursor: "pointer" }}>
+                      {on && <circle cx={x} cy={y} r={r + 8} fill={ACCENT} opacity=".35" />}
+                      <circle cx={x} cy={y} r={on ? r + 3 : r} fill={on ? ACCENT : "#fff"} stroke={on ? "#fff" : "#2F73B8"} strokeWidth={on ? 2.5 : 2} />
+                      <text x={x} y={y + (r >= 15 ? 5 : 4.5)} fontSize={r >= 15 ? 15 : 13} textAnchor="middle" style={{ pointerEvents: "none" }}>{p.cond.split(" ")[0]}</text>
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
@@ -1884,7 +1894,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
             </div>}
             <button onClick={e => { e.stopPropagation(); onOpenPost && onOpenPost(sel); }} title="Vai al cielo nel Feed" aria-label="Apri questo cielo nel Feed" style={{ width: 44, height: 44, borderRadius: 22, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
           </div>
-        : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · "×N" = più cieli nello stesso punto · pizzica per zoomare</div>}
+        : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · i cieli dello stesso punto stanno in cerchio · pizzica per zoomare</div>}
     </div>
   );
 }
