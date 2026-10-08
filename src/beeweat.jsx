@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.18";
+const APP_VERSION = "14.19";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1034,14 +1034,54 @@ function BottomNav({ tab, setTab, onPlus }) {
   );
 }
 
+// 14.19: un modale che si comporta bene da tastiera e con lo screen reader.
+// Uso: const dlg = useDialog(onClose, "Nome del modale");  →  <div ref={dlg} …>
+const DIALOGS = [];   // pila dei modali aperti: Escape chiude solo quello in cima
+function useDialog(onClose, label) {
+  const ref = useRef(null);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const prev = document.activeElement;
+    DIALOGS.push(el);
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+    if (label && !el.hasAttribute("aria-label")) el.setAttribute("aria-label", label);
+    if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+    const SEL = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    const focusables = () => [...el.querySelectorAll(SEL)].filter(n => n.offsetParent !== null || n === document.activeElement);
+    const t = setTimeout(() => {   // fuoco iniziale: Annulla/Chiudi (scelta sicura), altrimenti il primo controllo
+      if (el.contains(document.activeElement)) return;
+      const f = focusables();
+      const safe = f.find(n => /annulla|chiudi|indietro|più tardi|non ora|solo la mia città/i.test((n.textContent || "") + " " + (n.getAttribute("aria-label") || "") + " " + (n.title || "")));
+      (safe || f[0] || el).focus({ preventScroll: true });
+    }, 40);
+    const onKey = e => {
+      if (DIALOGS[DIALOGS.length - 1] !== el) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeRef.current && closeRef.current(); return; }
+      if (e.key !== "Tab") return;
+      const f = focusables(); if (!f.length) { e.preventDefault(); return; }
+      const first = f[0], last = f[f.length - 1], a = document.activeElement;
+      if (e.shiftKey ? (a === first || !el.contains(a)) : (a === last || !el.contains(a))) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      clearTimeout(t); document.removeEventListener("keydown", onKey, true);
+      const i = DIALOGS.lastIndexOf(el); if (i >= 0) DIALOGS.splice(i, 1);
+      if (prev && typeof prev.focus === "function" && document.contains(prev)) prev.focus({ preventScroll: true });
+    };
+  }, []);
+  return ref;
+}
+
 // ─── SEGNALAZIONE CONTENUTO ───────────────────────────────────────────────────
 const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo", "Altro"];
 function ReportModal({ post, onSubmit, onClose }) {
+  const dlg = useDialog(onClose, "Segnala contenuto");
   const [reason, setReason] = useState(null);
   const [sent, setSent] = useState(false);
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
         {!sent ? (
           <>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Segnala il contenuto</div>
@@ -1071,9 +1111,10 @@ function ReportModal({ post, onSubmit, onClose }) {
 // ─── POST CARD ────────────────────────────────────────────────────────────────
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
 function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLabel, sheet }) {
+  const dlg = useDialog(onLater || onAccept, "Invito");
   if (sheet) return (   // 14.3: foglio dal basso (invito posizione allo scatto)
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.55)", display: "flex", alignItems: "flex-end" }}>
-      <div className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "28px 28px 0 0", padding: "14px 22px calc(28px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -10px 30px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "28px 28px 0 0", padding: "14px 22px calc(28px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -10px 30px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ width: 44, height: 5, borderRadius: 3, background: LINE, alignSelf: "center" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={28} color={HBLUE} sw={2.2} /></div>
@@ -1089,7 +1130,7 @@ function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLa
   );
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
-      <div className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ fontSize: 54, lineHeight: 1 }}>{emoji}</div>
         <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 19, color: HBLUE, marginTop: 12 }}>{title}</div>
         <div style={{ fontSize: 14.5, color: TXT, lineHeight: 1.55, marginTop: 10, textAlign: "left" }}>
@@ -1104,9 +1145,10 @@ function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLa
 }
 // ── Il sipario dorato: annuncio della foto premiata all'apertura dell'app ─────
 function AwardModal({ post, message, onClose, onOpen }) {
+  const dlg = useDialog(onClose, "Foto premiata");
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 60, background: "rgba(10,30,60,.66)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: `0 0 0 6px ${ACCENT}44, 0 18px 50px rgba(0,0,0,.35)`, border: `2px solid ${ACCENT}`, fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: `0 0 0 6px ${ACCENT}44, 0 18px 50px rgba(0,0,0,.35)`, border: `2px solid ${ACCENT}`, fontFamily: "'Sora',sans-serif" }}>
         <div style={{ fontSize: 58, lineHeight: 1, filter: "drop-shadow(0 4px 10px rgba(240,185,41,.55))" }}>🏅</div>
         <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: ".14em", color: "#B8860B", marginTop: 10 }}>FOTO PREMIATA</div>
         <div style={{ fontSize: 16.5, color: TXT, lineHeight: 1.45, marginTop: 8 }}>
@@ -1124,12 +1166,13 @@ function AwardModal({ post, message, onClose, onOpen }) {
   );
 }
 function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
+  const dlg = useDialog(onClose, "Modifica cielo");
   const [caption, setCaption] = useState(post.caption || "");
   const [cond, setCond] = useState(post.cond || CONDITIONS[0]);
   const [city, setCity] = useState(post.city || "");
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
         <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica post</div>
         <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Descrivi il meteo…" rows={3} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", resize: "none", fontFamily: "'Sora',sans-serif", marginBottom: 10 }} />
         <select value={cond} onChange={e => setCond(e.target.value)} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14, fontFamily: "'Sora',sans-serif" }}>
@@ -1151,6 +1194,7 @@ function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
 }
 
 function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
+  const dlg = useDialog(onClose, "Modifica evento");
   const isSocial = (ev.kind || "meteo") === "social";
   const [title, setTitle] = useState(ev.title || "");
   const [type, setType] = useState((ev.type && EVENT_TYPES.find(t => t.startsWith(ev.type))) || EVENT_TYPES[1]);
@@ -1194,7 +1238,7 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
   const L = { ...labelStyle };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", width: "100%", maxWidth: 480, maxHeight: "92%", overflowY: "auto", boxShadow: "0 -8px 34px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", width: "100%", maxWidth: 480, maxHeight: "92%", overflowY: "auto", boxShadow: "0 -8px 34px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
         <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 12 }}>{isSocial ? "Modifica evento social 🎉" : "Modifica evento meteo ⛈️"}</div>
         <div style={L}>Titolo</div>
@@ -1238,6 +1282,7 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
 }
 
 function PhotoViewer({ src, caption, onClose }) {
+  const dlg = useDialog(onClose, "Foto a schermo intero");
   const [saved, setSaved] = useState(false);
   const save = async () => {
     try {
@@ -1256,7 +1301,7 @@ function PhotoViewer({ src, caption, onClose }) {
     } catch (_) {}
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(8,14,24,.94)", display: "flex", flexDirection: "column" }}>
+    <div ref={dlg} onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(8,14,24,.94)", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px" }}>
         <button onClick={onClose} style={{ background: "rgba(255,255,255,.12)", border: "none", width: 40, height: 40, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
       </div>
@@ -1935,13 +1980,14 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
 
 // ─── CREA GRUPPO ──────────────────────────────────────────────────────────────
 function CreateGroupModal({ contacts, onCreate, onClose }) {
+  const dlg = useDialog(onClose, "Nuovo gruppo");
   const [name, setName] = useState("");
   const [sel, setSel] = useState([]);
   const toggle = id => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   const submit = () => { if (!name.trim() || sel.length === 0) return; onCreate({ name: name.trim(), members: sel }); };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Nuovo gruppo</div>
         <input placeholder="Nome del gruppo" value={name} onChange={e => setName(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14 }} />
         <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Seleziona i membri ({sel.length}) · tu sei incluso automaticamente</div>
@@ -2635,10 +2681,11 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
 
 // ─── ADD CONTACT MODAL ──────────────────────────────────────────────────────
 function AddContactModal({ people, contacts, onAdd, onClose }) {
+  const dlg = useDialog(onClose, "Aggiungi contatto");
   const available = people.filter(p => !contacts.some(c => c.id === p.id));
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px", maxHeight: "70%", overflowY: "auto" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px", maxHeight: "70%", overflowY: "auto" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Aggiungi contatto</div>
         {available.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Hai già aggiunto tutti gli utenti disponibili 🎉</div> : available.map(p => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: `1px solid ${LINE}` }}>
@@ -2874,6 +2921,7 @@ function AddressFields({ a, onChange, onFind, geoState, precision, coords, keepT
 }
 
 function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialKind }) {
+  const dlg = useDialog(onClose, "Nuovo evento");
   const [kind, setKind] = useState(initialKind === "social" ? "social" : "meteo");                          // "meteo" | "social"
   const [type, setType] = useState(EVENT_TYPES[1]);
   const [cat, setCat] = useState(EVENT_CATEGORIES[1]);
@@ -2933,7 +2981,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
   const addressBlock = <AddressFields a={addr} onChange={v => { setAddr(v); setCoords(null); setGeoState("idle"); }} onFind={resolveCoords} geoState={geoState} precision={precision} coords={coords} />;
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1200, display: "flex", alignItems: "flex-end" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
         <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 12 }}>Segnala un evento</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>{pill("meteo", "Eventi meteo", "⛈️")}{pill("social", "Eventi social", "🎉")}</div>
@@ -2980,12 +3028,13 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
 }
 
 function AvatarEditor({ current, onPick, onClose }) {
+  const dlg = useDialog(onClose, "Cambia avatar");
   const emojis = ["🌤️", "🌻", "🦋", "🌺", "⚡", "🌊", "🔥", "❄️", "🍃", "☀️", "🌈", "🌙", "⛅", "🌧️", "🐞", "🦉"];
   const fileRef = useRef(null);
   const upload = e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => onPick(r.result); r.readAsDataURL(f); };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 16 }}>Icona profilo</div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
           <UserAvatar src={current} size={64} />
