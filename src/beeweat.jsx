@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.24";
+const APP_VERSION = "14.25";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1444,7 +1444,61 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed }) {
+// 14.25: allerte ufficiali, rischio temporali e modelli a confronto — dati Solano (solanometeo.fr)
+function SolanoCard({ solano }) {
+  const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`; };
+  const lvColor = l => l >= 4 ? "#C62828" : l === 3 ? "#E8700A" : "#D9A400";
+  const dayLabel = date => { const t = new Date(); const d = new Date(date + "T12:00:00"); const diff = Math.round((d - new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12)) / 86400000); return diff === 0 ? "oggi" : diff === 1 ? "domani" : d.toLocaleDateString("it-IT", { weekday: "short" }); };
+  const peakLocal = iso => { if (!iso) return ""; const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z")); return isNaN(d) ? "" : d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
+  const CARD = { background: "#fff", borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 };
+  if (solano === undefined) return <div style={CARD}><div className="bw-skel" style={{ height: 16, width: "60%", borderRadius: 8 }} /><div className="bw-skel" style={{ height: 14, width: "85%", borderRadius: 7 }} /></div>;
+  if (!solano) return <div style={{ ...CARD, color: TXT2, fontSize: 13 }}>Allerte ufficiali non disponibili in questo momento. Riprova tra poco.</div>;
+  const storm = solano.storm?.days || [];
+  const today = solano.models?.[0]?.days?.[0]?.date;
+  const sea = solano.sea?.days?.[0];
+  return (
+    <div style={CARD}>
+      {solano.alerts.length === 0
+        ? <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, color: TXT }}><span style={{ width: 10, height: 10, borderRadius: 5, background: "#2E9E63", flexShrink: 0 }} /><b>Nessuna allerta ufficiale</b>&nbsp;per questa zona</div>
+        : solano.alerts.map((a, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 5, background: lvColor(a.level), marginTop: 5, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: TXT }}>{a.title}{a.zone ? <span style={{ fontWeight: 500, color: TXT2 }}> · {a.zone}</span> : null}</div>
+              <div style={{ fontSize: 12, color: TXT2, lineHeight: 1.4 }}>{a.source}{a.expires ? ` · fino al ${fmtWhen(a.expires)}` : ""}{a.sectors ? ` · ${a.sectors.join(", ")}` : ""}{a.text && a.source !== "MeteoAlarm" ? ` — ${a.text}` : ""}</div>
+            </div>
+          </div>
+        ))}
+      {storm.length > 0 && (
+        <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 10, display: "flex", gap: 8 }}>
+          {storm.map(d => (
+            <div key={d.date} style={{ flex: 1, background: BODY, borderRadius: 14, padding: "8px 10px" }}>
+              <div style={{ fontSize: 12, color: TXT2, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>Temporali {dayLabel(d.date)}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 22, color: d.score >= 7 ? "#C62828" : d.score >= 4 ? "#E8700A" : HBLUE }}>{Number(d.score).toFixed(1).replace(".", ",")}</span><span style={{ fontSize: 12, color: TXT2 }}>/10 · {d.category}</span></div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{d.organisation ? d.organisation + " · " : ""}picco verso le {peakLocal(d.peakUtc)}{d.confidence ? ` · fiducia ${d.confidence === "high" ? "alta" : d.confidence === "medium" ? "media" : "bassa"}` : ""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {solano.models?.length > 0 && (
+        <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 10 }}>
+          <div style={{ fontSize: 12, color: TXT2, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>Modelli a confronto · {today ? dayLabel(today) : "oggi"}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {solano.models.map(m => { const d = m.days?.[0]; if (!d) return null; return (
+              <div key={m.key} style={{ display: "flex", flexDirection: "column", fontSize: 13, color: TXT }}>
+                <span style={{ fontWeight: 600 }}>{m.label}</span>
+                <span style={{ color: TXT2, fontSize: 12 }}>pioggia {d.rainMm != null ? `${Math.round(d.rainMm)} mm` : "—"} · vento {d.windFrom || ""} {d.windKt != null ? Math.round(d.windKt) : "—"} kn · raffiche {d.gustKt != null ? Math.round(d.gustKt) : "—"} kn{d.tMin != null && d.tMax != null ? ` · ${Math.round(d.tMin)}–${Math.round(d.tMax)}°` : ""}</span>
+              </div>
+            ); })}
+            {sea && <div style={{ display: "flex", flexDirection: "column", fontSize: 13, color: TXT }}><span style={{ fontWeight: 600 }}>Mare · {solano.sea.label}</span><span style={{ color: TXT2, fontSize: 12 }}>onda {sea.hs != null ? sea.hs.toFixed(1).replace(".", ",") : "—"} m (max {sea.hmax != null ? sea.hmax.toFixed(1).replace(".", ",") : "—"}) da {sea.from || "—"}</span></div>}
+          </div>
+        </div>
+      )}
+      <a href={solano.url} target="_blank" rel="noopener" style={{ fontSize: 12, color: TXT2, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, minHeight: 32 }}>Fonte: <b style={{ color: HBLUE }}>Solano</b> · MeteoAlarm · MeteoAM · modelli internazionali <NavIcon name="chevron" size={14} color={TXT2} sw={2.2} /></a>
+    </div>
+  );
+}
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano }) {
   const RAW = sense && sense.raw ? sense.raw : null;   // 14.11
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
@@ -1575,6 +1629,10 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           </div>
         </div>
       )}
+
+      {/* 14.25: allerte ufficiali e rischio temporali (Solano) */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Allerte ufficiali · rischio temporali</div>
+      <SolanoCard solano={solano} />
 
       {/* prossime 12 ore */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
@@ -3913,6 +3971,24 @@ function AppInner() {
   // Meteo reale Open-Meteo per la posizione attuale (senza chiavi; ogni 30 min)
   const [wx, setWx] = useState(null);
   const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
+  // 14.25: Solano (allerte ufficiali, temporali, modelli) via /api/solano — zona di ~10 km, ogni 30 minuti
+  const [solano, setSolano] = useState(undefined);   // undefined = in arrivo · null = non disponibile
+  const solanoKey = geo ? geo.lat.toFixed(1) + "," + geo.lng.toFixed(1) : null;
+  useEffect(() => {
+    if (!geo) return;
+    let stop = false;
+    const load = async () => {
+      try {
+        const r = await fetch(`/api/solano?lat=${geo.lat.toFixed(1)}&lng=${geo.lng.toFixed(1)}`);
+        if (!r.ok) throw new Error("solano " + r.status);
+        const j = await r.json();
+        if (!stop) setSolano(j);
+      } catch (e) { if (!stop) setSolano(cur => cur || null); }
+    };
+    load();
+    const iv = setInterval(load, 30 * 60000);
+    return () => { stop = true; clearInterval(iv); };
+  }, [solanoKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!geo) return;
     let stop = false;
@@ -5170,7 +5246,7 @@ function AppInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
+        {tab === "beecast" && <BeeCastScreen solano={solano} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
