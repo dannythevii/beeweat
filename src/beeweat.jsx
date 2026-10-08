@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.20";
+const APP_VERSION = "14.21";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2184,7 +2184,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       <div style={{ width: 54, height: 54, margin: "0 auto", borderRadius: "50%", background: "rgba(0,0,0,.38)", border: "1.5px solid rgba(255,255,255,.65)", position: "relative" }}>
         {/* rosa dei venti che ruota: il Nord segue il mondo reale */}
         <div style={{ position: "absolute", inset: 0, transform: `rotate(${-h}deg)`, transition: "transform .25s ease-out" }}>
-          <span style={{ position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 800, color: "#FF5A5A" }}>N</span>
+          <span style={{ position: "absolute", top: 1, left: "50%", transform: "translateX(-50%)", fontSize: 12, fontWeight: 800, color: "#FF5A5A", lineHeight: 1 }}>N</span>
           <span style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>S</span>
           <span style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>O</span>
           <span style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", fontSize: 8, fontWeight: 700, color: "#fff" }}>E</span>
@@ -2192,7 +2192,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         {/* indicatore fisso: dove punta la fotocamera */}
         <div style={{ position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `7px solid ${ACCENT}` }} />
       </div>
-      <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)", letterSpacing: ".04em" }}>{dirLabel(h)} · {Math.round(h)}°{!headingReal && <span style={{ fontWeight: 600, opacity: .85 }}> {canAskSensor ? "tocca 👆" : "demo"}</span>}</div>
+      <div style={{ marginTop: 3, fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.6)", letterSpacing: ".04em" }}>{dirLabel(h)} · {Math.round(h)}°{!headingReal && <span style={{ fontWeight: 600, opacity: .85 }}> {canAskSensor ? "tocca 👆" : "demo"}</span>}</div>
     </div>
   );
   const start = useCallback(async () => {
@@ -2229,7 +2229,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const acceptCamInvite = () => setCamInvite(false);
   const [flash, setFlash] = useState(false);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
-    setFlash(true); setTimeout(() => setFlash(false), 140);
+    let rm = false; try { rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
+    if (!rm) { setFlash(true); setTimeout(() => setFlash(false), 140); }   // 14.21: niente lampo bianco se l'utente chiede meno movimento
     const dz = zoomCaps ? 1 : zoom;               // zoom digitale: ritaglio reale del fotogramma
     let sw = v.videoWidth / dz, sh = v.videoHeight / dz;
     const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
@@ -2429,7 +2430,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   );
   return (
     <>
-      <Header title="Nuovo cielo" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title="Nuovo cielo" left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       {geoAsk && <PermissionInvite sheet emoji="📍" title="Dove mettiamo la tua foto?"
         lines={[["1", "Con la posizione del telefono finisce sul punto giusto della mappa."],
                 ["2", "Beeweat vede solo la zona (circa 1 km), mai la tua casa."]]}
@@ -2455,7 +2456,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
               <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19, color: TXT }}>Scatta il cielo</div>
               <div style={{ fontSize: 12.5, color: TXT2 }}>Si apre la fotocamera del telefono · solo dal vivo, mai dall'archivio</div>
             </button>
-          </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
+          </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
           <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
         <div style={{ padding: "0 16px 20px" }}>
@@ -2465,27 +2466,33 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           </div>
           {!captured && streaming && <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
             {[["std", "Std"], ["wide", "16:9"], ["pano", "Pano"]].map(([id, label]) => (
-              <button key={id} onClick={() => setFormat(id)} style={{ padding: "5px 14px", borderRadius: 14, border: `1.5px solid ${format === id ? HBLUE : LINE}`, background: format === id ? HBLUE : "#fff", color: format === id ? "#fff" : HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
+              <button key={id} onClick={() => setFormat(id)} aria-pressed={format === id} aria-label={`Formato ${label}`} style={{ minHeight: 44, padding: "5px 16px", borderRadius: 22, border: `1.5px solid ${format === id ? HBLUE : LINE}`, background: format === id ? HBLUE : "#fff", color: format === id ? "#fff" : HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
             ))}
           </div>}
           {!captured && streaming && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "0 6px" }}>
             {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
-              <button key={z} onClick={() => applyZoom(z)} style={{ minWidth: 40, padding: "5px 0", borderRadius: 12, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
+              <button key={z} onClick={() => applyZoom(z)} aria-pressed={Math.abs(zoom - z) < .25} aria-label={`Zoom ${z}×`} style={{ minWidth: 44, minHeight: 44, padding: "5px 0", borderRadius: 14, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
             ))}
-            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, accentColor: HBLUE }} />
+            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} aria-label="Zoom" aria-valuetext={`${zoom.toFixed(1)}×`} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, accentColor: HBLUE }} />
           </div>}
           {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
-            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
-            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : HBLUE} sw={1.7} /></button>}
-            {streaming && <button onPointerDown={e => { e.preventDefault(); capture(); }} style={{ width: 72, height: 72, borderRadius: "50%", background: `${HBLUE}`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55`, touchAction: "none" }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
-            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
+            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label={facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"} title="Gira la fotocamera" style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
+            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" aria-label={grid ? "Nascondi la griglia" : "Mostra la griglia"} aria-pressed={grid} style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : HBLUE} sw={1.7} /></button>}
+            {streaming && <button onPointerDown={e => { e.preventDefault(); capture(); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); capture(); } }} aria-label="Scatta la foto" title="Scatta" style={{ width: 72, height: 72, borderRadius: "50%", background: `${HBLUE}`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55`, touchAction: "none" }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
+            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" aria-label={torchOn ? "Spegni la torcia" : "Accendi la torcia"} aria-pressed={torchOn} style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <textarea rows={2} placeholder="Descrivi il meteo…" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5 }} />
-            <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", fontSize: 14, outline: "none", color: TXT }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>{/* 14.21: etichette visibili */}
+              <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Descrizione <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(facoltativa)</span></span>
+              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Condizione</span>
+              <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", minHeight: 44, fontSize: 14, outline: "none", color: TXT, width: "100%" }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+            </label>
             <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px" }}>
               <span style={{ fontSize: 18 }}>🌡️</span>
               <span style={{ flex: 1, fontSize: 13.5, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
-              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" style={{ width: 58, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }} />
+              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }} />
               <span style={{ fontSize: 16, fontWeight: 700, color: HBLUE }}>°</span>
             </div>
             <GeoChip />
@@ -2493,9 +2500,9 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       <AiChip0 />
       <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={retake} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
-              <button onClick={savePhoto} title="Salva nel telefono" style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={publish} disabled={!canPublish} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: !canPublish ? "#9AA7B8" : `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: !canPublish ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
+              <button onClick={retake} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
+              <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
+              <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 2, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: !canPublish ? (!(geoReal || geoApprox) ? ACCENT : "#9AA7B8") : `${HBLUE}`, color: !canPublish && !(geoReal || geoApprox) ? TXT : "#fff", fontWeight: 600, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2516,11 +2523,11 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
     <>
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
         <div style={{ position: "relative", background: `linear-gradient(180deg, ${HBLUE} 0%, #2F73B8 55%, #9CCBF0 100%)`, height: 150, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "content-box" }}>{/* 14.3: copertina con i tasti */}
-          <button onClick={onBack} title="Indietro" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", left: 16, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={24} color="#fff" /></button>
-          <button onClick={onOpenNotif} title="Impostazioni" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", right: 16, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="gear" size={21} color="#fff" sw={1.9} /></button>
+          <button onClick={onBack} title="Indietro" aria-label="Torna indietro" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", left: 16, width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={24} color="#fff" /></button>
+          <button onClick={onOpenNotif} title="Impostazioni" aria-label="Apri le impostazioni" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", right: 16, width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="gear" size={21} color="#fff" sw={1.9} /></button>
         </div>
         <div style={{ padding: "0 20px", marginTop: -46 }}>
-          <button onClick={() => setEditing(true)} style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
+          <button onClick={() => setEditing(true)} aria-label="Cambia la foto del profilo" title="Cambia avatar" style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
             <div style={{ width: 92, height: 92, borderRadius: "50%", background: "#fff", border: `4px solid ${BODY}`, boxShadow: `0 0 0 3px ${ACCENT}, 0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <UserAvatar src={user.avatar} size={84} ring={false} stars={beeStars(nMine)} />
             </div>
@@ -2528,44 +2535,44 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           </button>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
             <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{user.name}
-              {isAdmin && <span style={{ height: 20, padding: "0 8px", borderRadius: 10, background: HBLUE + "12", color: HBLUE, fontSize: 10, fontWeight: 700, fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
+              {isAdmin && <span style={{ height: 22, padding: "0 8px", borderRadius: 11, background: HBLUE + "12", color: HBLUE, fontSize: 12, fontWeight: 700, fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
             </div>
-            {onRename && <button onClick={onRename} title="Modifica nome" style={{ height: 38, padding: "0 14px", borderRadius: 19, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
+            {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4, flexWrap: "wrap" }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
             {beeStars(nMine) > 0 && <><span style={{ color: "#B8860B", letterSpacing: ".04em", fontSize: 12, marginLeft: 6 }}>{"★".repeat(beeStars(nMine))}</span><span>{beeRank(nMine)}</span></>}
-            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="edit" size={13} color={HBLUE} sw={1.9} /></button>}
+            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px -12px -14px -8px" }}><NavIcon name="edit" size={15} color={HBLUE} sw={1.9} /></button>}
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, margin: "16px 16px 0" }}>
           {[{ l: "cieli", v: nMine }, { l: "stelle", v: stars }, { l: "seguaci", v: (followersList || []).length }].map((s, i) => (
             <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, boxShadow: "0 4px 14px rgba(18,60,107,.08)" }}>
               <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: HBLUE }}>{s.v}</div>
-              <div style={{ fontSize: 11.5, color: TXT2, fontWeight: 500 }}>{s.l}</div>
+              <div style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{s.l}</div>
             </div>
           ))}
         </div>
         <div style={{ padding: "14px 16px 0" }}>{/* 14.3: la griglia dei cieli */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
-            {onArchive && <button onClick={onArchive} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
+            {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ background: "none", border: "none", padding: "0 4px", minHeight: 44, fontSize: 12, fontWeight: 700, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
           </div>
           {mine.length === 0
             ? <div style={{ background: "#fff", borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginBottom: 12 }}>
                 {(showAll ? mine : mine.slice(0, mine.length > 8 ? 7 : 8)).map(p => {   /* 14.17: "+N" espande la griglia sul posto */ const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || ""); return (
-                  <div key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer" }}>{/* 14.14: data e ora dello scatto */}
+                  <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer", border: "none", padding: 0, width: "100%" }}>{/* 14.14: data e ora dello scatto · 14.21: pulsante */}
                     <img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    {when && <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 5px 4px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.78) 100%)", color: "#fff", fontSize: 9.5, fontWeight: 700, lineHeight: 1.1, textAlign: "center", whiteSpace: "nowrap", letterSpacing: ".01em" }}>{when}</div>}
-                  </div>
+                    {when && <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 3px 4px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.78) 100%)", color: "#fff", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", whiteSpace: "nowrap", letterSpacing: "-.01em" }}>{when}</div>}
+                  </button>
                 ); })}
-                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: HBLUE + "12", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
+                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} aria-label={showAll ? "Mostra meno cieli" : `Mostra tutti i ${mine.length} cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: HBLUE + "12", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
               </div>}
           <div style={{ display: "flex", background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
             {[["Seguiti", followingList], ["Follower", followersList]].map(([label, list], i) => (
-              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? HBLUE + "0E" : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
+              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} aria-expanded={followTab === label} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? HBLUE + "0E" : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
                 <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 20, color: TXT }}>{(list || []).length}</div>
-                <div style={{ fontSize: 11.5, color: TXT2 }}>{label}</div>
+                <div style={{ fontSize: 12, color: TXT2 }}>{label}</div>
               </button>
             ))}
           </div>
@@ -2594,7 +2601,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
-          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} role="switch" aria-checked={user.readReceipts !== false} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: HBLUE, letterSpacing: "-1px" }}>✓✓</div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Conferma di lettura</div>
@@ -2604,7 +2611,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
               <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
-          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} role="switch" aria-checked={!!geoPrecise} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={HBLUE} sw={2} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
@@ -2626,7 +2633,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           </button>}
           {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
-          <div style={{ textAlign: "center", color: TXT2, fontSize: 11.5, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
+          <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
