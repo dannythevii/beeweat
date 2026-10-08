@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.23";
+const APP_VERSION = "14.24";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1705,6 +1705,21 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
   const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
   const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
   const R = 150, cx = 160, cy = 160;
+  // 14.24: spille nello stesso punto (coordinate arrotondate a ~1 km) → un gruppo con "×N"
+  const wxGroups = (() => {
+    const gs = [];
+    const sorted = showWx.slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));   // il più recente comanda il gruppo
+    sorted.forEach(p => {
+      const a = (p.bearing - 90) * Math.PI / 180, r = (p.dist / km) * R;
+      const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+      const g = gs.find(q => Math.hypot(q.x - x, q.y - y) < 16);
+      if (g) g.items.push(p); else gs.push({ x, y, items: [p] });
+    });
+    return gs;
+  })();
+  const selGroup = sel ? wxGroups.find(g => g.items.some(p => p.id === sel.id)) : null;
+  const selIdx = selGroup ? selGroup.items.findIndex(p => p.id === sel.id) : -1;
+  const stepSel = d => { if (!selGroup) return; const n = selGroup.items.length; setSel(selGroup.items[(selIdx + d + n) % n]); };
   const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
   const dirName = b => { const n = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]; return n[Math.round(((b % 360) + 360) % 360 / 45) % 8]; };
   const agoText = ts => { const m = Math.max(0, Math.round((nowMs - new Date(ts).getTime()) / 60000)); return m < 60 ? `${m} min fa` : `${Math.floor(m / 60)} h fa`; };
@@ -1742,15 +1757,20 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
           {/* cieli (ultime 6 ore) */}
-          {showWx.map(p => {
-            const a = (p.bearing - 90) * Math.PI / 180, r = (p.dist / km) * R;
-            const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
-            const on = sel && sel.id === p.id;
+          {wxGroups.map(g => {
+            const { x, y } = g; const n = g.items.length;
+            const on = sel && g.items.some(p => p.id === sel.id);
+            const p = on ? sel : g.items[0];
             return (
-              <g key={p.id} onClick={() => setSel(on ? null : p)} style={{ cursor: "pointer" }}>
+              <g key={g.items[0].id} onClick={() => setSel(on ? null : g.items[0])} style={{ cursor: "pointer" }}>
                 {on && <circle cx={x} cy={y} r="24" fill={ACCENT} opacity=".35" />}
+                {n > 1 && <circle cx={x + 3} cy={y + 3} r={on ? 19 : 16} fill="#DCE6F1" stroke="#2F73B8" strokeWidth="1.5" />}{/* seconda "carta" sotto: si capisce che sono tanti */}
                 <circle cx={x} cy={y} r={on ? 19 : 16} fill={on ? ACCENT : "#fff"} stroke={on ? "#fff" : "#2F73B8"} strokeWidth={on ? 2.5 : 2} />
                 <text x={x} y={y + 5} fontSize="15" textAnchor="middle" style={{ pointerEvents: "none" }}>{p.cond.split(" ")[0]}</text>
+                {n > 1 && <g style={{ pointerEvents: "none" }}>
+                  <rect x={x + 8} y={y - 24} width={n > 9 ? 30 : 24} height="17" rx="8.5" fill={HBLUE} stroke="#fff" strokeWidth="1.5" />
+                  <text x={x + 8 + (n > 9 ? 15 : 12)} y={y - 11.5} fontSize="11" fontWeight="700" fill="#fff" textAnchor="middle" fontFamily="Sora">×{n}</text>
+                </g>}
               </g>
             );
           })}
@@ -1782,9 +1802,14 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
               <div style={{ fontSize: 12.5, color: TXT }}><b>{sel.cond.replace(/^[^ ]+ /, "")}{sel.temp != null && Number.isFinite(sel.temp) ? ` · ${Math.round(sel.temp)}°` : ""}</b>{sel.dir ? ` · verso ${sel.dir.label}` : (sel.bearing != null ? ` · verso ${dirName(sel.bearing)}` : "")}</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{sel.city} · {sel.dist} km · {agoText(sel.ts)}</div>
             </div>
-            <button onClick={e => { e.stopPropagation(); onOpenPost && onOpenPost(sel); }} title="Vai al cielo nel Feed" style={{ width: 40, height: 40, borderRadius: 20, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
+            {selGroup && selGroup.items.length > 1 && <div onClick={e => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>{/* 14.24: più cieli nello stesso punto */}
+              <button onClick={() => stepSel(-1)} aria-label="Cielo precedente in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: HBLUE, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>‹</button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: TXT2, whiteSpace: "nowrap" }}>{selIdx + 1}/{selGroup.items.length}</span>
+              <button onClick={() => stepSel(1)} aria-label="Cielo successivo in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: HBLUE, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>›</button>
+            </div>}
+            <button onClick={e => { e.stopPropagation(); onOpenPost && onOpenPost(sel); }} title="Vai al cielo nel Feed" aria-label="Apri questo cielo nel Feed" style={{ width: 44, height: 44, borderRadius: 22, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
           </div>
-        : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · pizzica per zoomare</div>}
+        : <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 12 }}>Tocca un cielo per i dettagli · "×N" = più cieli nello stesso punto · pizzica per zoomare</div>}
     </div>
   );
 }
