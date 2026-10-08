@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.19";
+const APP_VERSION = "14.20";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1037,11 +1037,11 @@ function BottomNav({ tab, setTab, onPlus }) {
 // 14.19: un modale che si comporta bene da tastiera e con lo screen reader.
 // Uso: const dlg = useDialog(onClose, "Nome del modale");  →  <div ref={dlg} …>
 const DIALOGS = [];   // pila dei modali aperti: Escape chiude solo quello in cima
-function useDialog(onClose, label) {
+function useDialog(onClose, label, active = true) {
   const ref = useRef(null);
   const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
-    const el = ref.current; if (!el) return;
+    const el = ref.current; if (!el || !active) return;
     const prev = document.activeElement;
     DIALOGS.push(el);
     el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
@@ -1069,7 +1069,7 @@ function useDialog(onClose, label) {
       const i = DIALOGS.lastIndexOf(el); if (i >= 0) DIALOGS.splice(i, 1);
       if (prev && typeof prev.focus === "function" && document.contains(prev)) prev.focus({ preventScroll: true });
     };
-  }, []);
+  }, [active]);
   return ref;
 }
 
@@ -2011,11 +2011,15 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
 
 // ─── CHAT 1-A-1 ───────────────────────────────────────────────────────────────
 function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGroup, onDeleteMsg, onClearChat }) {
-  const clearAll = () => { if (window.confirm("Svuotare l'intera conversazione? I messaggi saranno eliminati per entrambi.")) onClearChat(); };
+  const who = group ? `il gruppo “${group.name}”` : contact.public ? "la chat pubblica" : contact.name.split(" ")[0];   // 14.20: le conferme dicono con chi
+  const clearAll = () => { if (window.confirm(`Svuotare la conversazione con ${who}?\nI messaggi saranno eliminati per entrambi.`)) onClearChat(); };
+  const askDelete = m => { if (window.confirm(`Eliminare il messaggio «${String(m.text || "").slice(0, 60)}${String(m.text || "").length > 60 ? "…" : ""}»?`)) onDeleteMsg(m); };
   const [text, setText] = useState("");
   const [manage, setManage] = useState(false);
   const ref = useRef(null);
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+  const reduceMotion = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) { return false; } };
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth" }); }, [msgs]);
+  const dlg = useDialog(() => setManage(false), "Membri del gruppo", manage);   // il foglio nasce dopo: l'hook si attiva quando `manage` è vero
   const send = () => { if (!text.trim()) return; onSend(text.trim()); setText(""); };
   const members = group ? group.members.map(id => (contacts || []).find(c => c.id === id)).filter(Boolean) : [];
   const toggleMember = id => {
@@ -2024,7 +2028,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
   };
   return (
     <>
-      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 10 }}>{onClearChat && <button onClick={clearAll} title="Svuota conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 34, height: 34, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
+      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 6 }}>{onClearChat && <button onClick={clearAll} title="Svuota la conversazione" aria-label="Svuota la conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 44, height: 44, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
 
       {/* banner chat pubblica */}
       {contact.public && (
@@ -2032,7 +2036,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
           <div style={{ width: 34, height: 34, borderRadius: "50%", background: HBLUE + "14", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={18} color={HBLUE} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>Chat pubblica · visibile a tutti</div>
-            {contact.sub && <div style={{ fontSize: 11.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.sub}</div>}
+            {contact.sub && <div style={{ fontSize: 12, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.sub}</div>}
           </div>
         </div>
       )}
@@ -2042,52 +2046,59 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         <div style={{ background: "#fff", borderBottom: `1px solid ${LINE}`, padding: "10px 12px", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto" }}>
             {members.map(m => (
-              <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 46 }}>
+              <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56 }}>
                 <UserAvatar src={m.ava} size={36} />
-                <span style={{ fontSize: 9, color: TXT2, maxWidth: 46, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name.split(" ")[0]}</span>
+                <span style={{ fontSize: 12, color: TXT2, maxWidth: 56, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name.split(" ")[0]}</span>
               </div>
             ))}
-            <button onClick={() => setManage(true)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 46, background: "none", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setManage(true)} aria-label="Gestisci i membri del gruppo" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, minHeight: 44, background: "none", border: "none", cursor: "pointer" }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE + "14", border: `1.5px dashed ${HBLUE}66`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color={HBLUE} sw={2.2} /></div>
-              <span style={{ fontSize: 9, color: HBLUE, fontWeight: 600 }}>Gestisci</span>
+              <span style={{ fontSize: 12, color: HBLUE, fontWeight: 600 }}>Gestisci</span>
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, background: BODY }}>
+      <div role="log" aria-live="polite" aria-label="Messaggi" style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, background: BODY }}>
+        {msgs.length === 0 && (   /* 14.20: stato vuoto */
+          <div style={{ margin: "auto 0", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 18, padding: "26px 18px", textAlign: "center", color: TXT2 }}>
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="comment" size={34} color={HBLUE} sw={1.8} /></div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{contact.public ? "Nessun messaggio, per ora" : group ? `Il gruppo “${group.name}” è appena nato` : `Ancora niente con ${who}`}</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{contact.public ? "Racconta com'è il cielo qui adesso: lo leggono tutte le api del posto." : "Scrivi il primo messaggio qui sotto."}</div>
+          </div>
+        )}
         {msgs.map((m, mi) => (
-          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); } }}>
-            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 11, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `${HBLUE}` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 11.5, opacity: .75, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 10.5, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <span onClick={e => { e.stopPropagation(); if (window.confirm("Eliminare questo messaggio?")) onDeleteMsg(m); }} style={{ cursor: "pointer", opacity: .85, display: "inline-flex" }}><NavIcon name="trash" size={11} color={m.me ? "#fff" : TXT2} sw={2} /></span>}</div></div>
+          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); askDelete(m); } }}>
+            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
+            <div style={{ maxWidth: "75%", background: m.me ? `${HBLUE}` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 12, opacity: .8, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .85, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? "#fff" : TXT2} sw={2} /></button>}</div></div>
           </div>
         ))}
         <div ref={ref} />
       </div>
       <div style={{ padding: "12px 16px", background: "#fff", borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
-        <textarea rows={1} placeholder="Scrivi un messaggio…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 16.5, resize: "none", outline: "none", color: TXT }} />
-        <button onClick={send} style={{ width: 46, height: 46, borderRadius: 14, background: `${HBLUE}`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
+        <textarea rows={1} placeholder="Scrivi un messaggio…" aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 16.5, resize: "none", outline: "none", color: TXT }} />
+        <button onClick={send} aria-label="Invia il messaggio" title="Invia" style={{ width: 46, height: 46, borderRadius: 14, background: `${HBLUE}`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
       </div>
 
       {/* gestione membri */}
       {manage && group && (
         <div onClick={() => setManage(false)} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-          <div onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+          <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Membri di “{group.name}”</div>
             <div style={{ fontSize: 12, color: TXT2, marginBottom: 14 }}>Tocca per aggiungere o rimuovere dai contatti</div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {(contacts || []).length === 0 ? <div style={{ color: TXT2, fontSize: 14 }}>Nessun contatto disponibile.</div> : (contacts || []).map(c => {
                 const on = group.members.includes(c.id);
                 return (
-                  <div key={c.id} onClick={() => toggleMember(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
+                  <button key={c.id} onClick={() => toggleMember(c.id)} role="checkbox" aria-checked={on} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", minHeight: 56, cursor: "pointer", borderBottom: `1px solid ${LINE}`, background: "none", border: "none", textAlign: "left", fontFamily: "'Sora',sans-serif", fontSize: 14 }}>
                     <UserAvatar src={c.ava} size={42} />
                     <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
-                    <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
-                  </div>
+                    <div aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
+                  </button>
                 );
               })}
             </div>
-            <button onClick={() => setManage(false)} style={{ marginTop: 14, padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Fatto</button>
+            <button onClick={() => setManage(false)} style={{ marginTop: 14, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Chiudi</button>
           </div>
         </div>
       )}
