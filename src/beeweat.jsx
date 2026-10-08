@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.21";
+const APP_VERSION = "14.22";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -731,7 +731,7 @@ const G = `
   input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
   input, textarea, select { font-family: 'Sora', sans-serif; }
   input::placeholder, textarea::placeholder { color: ${TXT2}; }
-  input[type=range] { -webkit-appearance:none; appearance:none; height:5px; border-radius:5px; outline:none; cursor:pointer; }
+  input[type=range] { -webkit-appearance:none; appearance:none; height:44px; padding:19.5px 0; background-clip:content-box !important; border-radius:5px; outline:none; cursor:pointer; }   /* 14.22: presa 44 px, riga 5 px */
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:9px; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
   input[type=range]::-moz-range-thumb { width:22px; height:22px; border-radius:8px; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
 `;
@@ -812,7 +812,11 @@ function AuthScreen({ onLogin, sb }) {
   const [info, setInfo] = useState(null);
   const [recoverEmail, setRecoverEmail] = useState("");
   const [recoverSent, setRecoverSent] = useState(false);
-  const inp = (ph, k, type = "text") => <input type={type} placeholder={ph} value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />;
+  const HINTS = { name: "Come vuoi farti chiamare", city: "Es. Capri", email: "nome@esempio.it", password: type => type === "password" ? "Almeno 8 caratteri" : "" };   // 14.22
+  const inp = (ph, k, type = "text") => <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+    <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>{ph}</span>
+    <input type={type} placeholder={k === "password" ? HINTS.password(type) : (HINTS[k] || "")} value={form[k]} autoComplete={k === "email" ? "email" : k === "password" ? (mode === "register" ? "new-password" : "current-password") : k === "name" ? "name" : k === "city" ? "address-level2" : "off"} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "13px 16px", minHeight: 46, color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
+  </label>;
   const handleEmail = async () => {
     if (mode === "register" && !accepted) { setWarn(true); return; }
     if (!form.email || !form.password) return;
@@ -863,11 +867,11 @@ function AuthScreen({ onLogin, sb }) {
         <div style={{ fontSize: 15, color: HBLUE, marginTop: 8, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
         <div style={{ fontSize: 13.5, color: TXT2, marginTop: 8, fontWeight: 500, lineHeight: 1.5 }}>Solo cielo, mare e natura, scattati adesso.</div>
         {userCount != null && <div style={{ fontSize: 13.5, color: HBLUE, marginTop: 10, fontWeight: 700 }}>🐝 {userCount} api nell'alveare</div>}
-        <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
+        <div style={{ fontSize: 12, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
       </div>
       <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
         <button onClick={() => { setView("email"); setMode("register"); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: ACCENT, color: TXT, fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><MailIcon /> Entra usando la tua Email</button>
-        <div style={{ fontSize: 11.5, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
+        <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
       </div>
       {legal === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Beeweat tiene alla tua privacy. Di seguito trovi l'informativa completa sul trattamento dei dati personali ai sensi del Regolamento (UE) 2016/679 (GDPR)." sections={PRIVACY} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
       {legal === "terms" && <LegalDoc title="Termini di Servizio" intro="Leggi i termini che regolano l'uso di Beeweat." sections={TERMS} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
@@ -902,16 +906,18 @@ function AuthScreen({ onLogin, sb }) {
 
   return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => setView("welcome")} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
+      <button onClick={() => setView("welcome")} aria-label="Torna indietro" title="Indietro" style={{ position: "absolute", top: 18, left: 18, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
       <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
-        <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: 9, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Sora',sans-serif", background: mode === m ? "#fff" : "transparent", color: mode === m ? HBLUE : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
+        <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} style={{ flex: 1, padding: 9, minHeight: 44, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Sora',sans-serif", background: mode === m ? "#fff" : "transparent", color: mode === m ? HBLUE : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "register" && <>{inp("Il tuo nome", "name")}{inp("La tua città", "city")}</>}
           {inp("Email", "email", "email")}{inp("Password", "password", "password")}
           {mode === "register" && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 2 }}>
-              <button onClick={() => { setAccepted(a => !a); setWarn(false); }} style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, border: `2px solid ${warn && !accepted ? RED : accepted ? HBLUE : LINE}`, background: accepted ? HBLUE : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{accepted && <NavIcon name="check" size={14} color="#fff" sw={3} />}</button>
+              <button onClick={() => { setAccepted(a => !a); setWarn(false); }} role="checkbox" aria-checked={accepted} aria-label="Ho letto e accetto i Termini di Servizio e l'Informativa sulla Privacy" style={{ flexShrink: 0, width: 44, height: 44, margin: "-10px -10px -10px -11px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{/* 14.22: presa 44 px, casella 24 px */}
+                <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${warn && !accepted ? RED : accepted ? HBLUE : LINE}`, background: accepted ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{accepted && <NavIcon name="check" size={14} color="#fff" sw={3} />}</span>
+              </button>
               <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.45 }}>
                 Ho letto e accetto i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.
               </div>
@@ -922,7 +928,7 @@ function AuthScreen({ onLogin, sb }) {
           {authErr && <div style={{ color: RED, fontSize: 12.5, fontWeight: 600 }}>{authErr}</div>}
           {info && <div style={{ color: "#3BA776", fontSize: 12.5, fontWeight: 600 }}>{info}</div>}
           <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "ENTER"}</button>
-          {mode === "register" && <div style={{ fontSize: 11, color: TXT2, textAlign: "center", lineHeight: 1.4 }}>Servizio non destinato a minori di 14 anni.</div>}
+          {mode === "register" && <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.4 }}>Servizio non destinato a minori di 14 anni.</div>}
         </div>
       </div>
       {legal === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Beeweat tiene alla tua privacy. Di seguito trovi l'informativa completa sul trattamento dei dati personali ai sensi del Regolamento (UE) 2016/679 (GDPR)." sections={PRIVACY} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
@@ -981,7 +987,7 @@ const GlobeIcon = ({ size = 14, color = "#fff" }) => (
   </svg>
 );
 const WorldBtn = ({ on, onClick, h = 30 }) => (
-  <button onClick={onClick} title="Tutto il mondo" style={{ height: h, padding: "0 12px", borderRadius: 10, border: "none", background: on ? ACCENT : HBLUE, cursor: "pointer", fontSize: 12, fontWeight: 700, color: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `0 2px 10px ${ACCENT}88` : `0 2px 8px ${HBLUE}44`, transition: "background .15s, color .15s" }}>
+  <button onClick={onClick} title="Tutto il mondo" aria-label={on ? "Torna ai cieli vicini" : "Mostra tutto il mondo"} aria-pressed={on} style={{ height: 44, padding: "0 12px", borderRadius: 10 + (44 - h) / 2, border: `${(44 - h) / 2}px solid transparent`, backgroundClip: "padding-box", background: on ? ACCENT : HBLUE, cursor: "pointer", fontSize: 12, fontWeight: 700, color: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `0 2px 10px ${ACCENT}88` : `0 2px 8px ${HBLUE}44`, transition: "background .15s, color .15s" }}>
     <GlobeIcon size={13.5} color={on ? HBLUE : "#fff"} /> Mondo
   </button>
 );
@@ -1511,10 +1517,10 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{RAW ? (RAW.incoming ? "🌧️" : RAW.domCond.split(" ")[0]) : "🐝"}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
               <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min` : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
             </div>
-            <span style={{ fontSize: 11, background: RAW ? (RAW.conf === "alta" ? "#2E9E63" : RAW.conf === "media" ? ACCENT : HBLUE) : HBLUE, borderRadius: 12, padding: "5px 10px", fontWeight: 700, color: RAW && RAW.conf === "media" ? TXT : "#fff", flexShrink: 0, textTransform: "capitalize" }}>{RAW ? RAW.conf : "—"}</span>
+            <span style={{ fontSize: 12, background: RAW ? (RAW.conf === "alta" ? "#2E9E63" : RAW.conf === "media" ? ACCENT : HBLUE) : HBLUE, borderRadius: 12, padding: "5px 10px", fontWeight: 700, color: RAW && RAW.conf === "media" ? TXT : "#fff", flexShrink: 0, textTransform: "capitalize" }}>{RAW ? RAW.conf : "—"}</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
             {[
@@ -1524,7 +1530,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
             ].map((t, i) => (
               <div key={i} style={{ borderRadius: 12, background: HBLUE, padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, color: i === 2 && RAW && RAW.model ? (RAW.agree ? "#7FE0A8" : ACCENT) : "#fff", lineHeight: 1.1 }}>{t.v}</div>
-                <div style={{ fontSize: 10.5, color: "#B9CCE3", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
+                <div style={{ fontSize: 12, color: "#B9CCE3", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
               </div>
             ))}
           </div>
@@ -1532,7 +1538,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
             {[{ v: RAW.incoming.n, l: "foto maltempo" }, { v: RAW.incoming.dir, l: "sopravento" }, { v: `${RAW.incoming.speed}`, l: "km/h vento" }].map((t, i) => (
               <div key={i} style={{ borderRadius: 12, background: "#D9482B", padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>{t.v}</div>
-                <div style={{ fontSize: 10.5, color: "#FBD5CC", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
+                <div style={{ fontSize: 12, color: "#FBD5CC", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
               </div>
             ))}
           </div>}
@@ -1546,14 +1552,14 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 58, height: 58, borderRadius: 16, background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{AL.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {sense && sense.alert && <div style={{ fontSize: 11, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>Maltempo in avvicinamento</div>}
+            {sense && sense.alert && <div style={{ fontSize: 12, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>Maltempo in avvicinamento</div>}
             <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
             <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, fontSize: 12, color: TXT2, lineHeight: 1.4 }}>{AL.speed ? `Fenomeno in avvicinamento a ~${AL.speed} km/h. ` : ""}Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
-          <button onClick={armAlert} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, height: 38, padding: "0 14px", borderRadius: 19, border: "none", background: alertOn ? "#2E9E63" : ACCENT, color: alertOn ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+          <button onClick={armAlert} aria-pressed={!!alertOn} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: alertOn ? "#2E9E63" : ACCENT, color: alertOn ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
             <NavIcon name={alertOn ? "check" : "bell"} size={15} color={alertOn ? "#fff" : TXT} sw={2.2} />{alertOn ? "Allerte attive" : "Avvisami"}
           </button>
         </div>
@@ -1575,7 +1581,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
         {(wxHours || HOURS).map((x, i) => (
           <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
-            <div style={{ fontSize: 11, color: TXT2, fontWeight: 600 }}>{x.h}</div>
+            <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{x.h}</div>
             <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
             <div style={{ fontSize: 14, fontWeight: 800, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }}>{x.t}°</div>
           </div>
@@ -1589,7 +1595,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           <div key={i} style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", textAlign: "center", padding: "12px 6px" }}>
             {s.kind === "moon" ? <div style={{ fontSize: 26, lineHeight: "30px" }}>{s.time}</div> : <SkyIcon kind={s.kind} />}
             <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif", marginTop: 3 }}>{s.kind === "moon" ? "" : s.time}</div>
-            <div style={{ fontSize: 10.5, color: TXT2, marginTop: 1 }}>{s.label}</div>
+            <div style={{ fontSize: 12, color: TXT2, marginTop: 1 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -1607,14 +1613,14 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
                 : <>Onda {SEA.wave} · {SEA.trend}</>}
             </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 11, color: TXT2 }}>{wxSea ? <>modello<br />Copernicus</> : <>{SEA.photos} foto<br />della costa</>}</div>
+          <div style={{ textAlign: "right", fontSize: 12, color: TXT2 }}>{wxSea ? <>modello<br />Copernicus</> : <>{SEA.photos} foto<br />della costa</>}</div>
         </div>
         {/* scala Douglas semplificata */}
         <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
           {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: "center" }}>
               <div style={{ height: 7, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? ACCENT : "#E6EEF6" }} />
-              <div style={{ fontSize: 8.5, color: i === (wxSea || SEA).scale - 1 ? HBLUE : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 3 }}>{s}</div>
+              <div style={{ fontSize: 12, lineHeight: 1.1, color: i === (wxSea || SEA).scale - 1 ? HBLUE : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 4, textAlign: "center", whiteSpace: "pre-line" }}>{s.replace(" ", "\n")}</div>
             </div>
           ))}
         </div>
@@ -1624,7 +1630,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
       <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
         BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({S.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
-        <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
+        <div style={{ fontSize: 12, color: TXT2, marginTop: 8, lineHeight: 1.4 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
       </div>
     </div>
   );
@@ -1717,7 +1723,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
         </div>
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
           {[["meteo", `Meteo · ${allWeather.length}`, "beecast"], ["eventi", `Eventi · ${allEvents.length}`, "eventi"]].map(([id, label, ic]) => (
-            <button key={id} onClick={() => { setView(id); setSel(null); }} style={{ flex: 1, height: 36, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
+            <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
           ))}
         </div>
       </div>
@@ -1730,8 +1736,8 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           {[0.33, 0.66, 1].map((f, i) => <circle key={i} cx={cx} cy={cy} r={R * f} fill="none" stroke="#3B6EA6" strokeWidth={f === 1 ? 1.5 : 1.2} strokeDasharray={f === 1 ? undefined : "4 5"} />)}
           <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke="#2A5A8F" strokeWidth="1" />
           <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke="#2A5A8F" strokeWidth="1" />
-          <text x={cx - 6} y={cy - R + 12} fill="#fff" fontSize="10" fontWeight="700" textAnchor="end" fontFamily="Sora">N</text>
-          {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 5} y={cy - R * f + 14} fill="#9FB8D6" fontSize="10.5" fontWeight="600" fontFamily="Sora">{km < 1 ? `${Math.round(km * f * 1000)} m` : `${Math.round(km * f)} km`}</text>)}
+          <text x={cx - 6} y={cy - R + 13} fill="#fff" fontSize="12" fontWeight="700" textAnchor="end" fontFamily="Sora">N</text>
+          {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 5} y={cy - R * f + 14} fill="#B9CCE3" fontSize="12" fontWeight="600" fontFamily="Sora">{km < 1 ? `${Math.round(km * f * 1000)} m` : `${Math.round(km * f)} km`}</text>)}
           {/* io */}
           <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
@@ -1765,7 +1771,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #2F73B8" }} />cielo</span>
           <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #D9482B" }} />allerta</span>
         </div>
-        <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} style={{ position: "absolute", right: 18, bottom: 18, width: 36, height: 36, borderRadius: 18, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Sora',sans-serif" }}>{zoomed ? "−" : "+"}</button>
+        <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} aria-label={zoomed ? "Torna alla vista intera" : "Ingrandisci il radar"} style={{ position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Sora',sans-serif" }}>{zoomed ? "−" : "+"}</button>
       </div>
       {/* cielo toccato */}
       {sel
@@ -1798,7 +1804,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
       <div style={{ margin: "-14px -14px 12px", padding: "0 16px 14px", background: HBLUE }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>{/* 14.3: il selettore vive nella testata */}
         {[["meteo", "Meteo", "beecast"], ["social", "Social", "groups"]].map(([id, label, ic]) => (
-          <button key={id} onClick={() => setView(id)} style={{ flex: 1, height: 38, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
+          <button key={id} onClick={() => setView(id)} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
         ))}
       </div></div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1875,12 +1881,12 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       <div style={{ padding: "4px 16px 14px", background: HBLUE, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
           {[["contatti", "BeePaper"], ["preferiti", "Seguiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
-            <button key={id} onClick={() => setSub(id)} style={{ flex: 1, height: 36, borderRadius: 12, border: "none", background: sub === id ? "#fff" : "transparent", color: sub === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+            <button key={id} onClick={() => setSub(id)} aria-pressed={sub === id} style={{ flex: 1, height: 44, borderRadius: 12, border: "none", background: sub === id ? "#fff" : "transparent", color: sub === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
           ))}
         </div>
         {sub === "contatti" && <div style={{ display: "flex", alignItems: "center", gap: 10, height: 46, padding: "0 8px 0 14px", borderRadius: 16, background: HBLUE2 }}>
           <NavIcon name="search" size={18} color="#B9CCE3" sw={2.4} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Sora',sans-serif" }} />
+          <input value={q} onChange={e => setQ(e.target.value)} type="search" aria-label="Cerca api, luoghi e città" placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, minHeight: 44, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Sora',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color="#B9CCE3" sw={2.2} /></button>}
           <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
         </div>}
@@ -1967,7 +1973,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: HBLUE + "12", color: HBLUE, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
             </div>
-            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} style={{ height: 36, padding: "0 12px", borderRadius: 18, border: on ? "none" : `1.5px solid ${HBLUE}`, background: on ? HBLUE + "12" : "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
+            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 18, border: on ? "none" : `1.5px solid ${HBLUE}`, background: on ? HBLUE + "12" : "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 40, height: 40, borderRadius: 20, background: ACCENT, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WIcon name="chat" size={18} color={TXT} sw={2.2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
@@ -2793,7 +2799,7 @@ const shareEvent = async e => {
   return "prompt";
 };
 const ShareBtn = ({ e, dark }) => (
-  <button onClick={ev => { ev.stopPropagation(); shareEvent(e); }} title="Condividi l'evento" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 36, padding: "0 14px", borderRadius: 18, border: "none", background: dark ? HBLUE : ACCENT, color: dark ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
+  <button onClick={ev => { ev.stopPropagation(); shareEvent(e); }} title="Condividi l'evento" aria-label={`Condividi l'evento ${e.title || ""}`.trim()} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: dark ? HBLUE : ACCENT, color: dark ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
     <NavIcon name="send" size={15} color={dark ? "#fff" : TXT} sw={2.2} />Condividi
   </button>
 );
@@ -5089,11 +5095,11 @@ function AppInner() {
   const titles = { vicini: "Radar", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "BeeWorld" };
   const action = tab === "contatti"
     ? <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <button onClick={() => setOverlay("createGroup")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="groups" size={23} color="#fff" sw={2} /></button>
-        <button onClick={() => setOverlay("addContact")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
+        <button onClick={() => setOverlay("createGroup")} aria-label="Crea un gruppo" title="Nuovo gruppo" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44 }}><NavIcon name="groups" size={23} color="#fff" sw={2} /></button>
+        <button onClick={() => setOverlay("addContact")} aria-label="Aggiungi un contatto" title="Aggiungi contatto" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44 }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
       </div>
     : tab === "eventi"
-      ? <button onClick={() => setOverlay("addEvent")} style={{ height: 36, padding: "0 12px 0 8px", borderRadius: 18, background: ACCENT, border: "none", cursor: "pointer", color: TXT, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13 }}><NavIcon name="plus" size={18} color={TXT} sw={2.6} />Nuovo</button>
+      ? <button onClick={() => setOverlay("addEvent")} aria-label="Crea un nuovo evento" style={{ height: 44, padding: "0 14px 0 10px", borderRadius: 22, background: ACCENT, border: "none", cursor: "pointer", color: TXT, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13 }}><NavIcon name="plus" size={18} color={TXT} sw={2.6} />Nuovo</button>
       : null;   // 14.0: il nuovo cielo si scatta dal bottone miele della barra inferiore
   const rightBtn = (
     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -5117,7 +5123,7 @@ function AppInner() {
           {userCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: HBLUE }}>🐝 {userCount} api nell'alveare</span>}
           {isAdmin && onlineCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: "#2C7A57" }}>● {onlineCount} online</span>}
         </div>
-        <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
+        <div style={{ fontSize: 12, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
       </div>}
       {/* 13.7: nessun invito alla posizione all'avvio — si chiede al primo cielo, dalla fotocamera */}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { failAlert("Premio non riuscito", e); } } : undefined} />}
@@ -5127,7 +5133,7 @@ function AppInner() {
 
   return (
     <Frame>
-      <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} style={{ padding: 0, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={36} ring={false} /></button>} right={rightBtn} />
+      <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} aria-label="Apri il tuo profilo" title="Profilo" style={{ padding: 0, width: 44, height: 44, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={41} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
           <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
