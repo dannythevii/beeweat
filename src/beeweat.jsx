@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.22";
+const APP_VERSION = "14.23";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -731,7 +731,7 @@ const G = `
   input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
   input, textarea, select { font-family: 'Sora', sans-serif; }
   input::placeholder, textarea::placeholder { color: ${TXT2}; }
-  input[type=range] { -webkit-appearance:none; appearance:none; height:44px; padding:19.5px 0; background-clip:content-box !important; border-radius:5px; outline:none; cursor:pointer; }   /* 14.22: presa 44 px, riga 5 px */
+  input[type=range] { -webkit-appearance:none; appearance:none; height:44px; padding:19.5px 0; background:${LINE}; background-clip:content-box !important; border-radius:5px; outline:none; cursor:pointer; }   /* 14.23: la riga si vede anche senza stile inline */   /* 14.22: presa 44 px, riga 5 px */
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:9px; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
   input[type=range]::-moz-range-thumb { width:22px; height:22px; border-radius:8px; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
 `;
@@ -987,8 +987,8 @@ const GlobeIcon = ({ size = 14, color = "#fff" }) => (
   </svg>
 );
 const WorldBtn = ({ on, onClick, h = 30 }) => (
-  <button onClick={onClick} title="Tutto il mondo" aria-label={on ? "Torna ai cieli vicini" : "Mostra tutto il mondo"} aria-pressed={on} style={{ height: 44, padding: "0 12px", borderRadius: 10 + (44 - h) / 2, border: `${(44 - h) / 2}px solid transparent`, backgroundClip: "padding-box", background: on ? ACCENT : HBLUE, cursor: "pointer", fontSize: 12, fontWeight: 700, color: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `0 2px 10px ${ACCENT}88` : `0 2px 8px ${HBLUE}44`, transition: "background .15s, color .15s" }}>
-    <GlobeIcon size={13.5} color={on ? HBLUE : "#fff"} /> Mondo
+  <button onClick={onClick} title="Tutto il mondo" aria-label={on ? "Torna ai cieli vicini" : "Mostra tutto il mondo"} aria-pressed={on} style={{ height: 44, padding: "0 12px", borderRadius: 10 + (44 - h) / 2, border: `${(44 - h) / 2}px solid transparent`, backgroundClip: "padding-box", backgroundColor: on ? ACCENT : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `inset 0 0 0 1.5px ${ACCENT}` : `inset 0 0 0 1.5px ${HBLUE}66`, transition: "background .15s, color .15s" }}>{/* 14.23: bianco + bordo da spento, miele da acceso */}
+    <GlobeIcon size={14} color={HBLUE} /> {on ? "Mondo ✓" : "Mondo"}
   </button>
 );
 
@@ -1011,8 +1011,8 @@ function RadarBar({ km, setKm }) {
 function BottomNav({ tab, setTab, onPlus }) {
   // 14.1: cinque voci fisse. Al centro il bottone miele è il Feed; dentro il Feed diventa la fotocamera.
   const tabs = [
+    { id: "beecast", icon: "beecast", label: "BeeCast" },   // 14.23: BeeCast e Radar invertiti
     { id: "vicini", icon: "vicini", label: "Radar" },
-    { id: "beecast", icon: "beecast", label: "BeeCast" },
     { id: "eventi", icon: "eventi", label: "Eventi" },
     { id: "contatti", icon: "contatti", label: "BeeWorld" },
   ];
@@ -2479,7 +2479,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
               <button key={z} onClick={() => applyZoom(z)} aria-pressed={Math.abs(zoom - z) < .25} aria-label={`Zoom ${z}×`} style={{ minWidth: 44, minHeight: 44, padding: "5px 0", borderRadius: 14, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
             ))}
-            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} aria-label="Zoom" aria-valuetext={`${zoom.toFixed(1)}×`} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, accentColor: HBLUE }} />
+            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} aria-label="Zoom" aria-valuetext={`${zoom.toFixed(1)}×`} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${HBLUE} 0%, ${HBLUE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} 100%)` }} />
           </div>}
           {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
             <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label={facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"} title="Gira la fotocamera" style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
@@ -2639,7 +2639,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           </button>}
           {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
-          <div style={{ textAlign: "center", color: TXT2, fontSize: 12, marginTop: 10, letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
+          <div style={{ textAlign: "center", color: HBLUE, fontSize: 13, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -3481,7 +3481,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Raggio di prossimità</div>
         <div style={{ background: "#fff", padding: "14px 16px", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: TXT, marginBottom: 8 }}><span>Avvisami entro</span><b style={{ color: HBLUE }}>{settings.radiusKm} km</b></div>
-          <input type="range" min="1" max="100" value={settings.radiusKm} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", accentColor: ACCENT }} />
+          <input type="range" min="1" max="100" value={settings.radiusKm} aria-label="Raggio degli avvisi" aria-valuetext={`${settings.radiusKm} chilometri`} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${((settings.radiusKm - 1) / 99) * 100}%, ${LINE} ${((settings.radiusKm - 1) / 99) * 100}%, ${LINE} 100%)` }} />
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Cosa notificare</div>
