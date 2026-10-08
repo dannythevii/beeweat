@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.28";
+const APP_VERSION = "14.29";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2275,8 +2275,17 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 
 // ─── CAMERA / POST ────────────────────────────────────────────────────────────
 // Temperatura attuale nel punto dello scatto (Open-Meteo, ~1 km di precisione)
-const fetchTempAt = async (lat, lng) => {
+const fetchTempAt = async (lat, lng, atMs = null) => {
   try {
+    // 14.29: con `atMs` (ora dello scatto, zaino) si legge l'ora giusta tra le ore passate, non "adesso"
+    if (atMs && Math.abs(Date.now() - atMs) > 20 * 60000 && Date.now() - atMs < 6 * 86400000) {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m&past_days=6&forecast_days=1&timezone=auto`);
+      const j = await r.json();
+      const times = j?.hourly?.time || [], temps = j?.hourly?.temperature_2m || [];
+      let best = -1, bd = Infinity;
+      times.forEach((t, i) => { const d = Math.abs(new Date(t).getTime() - atMs); if (d < bd) { bd = d; best = i; } });
+      if (best >= 0 && typeof temps[best] === "number") return Math.round(temps[best]);
+    }
     const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m&timezone=auto`);
     const j = await r.json();
     const t = j?.current?.temperature_2m;
@@ -4915,9 +4924,9 @@ function AppInner() {
             it.aiClass = j.cls; it.aiScore = j.score; it.needsCheck = false;
           }
         }
-        if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng); } catch (_) {} }   // lo zaino la prende alla spedizione
+        if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng, it.ts || null); } catch (_) {} }   // 14.29: la temperatura dell'ORA DELLO SCATTO
         const itCity = it.city || await cityForPost(it.lat, it.lng);                       // zaino: il nome del posto si decide alla partenza
-        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, createdAt: it.ts ? new Date(it.ts).toISOString() : undefined, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -4986,7 +4995,7 @@ function AppInner() {
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
     const gp = blurCoords(geo.lat, geo.lng);                                   // sul server va la zona (~1 km), mai il punto esatto
     const precision = geoReal ? "gps" : "city";                                // con la sola città il cielo è "approssimativo"
-    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
+    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(pendTs)), ts: new Date(pendTs).toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
       const box = loadOutbox();
