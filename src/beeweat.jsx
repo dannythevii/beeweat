@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.25";
+const APP_VERSION = "14.26";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -959,7 +959,7 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
             <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}{W.feels != null ? <span style={{ fontWeight: 500, color: "#B9CCE3" }}> · percepita {W.feels}°</span> : null}</div>
               <div style={{ fontSize: 12, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
             </div>
           </div>
@@ -970,8 +970,9 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <M icon="drop">{W.humidity}</M>
-          <M icon="compass">{W.wind}</M>
-          {W.sea ? <M icon="thermo">{W.sea.state} · {W.sea.wave}</M> : <M icon="thermo">{W.hi}/{W.lo}</M>}
+          <M icon="compass">{W.wind}{W.windKmh != null ? ` ${W.windKmh} km/h` : ""}</M>
+          {W.pressure && <M icon="thermo"><span title={W.pressure.delta != null ? `${W.pressure.delta >= 0 ? "+" : ""}${W.pressure.delta.toFixed(1)} hPa in 3 ore` : "pressione"}>{W.pressure.hpa} <span style={{ color: W.pressure.trend === "↓" ? "#FFB3A7" : W.pressure.trend === "↑" ? "#B9F0C8" : "#B9CCE3" }}>{W.pressure.trend}</span></span></M>}{/* 14.26: pressione con tendenza */}
+          {W.sea ? <M icon="thermo">{W.sea.state} · {W.sea.wave}</M> : !W.pressure ? <M icon="thermo">{W.hi}/{W.lo}</M> : null}
         </div>
       </div>
     </div>
@@ -1498,7 +1499,7 @@ function SolanoCard({ solano }) {
     </div>
   );
 }
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano }) {
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano, wxDays }) {
   const RAW = sense && sense.raw ? sense.raw : null;   // 14.11
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
@@ -1629,6 +1630,22 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           </div>
         </div>
       )}
+
+      {/* 14.26: prossimi 7 giorni (Open-Meteo) */}
+      {wxDays && wxDays.length > 0 && <>
+        <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossimi 7 giorni</div>
+        <div style={{ background: "#fff", borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
+          {wxDays.map((d, i) => (
+            <div key={d.date} style={{ minWidth: 84, flex: "0 0 auto", textAlign: "center", padding: "4px 2px", borderRadius: 14, background: i === 0 ? HBLUE + "0E" : "transparent" }}>
+              <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{d.dow}{i > 1 ? ` ${d.dnum}` : ""}</div>
+              <div style={{ fontSize: 24, lineHeight: "30px", margin: "2px 0" }} title={d.l}>{d.e}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TXT }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
+              <div style={{ fontSize: 12, color: d.rain >= 1 ? HBLUE : TXT2, fontWeight: d.rain >= 10 ? 700 : 500 }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm${d.pop != null ? ` · ${d.pop}%` : ""}` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
+            </div>
+          ))}
+        </div>
+      </>}
 
       {/* 14.25: allerte ufficiali e rischio temporali (Solano) */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Allerte ufficiali · rischio temporali</div>
@@ -3993,7 +4010,7 @@ function AppInner() {
     if (!geo) return;
     let stop = false;
     const load = async () => { try {
-      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=2&timezone=auto`);
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lng}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl&hourly=temperature_2m,weather_code,pressure_msl&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset&forecast_days=7&timezone=auto`);   // 14.26: percepita, pressione, 7 giorni
       const j = await r.json();
       if (stop || !j?.current) return;
       const cw = WMO(j.current.weather_code);
@@ -4003,6 +4020,21 @@ function AppInner() {
         const idx = Math.min(nowIdx - 1 + k, j.hourly.time.length - 1);
         hours.push({ h: "+" + k + "h", e: WMO(j.hourly.weather_code[idx]).e, t: Math.round(j.hourly.temperature_2m[idx]) });
       }
+      // 14.26: pressione e tendenza (ultime 3 ore), percepita, 7 giorni
+      const pNow = (j.hourly.pressure_msl && j.hourly.pressure_msl[nowIdx - 1] != null) ? j.hourly.pressure_msl[nowIdx - 1] : (j.current.pressure_msl ?? null);
+      const pOld = (j.hourly.pressure_msl && nowIdx - 4 >= 0) ? j.hourly.pressure_msl[nowIdx - 4] : null;
+      const pDelta = (pNow != null && pOld != null) ? pNow - pOld : null;
+      const pressure = pNow != null ? { hpa: Math.round(pNow), delta: pDelta, trend: pDelta == null ? "→" : pDelta >= 1.5 ? "↑" : pDelta <= -1.5 ? "↓" : "→" } : null;
+      const feels = j.current.apparent_temperature != null ? Math.round(j.current.apparent_temperature) : null;
+      const DOW = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
+      const days = (j.daily.time || []).map((d, i) => { const dt = new Date(d + "T12:00:00"); return {
+        date: d, dow: i === 0 ? "oggi" : i === 1 ? "domani" : DOW[dt.getDay()], dnum: dt.getDate(),
+        e: WMO(j.daily.weather_code?.[i]).e, l: WMO(j.daily.weather_code?.[i]).l,
+        hi: Math.round(j.daily.temperature_2m_max[i]), lo: Math.round(j.daily.temperature_2m_min[i]),
+        rain: j.daily.precipitation_sum?.[i] ?? null, pop: j.daily.precipitation_probability_max?.[i] ?? null,
+        wind: j.daily.wind_speed_10m_max?.[i] != null ? Math.round(j.daily.wind_speed_10m_max[i]) : null,
+        gust: j.daily.wind_gusts_10m_max?.[i] != null ? Math.round(j.daily.wind_gusts_10m_max[i]) : null
+      }; });
       // Stato del mare: modello d'onda MFWAM (Copernicus Marine) via Open-Meteo Marine
       let sea = null;
       try {
@@ -4026,7 +4058,7 @@ function AppInner() {
         }
       } catch (_) {}
       setWx({
-        sea,
+        sea, pressure, feels, days,   // 14.26
         condition: cw.e + " " + cw.l,
         temp: Math.round(j.current.temperature_2m) + "°",
         hi: Math.round(j.daily.temperature_2m_max[0]) + "°",
@@ -5246,7 +5278,7 @@ function AppInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen solano={solano} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
+        {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
