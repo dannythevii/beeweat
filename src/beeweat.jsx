@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.17";
+const APP_VERSION = "14.18";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -716,8 +716,19 @@ const G = `
   @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
   @keyframes ping { 0%{transform:scale(.6);opacity:.8} 80%,100%{transform:scale(2.4);opacity:0} }
   @keyframes drop { 0%{transform:translateY(-40px);opacity:0} 60%{transform:translateY(4px);opacity:1} 100%{transform:translateY(0)} }
-  .fade-up { animation: fadeUp .35s ease both; }
-  .star-pop { animation: pop .35s cubic-bezier(.36,.07,.19,.97) both; }
+  .fade-up { animation: fadeUp .3s ease-out both; }
+  .star-pop { animation: pop .3s ease-out both; }
+  @keyframes shimmer { 0%{opacity:.55} 50%{opacity:1} 100%{opacity:.55} }
+  .bw-skel { background: #DCE6F1; animation: shimmer 1.4s ease-in-out infinite; }
+  /* 14.18: chi ha chiesto meno movimento non vede animazioni (resta solo il cambio di stato) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    .bw-skel { animation: none; opacity: .8; }
+  }
+  /* 14.18: anello di messa a fuoco visibile da tastiera (non al tocco) */
+  :focus { outline: none; }
+  :focus-visible { outline: 3px solid ${ACCENT}; outline-offset: 2px; border-radius: 6px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
   input, textarea, select { font-family: 'Sora', sans-serif; }
   input::placeholder, textarea::placeholder { color: ${TXT2}; }
   input[type=range] { -webkit-appearance:none; appearance:none; height:5px; border-radius:5px; outline:none; cursor:pointer; }
@@ -934,7 +945,7 @@ function Header({ title, left, right }) {
 // ─── WEATHER PANEL ────────────────────────────────────────────────────────────
 function WeatherPanel({ commentCount, wx, onOpenChat }) {
   const W = wx || WEATHER;
-  const M = ({ icon, children }) => <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, borderRadius: 11, background: HBLUE, padding: "5px 9px", fontSize: 11.5, minWidth: 0 }}><WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
+  const M = ({ icon, children }) => <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, borderRadius: 11, background: HBLUE, padding: "5px 9px", fontSize: 12, minWidth: 0 }}><WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
   return (
     <div style={{ background: HBLUE, padding: "0 14px 10px", flexShrink: 0 }}>
       <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "9px 14px 10px", display: "flex", flexDirection: "column", gap: 7 }}>
@@ -943,12 +954,12 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
             <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
-              <div style={{ fontSize: 11, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
+              <div style={{ fontSize: 12, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 30, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
-            <button onClick={onOpenChat} title="Chat pubblica del posto" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 700, background: ACCENT, color: TXT, border: "none", borderRadius: 10, padding: "3px 8px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
+            <button onClick={onOpenChat} title="Chat pubblica del posto" aria-label={`Apri la chat del posto (${commentCount} messaggi)`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, minHeight: 28, background: ACCENT, color: TXT, border: "none", borderRadius: 10, padding: "3px 8px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -984,7 +995,7 @@ function RadarBar({ km, setKm }) {
   return (
     <div style={{ background: HBLUE2, padding: "8px 18px 30px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>{/* 14.2: il cursore sta in alto, sotto resta lo spazio del bottone miele */}
       <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
-      <input type="range" min={0} max={108} value={idx} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE} ${pct}%, ${HBLUE} 100%)` }} />
+      <input type="range" min={0} max={108} value={idx} aria-label="Raggio del radar" aria-valuetext={km < 1 ? `${Math.round(km * 1000)} metri` : `${km} chilometri`} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE} ${pct}%, ${HBLUE} 100%)` }} />
       <span style={{ color: "#fff", fontWeight: 800, fontSize: 17, fontFamily: "'Bricolage Grotesque',sans-serif", minWidth: 64, textAlign: "right" }}>{km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`}</span>
     </div>
   );
@@ -1003,20 +1014,20 @@ function BottomNav({ tab, setTab, onPlus }) {
   const Tab = t => {
     const a = tab === t.id;
     return (
-      <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+      <button key={t.id} onClick={() => setTab(t.id)} aria-label={t.label} aria-current={a ? "page" : undefined} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>{/* 14.18: tocco ≥ 44 px */}
         <NavIcon name={t.icon} size={24} color={a ? NAVACT : "#9FB8D6"} sw={a ? 2.2 : 1.9} />
-        <span style={{ fontSize: 10.5, fontWeight: a ? 700 : 600, color: a ? NAVACT : "#9FB8D6" }}>{t.label}</span>
+        <span style={{ fontSize: 12, fontWeight: a ? 700 : 500, color: a ? NAVACT : "#9FB8D6" }}>{t.label}</span>
       </button>
     );
   };
   return (
     <div style={{ display: "flex", alignItems: "center", background: NAV, minHeight: 66, padding: "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0 }}>
       {tabs.slice(0, 2).map(Tab)}
-      <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+      <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
         <span style={{ width: 58, height: 58, marginTop: -32, borderRadius: "50%", background: ACCENT, color: TXT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 8px 18px rgba(255,198,30,.45), 0 0 0 5px ${NAV}` }}>
           <NavIcon name={onFeed && onPlus ? "camera" : "feed"} size={27} color={TXT} sw={2.3} />
         </span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: NAVACT }}>{onFeed && onPlus ? "Scatta" : "Feed"}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: NAVACT }}>{onFeed && onPlus ? "Scatta" : "Feed"}</span>
       </button>
       {tabs.slice(2).map(Tab)}
     </div>
@@ -1278,7 +1289,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     </button>
   );
   return (
-    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: "#fff", border: (focused || post.awarded) ? `2px solid ${ACCENT}` : "none", borderRadius: 22, padding: 0, overflow: "hidden", marginBottom: 14, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : post.awarded ? `0 0 0 3px ${ACCENT}33, 0 4px 18px ${ACCENT}44` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
+    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: "#fff", border: (focused || post.awarded) ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 22, padding: 0, overflow: "hidden", marginBottom: 14, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : post.awarded ? `0 0 0 3px ${ACCENT}33, 0 4px 18px ${ACCENT}44` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
       {post.awarded && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", background: ACCENT, color: "#3A2B05", fontWeight: 800, fontSize: 12.5, letterSpacing: ".04em" }}>
           <span style={{ fontSize: 18 }}>🏅</span>
@@ -1292,7 +1303,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span><span>{post.cond.replace(/^[^ ]+ /, "")}{post.temp != null && Number.isFinite(post.temp) ? ` · ${Math.round(post.temp)}°` : ""}</span>
         </div>
         {post.dir && <div style={{ position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 14, background: "rgba(20,44,74,.72)", color: "#fff", fontSize: 12, fontWeight: 600 }}><WIcon name="compass" size={13} color="#fff" sw={2.2} /><span>{post.dir.label}</span></div>}
-        {reported && <div style={{ position: "absolute", top: 44, left: 10, display: "flex", alignItems: "center", gap: 5, background: "rgba(30,40,60,.78)", color: "#fff", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "5px 11px" }}><NavIcon name="search" size={12} color="#fff" sw={2} /> In revisione</div>}
+        {reported && <div style={{ position: "absolute", top: 44, left: 10, display: "flex", alignItems: "center", gap: 5, background: "rgba(30,40,60,.78)", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 20, padding: "5px 11px" }}><NavIcon name="search" size={12} color="#fff" sw={2} /> In revisione</div>}
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "40px 12px 10px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.8) 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
           <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0 }}><UserAvatar src={post.ava} size={40} stars={post.stars_rank || 0} /></div>
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
@@ -1303,8 +1314,8 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
               {post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <><span>·</span><span>{post.dist} km</span></>}
             </div>
           </div>
-          {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>{post.checking ? "🔎 controllo" : "🎒 in attesa"}</span>}
-          {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>⏫ invio…</span>}
+          {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>{post.checking ? "🔎 controllo" : "🎒 in attesa"}</span>}
+          {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>⏫ invio…</span>}
         </div>
       </div>
 
@@ -1313,15 +1324,15 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         {post.caption && <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
         {/* AZIONI: stella (miele) · commenti · occhi · segui · segnala/modifica */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={post.mine ? undefined : like} title="Stella" style={{ height: 36, padding: "0 13px", borderRadius: 18, border: "none", background: post.mine ? LINE : post.starred ? "#EF4D6A" : ACCENT, color: post.mine ? TXT2 : post.starred ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: post.mine ? "default" : "pointer" }}>
+          <button onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : "Metti una stella"} aria-label={post.mine ? `${post.stars} stelle ricevute` : post.starred ? "Togli la stella" : "Metti una stella"} aria-pressed={post.mine ? undefined : !!post.starred} style={{ height: 40, padding: "0 13px", borderRadius: 18, border: "none", background: post.mine ? LINE : post.starred ? "#EF4D6A" : ACCENT, color: post.mine ? TXT2 : post.starred ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: post.mine ? "default" : "pointer" }}>
             <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={post.starred ? "heartFill" : "heart"} size={16} color={post.mine ? TXT2 : post.starred ? "#fff" : TXT} sw={2.2} /></span><span>{post.stars}</span>
           </button>
-          <button onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Commenti" style={{ height: 36, padding: "0 12px", borderRadius: 18, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: onChat ? "pointer" : "default" }}>
+          <button onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria-label={`Apri i commenti (${post.comments})`} style={{ height: 40, padding: "0 12px", borderRadius: 18, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: onChat ? "pointer" : "default" }}>
             <NavIcon name="comment" size={16} color={HBLUE} sw={2.2} /><span>{post.comments}</span>
           </button>
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, fontSize: 12, color: TXT2, minWidth: 0 }}><NavIcon name="eye" size={15} color={TXT2} sw={2} /><span>{post.views}</span></div>
-          {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4 }}><NavIcon name="flag" size={17} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
-          {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
+          {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" aria-label={reported ? "Segnalato, in revisione" : "Segnala questo cielo"} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, margin: "-4px -8px -4px -4px" }}><NavIcon name="flag" size={17} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
+          {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria-label="Modifica questo cielo" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, margin: "-4px -8px -4px -4px" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
           {onFollow && !post.mine && (
             <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ height: 36, fontSize: 12.5, fontWeight: 700, fontFamily: "'Sora',sans-serif", padding: "0 12px", borderRadius: 18, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "#fff", color: isFollowing ? "#fff" : HBLUE, flexShrink: 0 }}>{isFollowing ? "Seguito" : "Segui"}</button>
           )}
@@ -1331,8 +1342,32 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
   );
 }
 
+// 14.18: errore per persone — titolo breve, una via d'uscita, dettaglio tecnico solo se lo chiedi (copiato negli appunti)
+function failAlert(title, err, hint) {
+  const detail = (err && (err.message || (typeof err === "string" ? err : JSON.stringify(err)))) || "";
+  try { console.warn(title, err); } catch (_) {}
+  const msg = `${title}.\n${hint || "Riprova tra poco."}`;
+  if (!detail || !navigator.clipboard?.writeText) { alert(msg); return; }
+  if (confirm(msg + "\n\nCopiare i dettagli tecnici per l'assistenza?")) navigator.clipboard.writeText(`Beeweat ${APP_VERSION} — ${title}\n${detail}`).catch(() => {});
+}
 // ─── FEED ─────────────────────────────────────────────────────────────────────
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId }) {
+function FeedSkeleton() {   // 14.18: due card "in arrivo" al posto dell'icona lampeggiante
+  return <div aria-live="polite" aria-busy="true" role="status">
+    <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Lettura del cielo in corso</span>
+    {[0, 1].map(i => (
+      <div key={i} style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, overflow: "hidden", marginBottom: 14 }}>
+        <div className="bw-skel" style={{ width: "100%", aspectRatio: "3 / 2" }} />
+        <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="bw-skel" style={{ height: 14, width: "70%", borderRadius: 7 }} />
+          <div style={{ display: "flex", gap: 8 }}><div className="bw-skel" style={{ height: 40, width: 72, borderRadius: 20 }} /><div className="bw-skel" style={{ height: 40, width: 64, borderRadius: 20 }} /></div>
+        </div>
+      </div>
+    ))}
+  </div>;
+}
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot }) {
+  const [slow, setSlow] = useState(false);   // 14.18: lo skeleton compare solo se l'attesa supera 150 ms (niente sfarfallio)
+  useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded);   // faro e premiata entrano anche fuori raggio
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
@@ -1342,11 +1377,16 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
       </div>
       {visible.length === 0
         ? (loading
-            ? <div style={{ textAlign: "center", padding: "56px 20px", color: TXT2 }}>
-                <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><span style={{ animation: "blink 1.1s infinite", display: "flex" }}><NavIcon name="beecast" size={40} color={HBLUE} sw={1.6} /></span></div>
-                Lettura del cielo in corso…
-              </div>
-            : <div style={{ textAlign: "center", padding: "50px 20px", color: TXT2 }}><div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>Nessun post in questo raggio. Allarga il radar!</div>)
+            ? (slow ? <FeedSkeleton /> : null)
+            : <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, textAlign: "center", padding: "36px 20px 28px", color: TXT2 }}>{/* 14.18: stato vuoto con un'azione */}
+                <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>
+                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{worldOn ? "Nessun cielo nel mondo, per ora" : `Nessun cielo entro ${km} km`}</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 16 }}>{worldOn ? "Appena un'ape pubblica, compare qui." : "Allarga il raggio per vedere i cieli delle api più lontane, oppure pubblica tu il primo."}</div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                  {!worldOn && onWiden && km < 50 && <button onClick={() => onWiden(50)} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Allarga a 50 km</button>}
+                  {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
+                </div>
+              </div>)
         : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} />)}
     </div>
   );
@@ -2248,7 +2288,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         setTimeout(runAI, 60);
       } finally { URL.revokeObjectURL(url); }
     };
-    im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile: riprova."); };
+    im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
     im.src = url;
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setTimeout(() => shotRef.current?.click(), 50); };
@@ -2875,7 +2915,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
     setSending(true);
     const c = coords || await resolveCoords();
     setSending(false);
-    if (!c) { alert("Non riesco a mettere la spilla sulla mappa: controlla che la città sia scritta per esteso (es. \"Napoli\"), oppure attiva il GPS e userò la tua posizione attuale. 📍"); return; }
+    if (!c) { alert("Posizione dell'evento non trovata.\nScrivi la città per esteso (es. \"Napoli\") oppure attiva il GPS: userò la posizione attuale."); return; }
     const isSocial = kind === "social";
     const endsFinal = isSocial ? (startsAt ? new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) : ends) : ends;
     onAdd({
@@ -3128,7 +3168,7 @@ function PermissionsPanel({ onGeoGranted }) {
   const askCam = async () => {
     if (!navigator.mediaDevices?.getUserMedia) { alert("Fotocamera non disponibile in questo browser (se sei in WhatsApp/Instagram: apri in Safari o Chrome)."); return; }
     try { const t = await navigator.mediaDevices.getUserMedia({ video: true }); t.getTracks().forEach(x => x.stop()); alert("Fotocamera consentita ✓"); }
-    catch (e) { if (e?.name === "NotAllowedError") deniedHelp(); else alert("Fotocamera non ottenuta: " + (e?.message || e)); }
+    catch (e) { if (e?.name === "NotAllowedError") deniedHelp(); else failAlert("Fotocamera non ottenuta", e); }
     refresh();
   };
   const askNtf = async () => {
@@ -4053,7 +4093,7 @@ function AppInner() {
         const p = window.prompt("Link di reimpostazione riconosciuto 🐝\nScegli la NUOVA password (minimo 6 caratteri):");
         if (p && p.length >= 6) sb.supabase.auth.updateUser({ password: p })
           .then(() => alert("Password aggiornata ✓ D'ora in poi accedi con quella nuova."))
-          .catch(e => alert("Aggiornamento non riuscito: " + (e?.message || e)));
+          .catch(e => failAlert("Aggiornamento non riuscito", e));
         else if (p !== null) alert("Password troppo corta: riapri il link e riprova.");
       }
     });
@@ -4099,7 +4139,7 @@ function AppInner() {
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC_KEY) });
       if (sb?.isConfigured) await sb.savePushSub(sub.toJSON());
       setPushState("on");
-    } catch (e) { alert("Attivazione push non riuscita: " + (e?.message || e)); }
+    } catch (e) { failAlert("Attivazione push non riuscita", e); }
   };
   // posizione per lo scanner delle allerte (solo con allerte attive)
   useEffect(() => {
@@ -4322,14 +4362,14 @@ function AppInner() {
     const cityChanged = city != null && city !== (p.city || "");
     setPosts(ps => ps.map(x => x.id === p.id ? { ...x, caption, cond, ...(cityChanged ? { city } : {}) } : x));
     if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
-      sb.updatePost(p.id, { caption, condition: cond, ...(cityChanged ? { city } : {}) }).catch(e => { alert("Modifica non salvata: " + (e?.message || e)); loadFeed(); });
+      sb.updatePost(p.id, { caption, condition: cond, ...(cityChanged ? { city } : {}) }).catch(e => { failAlert("Modifica non salvata", e); loadFeed(); });
   };
   // Cancellazione post (autore o admin) — senza doppia conferma (il modale l'ha già chiesta)
   const doDeletePost = p => {
     setPosts(ps => ps.filter(x => x.id !== p.id));
     if (sb?.isConfigured && typeof p.id === "string" && p.id.includes("-"))
       sb.deletePost(p).then(() => loadFeed())
-        .catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+        .catch(e => { failAlert("Eliminazione non riuscita", e); loadFeed(); });
     else if (sb?.isConfigured) setTimeout(loadFeed, 800);   // post appena creato (id provvisorio): riallineo col database
   };
   // Cancellazione post (autore o admin)
@@ -4337,7 +4377,7 @@ function AppInner() {
     if (!window.confirm("Eliminare definitivamente questo post?")) return;
     const real = sb?.isConfigured && typeof post.id === "string" && post.id.includes("-");
     setPosts(ps => ps.filter(p => p.id !== post.id));
-    if (real) sb.deletePost(post).catch(e => { alert("Eliminazione non riuscita: " + (e?.message || e)); loadFeed(); });
+    if (real) sb.deletePost(post).catch(e => { failAlert("Eliminazione non riuscita", e); loadFeed(); });
   };
   // Visualizzazioni: conta quando il post appare sullo schermo, una volta per utente
   const seenRef = useRef(new Set());
@@ -4715,7 +4755,7 @@ function AppInner() {
         } catch (e) {
           clearTemp();
           if (isNetErr(e)) toOutbox();
-          else if (!sessionLost(e)) { alert("Pubblicazione non riuscita: " + (e?.message || e)); localAdd(); }
+          else if (!sessionLost(e)) { failAlert("Pubblicazione non riuscita", e); localAdd(); }
         }
       })();
     } else localAdd();
@@ -4775,7 +4815,7 @@ function AppInner() {
     if (sb?.isConfigured) {
       sb.createGroup(g.name, g.members)
         .then(() => setSocialTick(t => t + 1))
-        .catch(e => alert("Creazione gruppo non riuscita: " + (e?.message || e)));
+        .catch(e => failAlert("Creazione gruppo non riuscita", e));
       return;
     }
     setGroups(gs => [...gs, { id: nextId, ...g }]); setNextId(n => n + 1);
@@ -4786,7 +4826,7 @@ function AppInner() {
     if (sb?.isConfigured && typeof id === "string" && id.includes("-")) {
       const add = members.filter(x => !cur.includes(x));
       const rem = cur.filter(x => !members.includes(x));
-      sb.updateGroupMembers(id, add, rem).catch(e => { alert("Aggiornamento membri non riuscito: " + (e?.message || e)); setSocialTick(t => t + 1); });
+      sb.updateGroupMembers(id, add, rem).catch(e => { failAlert("Aggiornamento membri non riuscito", e); setSocialTick(t => t + 1); });
     }
   };
   const [editEventTarget, setEditEventTarget] = useState(null);
@@ -4801,7 +4841,7 @@ function AppInner() {
       const { startsAt, ...rest } = patch;
       sb.updateEvent(e.id, { ...rest, ...(startsAt !== undefined ? { starts_at: startsAt } : {}) })
         .then(() => setSocialTick(t => t + 1))
-        .catch(err => { alert("Modifica non salvata: " + (err?.message || err)); setSocialTick(t => t + 1); });
+        .catch(err => { failAlert("Modifica non salvata", err); setSocialTick(t => t + 1); });
     }
   };
   const doDeleteEvent = () => {
@@ -4809,7 +4849,7 @@ function AppInner() {
     if (!e) return;
     setEvents(ev => ev.filter(x => x.id !== e.id));
     if (sb?.isConfigured && typeof e.id === "string" && e.id.includes("-"))
-      sb.deleteEvent(e.id).catch(err => { alert("Eliminazione non riuscita: " + (err?.message || err)); setSocialTick(t => t + 1); });
+      sb.deleteEvent(e.id).catch(err => { failAlert("Eliminazione non riuscita", err); setSocialTick(t => t + 1); });
   };
   const sessionLost = err => {
     if (!/autenticat|jwt|token|session/i.test(String(err?.message || err))) return false;
@@ -4877,12 +4917,12 @@ function AppInner() {
       setUser(u => u ? { ...u, city } : u);
       if (sb?.isConfigured && myUid) {
         try { await sb.supabase.from("profiles").update({ city }).eq("id", myUid); setSocialTick(t => t + 1); }
-        catch (e) { alert("Città non salvata: " + (e?.message || e)); }
+        catch (e) { failAlert("Città non salvata", e); }
       }
     }} isAdmin={isAdmin}
     onToggleReceipts={sb?.isConfigured && sb.setReadReceipts ? async on => {
       setUser(u => u ? { ...u, readReceipts: on } : u);
-      try { await sb.setReadReceipts(on); } catch (e) { alert("Impostazione non salvata: " + (e?.message || e)); }
+      try { await sb.setReadReceipts(on); } catch (e) { failAlert("Impostazione non salvata", e); }
     } : undefined}
     onBroadcast={async () => {
       const text = window.prompt("📣 Messaggio a TUTTE le api dell'alveare:");
@@ -4891,7 +4931,7 @@ function AppInner() {
       try {
         const n = await sb.adminBroadcast(text.trim());
         alert(`📣 Messaggio consegnato a ${n} api dell'alveare ✓`);
-      } catch (e) { alert("Invio non riuscito: " + (e?.message || e)); }
+      } catch (e) { failAlert("Invio non riuscito", e); }
     }} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
   if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
@@ -4939,13 +4979,13 @@ function AppInner() {
         await sb.adminUpdateProfile(u.uid, { name: name.trim() || u.name, city: city.trim() });
         alert("Profilo aggiornato ✓"); setSocialTick(t => t + 1);
         setOverlay(o => o?.user ? { ...o, user: { ...o.user, name: name.trim() || u.name, city: city.trim() } } : o);
-      } catch (e) { alert("Aggiornamento non riuscito: " + (e?.message || e)); }
+      } catch (e) { failAlert("Aggiornamento non riuscito", e); }
     }} onDeleteUser={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       if (!window.confirm(`ELIMINARE TOTALMENTE l'utente "${u.name}"?\nSpariranno account, post, messaggi, gruppi e notifiche. Irreversibile.`)) return;
       if (!window.confirm("Seconda conferma: procedere davvero con l'eliminazione definitiva?")) return;
       try { await sb.adminDeleteUser(u.uid); alert(`Utente "${u.name}" eliminato.`); setOverlay(null); setSocialTick(t => t + 1); loadFeed(); }
-      catch (e) { alert("Eliminazione non riuscita: " + (e?.message || e)); }
+      catch (e) { failAlert("Eliminazione non riuscita", e); }
     }} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
   if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
@@ -4989,12 +5029,12 @@ function AppInner() {
       ? <button onClick={() => setOverlay("addEvent")} style={{ height: 36, padding: "0 12px 0 8px", borderRadius: 18, background: ACCENT, border: "none", cursor: "pointer", color: TXT, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13 }}><NavIcon name="plus" size={18} color={TXT} sw={2.6} />Nuovo</button>
       : null;   // 14.0: il nuovo cielo si scatta dal bottone miele della barra inferiore
   const rightBtn = (
-    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <button onClick={() => setOverlay("alerts")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 8, position: "relative", overflow: "visible" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <button onClick={() => setOverlay("alerts")} aria-label={unreadCount > 0 ? `Apri gli avvisi (${unreadCount} da leggere)` : "Apri gli avvisi"} title="Avvisi" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, position: "relative", overflow: "visible" }}>{/* 14.18: tocco 44 px */}
         <NavIcon name="bell" size={22} color="#fff" sw={2} />
         {unreadCount > 0 && <span style={{ position: "absolute", top: -3, right: -2, minWidth: 17, height: 17, borderRadius: 9, background: "#E5484D", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", border: "2px solid " + HBLUE, boxSizing: "content-box", lineHeight: 1, zIndex: 3 }}>{unreadCount > 9 ? "9+" : unreadCount}</span>}
       </button>
-      <button onClick={() => setOverlay("search")} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", marginRight: 6 }}><NavIcon name="search" size={22} color="#fff" sw={2} /></button>
+      <button onClick={() => setOverlay("search")} aria-label="Cerca api, luoghi e città" title="Cerca" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46 }}><NavIcon name="search" size={22} color="#fff" sw={2} /></button>
       {action}
     </div>
   );
@@ -5013,7 +5053,7 @@ function AppInner() {
         <div style={{ fontSize: 10.5, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
       </div>}
       {/* 13.7: nessun invito alla posizione all'avvio — si chiede al primo cielo, dalla fotocamera */}
-      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { failAlert("Premio non riuscito", e); } } : undefined} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
     </Frame>;
   }
@@ -5030,7 +5070,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} />}
+        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
@@ -5040,10 +5080,10 @@ function AppInner() {
             if (name === null) return;
             if (name.trim() === "") {
               if (!window.confirm(`Eliminare il gruppo "${g.name}" per tutti i membri?`)) return;
-              try { await sb.deleteGroup(g.id); setSocialTick(t => t + 1); } catch (e) { alert("Eliminazione non riuscita: " + (e?.message || e)); }
+              try { await sb.deleteGroup(g.id); setSocialTick(t => t + 1); } catch (e) { failAlert("Eliminazione non riuscita", e); }
               return;
             }
-            try { await sb.updateGroup(g.id, { name: name.trim() }); setSocialTick(t => t + 1); } catch (e) { alert("Modifica non riuscita: " + (e?.message || e)); }
+            try { await sb.updateGroup(g.id, { name: name.trim() }); setSocialTick(t => t + 1); } catch (e) { failAlert("Modifica non riuscita", e); }
           }} worldOn={contactsWorld} onToggleWorld={() => setContactsWorld(v => !v)} worldPlaces={worldPlaces} />}
       </div>
 
@@ -5055,7 +5095,7 @@ function AppInner() {
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} initialKind={evView} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
-      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { alert("Premio non riuscito: " + (e?.message || e)); } } : undefined} />}
+      {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { failAlert("Premio non riuscito", e); } } : undefined} />}
     </Frame>
   );
 }
