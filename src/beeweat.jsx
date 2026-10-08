@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.27";
+const APP_VERSION = "14.28";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1323,7 +1323,21 @@ function PhotoViewer({ src, caption, onClose }) {
   );
 }
 
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused }) {
+function HiveReading({ post, modelCond }) {   // 14.28
+  const r = ratePost(post, modelCond); if (!r) return null;
+  const col = r.reliability === "alta" ? "#2E9E63" : r.reliability === "media" ? "#B8860B" : TXT2;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12, color: TXT2 }} title={`Foto: ${r.photo ? r.photo.cls : "—"} · Testo: ${r.text ? r.text.cls : "—"} · Scelta: ${r.choice ? r.choice.cls : "—"}${modelCond ? ` · Modello: ${modelCond}` : ""}`}>
+      <span style={{ fontSize: 13 }}>🐝</span>
+      <span><b style={{ color: TXT }}>{r.cls}</b> · {Math.round(r.agree * 100)}% <span style={{ color: col, fontWeight: 600 }}>{r.reliability}</span></span>
+      <span style={{ display: "inline-flex", gap: 4 }}>
+        {r.marks.map(m => <span key={m.k} style={{ padding: "1px 6px", borderRadius: 8, background: !m.has ? LINE + "66" : m.ok ? "#2E9E6318" : "#E8700A18", color: !m.has ? TXT2 : m.ok ? "#2E9E63" : "#E8700A", fontWeight: 600 }}>{m.k} {!m.has ? "–" : m.ok ? "✓" : "✗"}</span>)}
+        {r.modelOk != null && <span style={{ padding: "1px 6px", borderRadius: 8, background: r.modelOk ? "#2E9E6318" : "#E8700A18", color: r.modelOk ? "#2E9E63" : "#E8700A", fontWeight: 600 }}>modello {r.modelOk ? "✓" : "✗"}</span>}
+      </span>
+    </div>
+  );
+}
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond }) {
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -1374,6 +1388,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
       <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
         {/* DIDASCALIA troncata */}
         {post.caption && <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
+        <HiveReading post={post} modelCond={modelCond} />{/* 14.28 */}
         {/* AZIONI: stella (miele) · commenti · occhi · segui · segnala/modifica */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : "Metti una stella"} aria-label={post.mine ? `${post.stars} stelle ricevute` : post.starred ? "Togli la stella" : "Metti una stella"} aria-pressed={post.mine ? undefined : !!post.starred} style={{ height: 40, padding: "0 13px", borderRadius: 18, border: "none", background: post.mine ? LINE : post.starred ? "#EF4D6A" : ACCENT, color: post.mine ? TXT2 : post.starred ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: post.mine ? "default" : "pointer" }}>
@@ -1402,6 +1417,42 @@ function failAlert(title, err, hint) {
   if (!detail || !navigator.clipboard?.writeText) { alert(msg); return; }
   if (confirm(msg + "\n\nCopiare i dettagli tecnici per l'assistenza?")) navigator.clipboard.writeText(`Beeweat ${APP_VERSION} — ${title}\n${detail}`).catch(() => {});
 }
+// 14.28: LETTURA DELL'ALVEARE — tre letture per ogni cielo, poi la media
+//   foto (occhi AI allo scatto, incrociata col modello) · descrizione (parole) · scelta del tipo di cielo
+const SKY_KEYS = [
+  ["⛈️ Temporale", /\b(temporal|tuon|fulmin|lamp[io]|saett|grandin|nubifrag|bomba d'acqua)/i],
+  ["🌧️ Pioggia", /\b(piov|piogg|acquazzon|scrosc|rovesc|diluvi|bagnat|goccio|pioviggin|ombrell)/i],
+  ["❄️ Neve", /\b(nev[ea]|nevic|fiocch|ghiacci|gelat)/i],
+  ["🌫️ Nebbia", /\b(nebbi|fosch|brum|caligin|nuvole basse)/i],
+  ["🌈 Arcobaleno", /\b(arcobalen)/i],
+  ["🌬️ Ventoso", /\b(vent[oi]|raffic|libecci|maestral|sciroc|tramontan|grecal|ponent|levant|burrasc|mare mosso|mareggiat)/i],
+  ["☀️ Sereno", /\b(seren|sole|soleggiat|limpid|azzurr|ters[ao]|cielo pulit|bel tempo|splend|cald[oa] e sole)/i],
+  ["⛅ Poco nuvoloso", /\b(nuvol|nube|nubi|copert|grigi|velat|plumbe|cumul|strat|cirr)/i],
+];
+const skyEmoji = c => (c || "").split(" ")[0];
+const readCaption = text => {
+  const t = (text || "").trim(); if (!t) return null;
+  for (const [cls, rx] of SKY_KEYS) if (rx.test(t)) return { cls, conf: 0.6 };
+  return null;
+};
+// valutazione di un cielo: { cls, agree (0..1), reliability, photo, text, choice, modelOk }
+const ratePost = (p, modelCond) => {
+  const photo = p.aiClass && CONDITIONS.includes(p.aiClass) ? { cls: p.aiClass, conf: Math.max(0.3, Math.min(1, p.aiScore || 0.6)) } : null;
+  const text = readCaption(p.caption);
+  const choice = p.cond ? { cls: p.cond, conf: 0.6 } : null;
+  const votes = {}; let total = 0;
+  const add = (r, w) => { if (!r) return; const wt = w * r.conf; votes[r.cls] = (votes[r.cls] || 0) + wt; total += wt; };
+  add(photo, 0.45); add(text, 0.35); add(choice, 0.2);   // due letture umane concordi battono una foto incerta
+  if (!total) return null;
+  const [cls, best] = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
+  const agree = best / total;                                          // la "media": quanto le letture concordano sulla vincente
+  const n = [photo, text, choice].filter(Boolean).length;
+  const reliability = n >= 3 && agree >= 0.75 ? "alta" : n >= 2 && agree >= 0.55 ? "media" : "bassa";
+  const modelOk = modelCond ? skyEmoji(modelCond) === skyEmoji(cls) : null;   // incrocio col modello matematico
+  return { cls, agree, reliability, n, photo, text, choice, modelOk,
+    marks: [["foto", photo], ["testo", text], ["scelta", choice]].map(([k, r]) => ({ k, has: !!r, ok: !!r && r.cls === cls })) };
+};
+
 // ─── FEED ─────────────────────────────────────────────────────────────────────
 function FeedSkeleton() {   // 14.18: due card "in arrivo" al posto dell'icona lampeggiante
   return <div aria-live="polite" aria-busy="true" role="status">
@@ -1417,7 +1468,7 @@ function FeedSkeleton() {   // 14.18: due card "in arrivo" al posto dell'icona l
     ))}
   </div>;
 }
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot }) {
+function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond }) {
   const [slow, setSlow] = useState(false);   // 14.18: lo skeleton compare solo se l'attesa supera 150 ms (niente sfarfallio)
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded);   // faro e premiata entrano anche fuori raggio
@@ -1439,7 +1490,7 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
                   {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
                 </div>
               </div>)
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} />)}
+        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} modelCond={modelCond} />)}
     </div>
   );
 }
@@ -4096,9 +4147,9 @@ function AppInner() {
     const recent = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= km);
     if (recent.length === 0) return null;
     const byCond = {};
-    recent.forEach(p => { const c = p.cond || "—"; byCond[c] = (byCond[c] || 0) + 1; });
+    recent.forEach(p => { const r = ratePost(p, wx ? wx.condition : null); const c = (r && r.cls) || p.cond || "—"; byCond[c] = (byCond[c] || 0) + (r ? 0.5 + r.agree / 2 : 1); });   // 14.28: pesa la lettura a tre voci
     const [domCond, domN] = Object.entries(byCond).sort((a, b) => b[1] - a[1])[0];
-    const share = Math.round((domN / recent.length) * 100);
+    const share = Math.round((domN / Object.values(byCond).reduce((a, b) => a + b, 0)) * 100);
     const conf = recent.length >= 8 ? "alta" : recent.length >= 3 ? "media" : "bassa";
     const agree = wx ? domCond.includes(wx.condition.split(" ")[0]) : null;
     let incoming = null;
@@ -4196,7 +4247,7 @@ function AppInner() {
           ts: r.created_at,
           city: titleCase(r.city || pr.city || ""), precision: r.precision || null, dist: +kmDist(geo, pt).toFixed(1), bearing: Math.round(bearingTo(geo, pt)),
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
-          cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id),
+          cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id), aiClass: r.ai_class || null, aiScore: r.ai_score ?? null,   // 14.28
           comments: r.comments_count || 0, views: r.views_count || 0,
           img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
@@ -5286,7 +5337,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} />}
+        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} />}
         {tab === "vicini" && <ViciniScreen posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
