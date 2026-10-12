@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.29";
+const APP_VERSION = "14.30";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -263,8 +263,8 @@ const geocodeCity = async name => {
   } catch (_) { return null; }
 };
 const WDIR16 = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"][Math.round(((d % 360) / 22.5)) % 16];
-const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
-const BEE_CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
+const CONDITIONS = ["☀️ Sereno", "⛅ Poco nuvoloso", "☁️ Molto nuvoloso", "🌧️ Pioggia", "⛈️ Temporale", "❄️ Neve", "🌫️ Nebbia", "🌬️ Ventoso", "🌈 Arcobaleno"];
+const BEE_CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Molto nuvoloso": "☁️ Molto nuvoloso", "Coperto": "☁️ Molto nuvoloso", "Nuvoloso": "☁️ Molto nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
 
 // ─── OCCHI AI DELL'ALVEARE: moderazione + classifica del cielo (nel telefono) ──
 let _aiModelsP = null;
@@ -337,7 +337,7 @@ const classifySky = canvas => {
       }
     }
     else if (p(blue) > 0.18) { cls = "⛅ Poco nuvoloso"; score = 0.5 + p(blue) / 2; }
-    else { cls = "⛅ Poco nuvoloso"; score = 0.4; }
+    else { cls = "☁️ Molto nuvoloso"; score = 0.45; }   // 14.30: senza azzurro è coperto
     return { cls, score: Math.min(0.95, Math.round(score * 100) / 100),
              stats: { blue: p(blue), grey: p(grey), dark: p(dark), warm: p(warm), bright: p(bright), meanLum } };
   } catch (_) { return null; }
@@ -535,7 +535,9 @@ const classifyFromMask = m => {
   if (m.warm > 0.4) return { cls: "☀️ Sereno", score: 0.7 };                       // alba/tramonto
   if (m.blue > 0.6 && m.cloud < 0.25) return { cls: "☀️ Sereno", score: Math.min(0.95, m.blue) };
   if (m.blue > 0.2) return { cls: "⛅ Poco nuvoloso", score: 0.55 + m.cloud / 3 };
-  if (m.cloud > 0.55) return { cls: m.meanLum > 200 ? "🌫️ Nebbia" : "🌧️ Pioggia", score: Math.min(0.9, m.cloud) };
+  if (m.cloud > 0.55 && m.dark > 0.3) return { cls: "🌧️ Pioggia", score: Math.min(0.9, m.cloud) };        // coperto E scuro: pioggia
+  if (m.cloud > 0.55 && m.meanLum > 200) return { cls: "🌫️ Nebbia", score: Math.min(0.9, m.cloud) };      // coperto E lattiginoso: nebbia
+  if (m.cloud > 0.35 || m.blue < 0.08) return { cls: "☁️ Molto nuvoloso", score: 0.55 + Math.min(0.3, m.cloud / 3) };   // 14.30: coperto, grigio, niente azzurro
   return { cls: "⛅ Poco nuvoloso", score: 0.45 };
 };
 
@@ -1427,7 +1429,8 @@ const SKY_KEYS = [
   ["🌈 Arcobaleno", /\b(arcobalen)/i],
   ["🌬️ Ventoso", /\b(vent[oi]|raffic|libecci|maestral|sciroc|tramontan|grecal|ponent|levant|burrasc|mare mosso|mareggiat)/i],
   ["☀️ Sereno", /\b(seren|sole|soleggiat|limpid|azzurr|ters[ao]|cielo pulit|bel tempo|splend|cald[oa] e sole)/i],
-  ["⛅ Poco nuvoloso", /\b(nuvol|nube|nubi|copert|grigi|velat|plumbe|cumul|strat|cirr)/i],
+  ["☁️ Molto nuvoloso", /\b(copert|grigi|plumbe|nuvolon|molto nuvol|tutto nuvol|cielo chius|cappa|strat)/i],
+  ["⛅ Poco nuvoloso", /\b(nuvol|nube|nubi|velat|cumul|cirr|qualche nuv)/i],
 ];
 const skyEmoji = c => (c || "").split(" ")[0];
 const readCaption = text => {
@@ -2415,7 +2418,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setTimeout(runAI, 60); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
-  const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
+  const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Molto nuvoloso": "☁️ Molto nuvoloso", "Coperto": "☁️ Molto nuvoloso", "Nuvoloso": "☁️ Molto nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   const cloudCheck = onCloudCheck ? ((img, hints) => withTimeout(onCloudCheck(img, hints), 9000).catch(() => null)) : null;   // Bee-Eye risponde entro 9 s o passa la mano
   const runAI = () => {
