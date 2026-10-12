@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.30";
+const APP_VERSION = "14.31";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -5399,11 +5399,24 @@ function UpdateBanner() {
     return () => { stop = true; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
   }, []);
   if (!nv) return null;
+  // 14.31: se ho già provato ad aggiornare a QUESTA versione da poco e sono ancora qui, la cache non ha mollato
+  let tried = null; try { tried = JSON.parse(localStorage.getItem("bw_upd_try") || "null"); } catch (_) {}
+  const stuck = tried && tried.v === nv && Date.now() - tried.t < 15 * 60000;
+  const hardReload = async () => {
+    try { localStorage.setItem("bw_upd_try", JSON.stringify({ v: nv, t: Date.now() })); } catch (_) {}
+    try { if ("caches" in window) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (_) {}
+    try {
+      const regs = navigator.serviceWorker?.getRegistrations ? await navigator.serviceWorker.getRegistrations() : [];
+      for (const r of regs) { try { await r.update(); if (r.waiting) r.waiting.postMessage({ type: "SKIP_WAITING" }); } catch (_) {} }
+    } catch (_) {}
+    try { await fetch(window.location.pathname, { cache: "reload" }); } catch (_) {}   // rinfresca index.html nella cache HTTP
+    window.location.replace(window.location.pathname + "?u=" + Date.now());
+  };
   return (
-    <div onClick={() => { window.location.href = window.location.pathname + "?u=" + Date.now(); }}
+    <div onClick={hardReload} role="button" aria-label={stuck ? "Aggiornamento non riuscito: chiudi e riapri l'app" : `Aggiorna a Beeweat ${nv}`}
       style={{ position: "fixed", top: 10, left: 12, right: 12, zIndex: 600, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 14, padding: "12px 16px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", boxShadow: "0 8px 26px rgba(224,163,21,.45)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
       <span style={{ fontSize: 18 }}>🐝</span>
-      <span style={{ flex: 1 }}>È pronta <b>Beeweat v{nv}</b> — tocca qui per aggiornare</span>
+      <span style={{ flex: 1 }}>{stuck ? <>Beeweat v{nv} non è ancora arrivata: <b>chiudi del tutto l'app e riaprila</b> (oppure tocca di nuovo)</> : <>È pronta <b>Beeweat v{nv}</b> — tocca qui per aggiornare</>}</span>
       <span style={{ fontSize: 16 }}>🔄</span>
     </div>
   );
