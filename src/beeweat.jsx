@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.31";
+const APP_VERSION = "14.33";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -953,7 +953,7 @@ function Header({ title, left, right }) {
 // ─── WEATHER PANEL ────────────────────────────────────────────────────────────
 function WeatherPanel({ commentCount, wx, onOpenChat }) {
   const W = wx || WEATHER;
-  const M = ({ icon, children }) => <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, borderRadius: 11, background: HBLUE, padding: "5px 9px", fontSize: 12, minWidth: 0 }}><WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
+  const M = ({ icon, children }) => <div style={{ flex: "1 1 auto", display: "flex", alignItems: "center", gap: 5, borderRadius: 11, background: HBLUE, padding: "5px 8px", fontSize: 12, minWidth: 0 }}>{/* 14.33: niente troncature a 375 px */}<WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
   return (
     <div style={{ background: HBLUE, padding: "0 14px 10px", flexShrink: 0 }}>
       <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "9px 14px 10px", display: "flex", flexDirection: "column", gap: 7 }}>
@@ -961,13 +961,13 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
             <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{W.condition.replace(/^[^ ]+ /, "")}{W.feels != null ? <span style={{ fontWeight: 500, color: "#B9CCE3" }}> · percepita {W.feels}°</span> : null}</div>
-              <div style={{ fontSize: 12, color: "#B9CCE3" }}>max {W.hi} · min {W.lo} · {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
+              <div style={{ fontSize: 12, color: "#B9CCE3", whiteSpace: "nowrap" }} title={W.feels != null ? `Temperatura percepita ${W.feels}°` : undefined}>max {W.hi} · min {W.lo}{W.feels != null ? ` · perc. ${W.feels}°` : ` · ${new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 30, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
-            <button onClick={onOpenChat} title="Chat pubblica del posto" aria-label={`Apri la chat del posto (${commentCount} messaggi)`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, minHeight: 28, background: ACCENT, color: TXT, border: "none", borderRadius: 10, padding: "3px 8px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
+            <button onClick={onOpenChat} title="Chat pubblica del posto" aria-label={`Apri la chat del posto (${commentCount} messaggi)`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, height: 44, backgroundColor: ACCENT, backgroundClip: "padding-box", color: TXT, border: "8px solid transparent", borderRadius: 18, padding: "0 8px", margin: "-8px -8px -8px 0", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{/* 14.33: presa 44, aspetto 28 */}<WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -1549,7 +1549,7 @@ function SolanoCard({ solano }) {
           </div>
         </div>
       )}
-      <a href={solano.url} target="_blank" rel="noopener" style={{ fontSize: 12, color: TXT2, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, minHeight: 32 }}>Fonte: <b style={{ color: HBLUE }}>Solano</b> · MeteoAlarm · MeteoAM · modelli internazionali <NavIcon name="chevron" size={14} color={TXT2} sw={2.2} /></a>
+      <a href={solano.url} target="_blank" rel="noopener" style={{ fontSize: 12, color: TXT2, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, minHeight: 44, margin: "-6px 0 -10px" }}>Fonte: <b style={{ color: HBLUE }}>Solano</b> · MeteoAlarm · MeteoAM · modelli internazionali <NavIcon name="chevron" size={14} color={TXT2} sw={2.2} /></a>
     </div>
   );
 }
@@ -1976,15 +1976,23 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
         <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
       </div>
       {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
+      {visible.length === 0 && (   /* 14.33: stato vuoto con un'azione */
+        <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2, marginBottom: 12 }}>
+          <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name={view === "social" ? "groups" : "beecast"} size={36} color={HBLUE} sw={1.7} /></div>
+          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{inf ? `Nessun evento ${view === "social" ? "social" : "meteo"} nel mondo, per ora` : `Nessun evento ${view === "social" ? "social" : "meteo"} entro ${km} km`}</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 14 }}>{view === "social" ? "Allarga lo sguardo, oppure crea tu il primo con il tasto Nuovo in alto." : "Nessuna segnalazione attiva vicino a te: buon segno. Con il tasto Nuovo in alto puoi segnalarne una."}</div>
+          {!inf && <button onClick={() => setInf(true)} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
+        </div>
+      )}
       {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || e.user === userName || (myUid && e.uid === myUid))} onEdit={onEditEnds} /> : (
         <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: e.id === focusId ? `2px solid ${ACCENT}` : "none", cursor: "pointer", transition: "box-shadow .3s" }}>{/* 14.4 */}
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: sevColor[e.sev] || HBLUE, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, flexShrink: 0 }}>
               <div style={{ fontSize: 28, lineHeight: 1 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
-              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".08em" }}>{(e.sev || "").toUpperCase()}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".04em" }}>{(e.sev || "").toUpperCase()}</div>
             </div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev] || HBLUE, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat ? e.cat.replace(/^[^ ]+ /, "") : "Segnalazione meteo"}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: sevColor[e.sev] || HBLUE, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat ? e.cat.replace(/^[^ ]+ /, "") : "Segnalazione meteo"}</div>
               <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
               <div style={{ fontSize: 12.5, color: TXT2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
@@ -2129,7 +2137,15 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
         <div style={{ fontSize: 12, color: TXT2 }}>{contacts.length} nell'alveare{onlineCount != null ? <> · <b style={{ color: "#1F6B45" }}>{onlineCount} online</b></> : null}</div>
       </div>}
       {list.length === 0
-        ? <div style={{ textAlign: "center", color: TXT2, padding: "36px 20px", fontSize: 14 }}>Nessun contatto trovato.</div>
+        ? <div style={{ margin: "8px 16px 16px", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2 }}>{/* 14.33: stato vuoto con un'azione */}
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="contatti" size={36} color={HBLUE} sw={1.7} /></div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{ql ? `Nessuna ape per «${q.trim()}»` : inf ? "Nessuna ape nel mondo, per ora" : `Nessuna ape entro ${km} km`}</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 14 }}>{ql ? "Prova con il nome o la città scritti per esteso." : "Allarga il raggio o guarda tutto il mondo: le api non mancano."}</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              {ql && <button onClick={() => setQ("")} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Cancella la ricerca</button>}
+              {!inf && onToggleWorld && <button onClick={onToggleWorld} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
+            </div>
+          </div>
         : <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>{list.map(c => { const st = beeStars(c.postsCount); const on = (following || []).includes(c.name); return (
           <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 18, background: "#fff", boxShadow: "0 4px 14px rgba(18,60,107,.08)", cursor: "pointer", border: c.me ? `1.5px solid ${ACCENT}` : "none" }}>
             <UserAvatar src={c.ava} size={48} stars={0} />
@@ -5389,7 +5405,9 @@ function UpdateBanner() {
       try {
         const r = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
         const j = await r.json();
-        if (!stop && j?.v && j.v !== APP_VERSION) setNv(j.v);
+        // 14.32: avviso solo se il server è PIÙ NUOVO (14.10 > 14.9, non confronto di testo)
+        const newer = (a, b) => { const A = String(a).split(".").map(Number), B = String(b).split(".").map(Number); for (let i = 0; i < Math.max(A.length, B.length); i++) { const x = A[i] || 0, y = B[i] || 0; if (x !== y) return x > y; } return false; };
+        if (!stop && j?.v && newer(j.v, APP_VERSION)) setNv(j.v); else if (!stop) setNv(null);
       } catch (_) {}
     };
     check();
