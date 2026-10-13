@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.31";
+const APP_VERSION = "14.32";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -5389,7 +5389,9 @@ function UpdateBanner() {
       try {
         const r = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
         const j = await r.json();
-        if (!stop && j?.v && j.v !== APP_VERSION) setNv(j.v);
+        // 14.32: avviso solo se il server è PIÙ NUOVO (14.10 > 14.9, non confronto di testo)
+        const newer = (a, b) => { const A = String(a).split(".").map(Number), B = String(b).split(".").map(Number); for (let i = 0; i < Math.max(A.length, B.length); i++) { const x = A[i] || 0, y = B[i] || 0; if (x !== y) return x > y; } return false; };
+        if (!stop && j?.v && newer(j.v, APP_VERSION)) setNv(j.v); else if (!stop) setNv(null);
       } catch (_) {}
     };
     check();
