@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.36";
+const APP_VERSION = "14.37";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2308,12 +2308,15 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
   };
   return (
     <>
-      <Header title={group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 6 }}>{onClearChat && <button onClick={clearAll} title="Svuota la conversazione" aria-label="Svuota la conversazione" style={{ background: "rgba(255,255,255,.14)", border: "none", width: 44, height: 44, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}{contact.public ? <span style={{ fontSize: 20 }}>🌐</span> : <UserAvatar src={contact.ava} size={34} ring={false} />}</span>} />
+      <Header title={<span style={{ display: "inline-flex", alignItems: "center", gap: 10, maxWidth: "100%" }}>{/* 14.37: avatar, nome e città in testata */}
+          {contact.public ? <span style={{ width: 38, height: 38, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="globe" size={20} color={HONEY2} sw={1.9} /></span> : group ? <span style={{ width: 38, height: 38, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={20} color={HONEY2} sw={1.9} /></span> : <UserAvatar src={contact.ava} size={38} ring={false} />}
+          <span style={{ minWidth: 0, textAlign: "left", lineHeight: 1.1 }}><span style={{ display: "block", fontSize: 16, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{group ? group.name : contact.public ? contact.name : contact.name.split(" ")[0]}</span>{(contact.city || contact.sub || group) && <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, color: TXT2, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{group ? `${group.members.length} api` : contact.city || contact.sub}</span>}</span>
+        </span>} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ display: "flex", alignItems: "center", gap: 6 }}>{onClearChat && <button onClick={clearAll} title="Svuota la conversazione" aria-label="Svuota la conversazione" style={{ background: MIST, border: `1px solid ${LINE}`, width: 40, height: 40, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trash" size={16} color="#fff" sw={2} /></button>}</span>} />
 
       {/* banner chat pubblica */}
       {contact.public && (
         <div style={{ background: CARD, borderBottom: `1px solid ${LINE}`, padding: "10px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={18} color={TXT} /></div>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="globe" size={18} color={HONEY2} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>Chat pubblica · visibile a tutti</div>
             {contact.sub && <div style={{ fontSize: 12, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.sub}</div>}
@@ -2350,14 +2353,14 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         {msgs.map((m, mi) => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); askDelete(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: TXT, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? HONEY : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 12, opacity: .8, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .85, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? "#fff" : TXT2} sw={2} /></button>}</div></div>
+            <div style={{ maxWidth: "78%", background: m.me ? `linear-gradient(135deg, ${HONEY}, #E89A1C)` : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "18px 18px 6px 18px" : "18px 18px 18px 6px", padding: "10px 13px", fontSize: 15.5, lineHeight: 1.4, fontWeight: m.me ? 500 : 400, overflowWrap: "anywhere" }}>{/* 14.37 */}{m.text}<div style={{ fontSize: 10.5, opacity: .75, marginTop: 4, display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", fontWeight: 600 }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? "#7A4A00" : INK, opacity: (m.readAt || m.deliveredAt) ? 1 : .6 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 10.5, fontWeight: 700 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .7, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? INK : TXT2} sw={2} /></button>}</div></div>
           </div>
         ))}
         <div ref={ref} />
       </div>
-      <div style={{ padding: "12px 16px", background: CARD, borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
-        <textarea rows={1} placeholder="Scrivi un messaggio…" aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 16.5, resize: "none", outline: "none", color: TXT }} />
-        <button onClick={send} aria-label="Invia il messaggio" title="Invia" style={{ width: 46, height: 46, borderRadius: 14, background: `${HBLUE}`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
+      <div style={{ padding: "10px 14px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))", background: NIGHT, borderTop: `1px solid ${LINE}`, display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0 }}>{/* 14.37: compositore a pillola */}
+        <textarea rows={1} placeholder={`Scrivi a ${group ? group.name : contact.public ? "tutti" : contact.name.split(" ")[0]}…`} aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 22, padding: "12px 16px", minHeight: 46, fontSize: 16, resize: "none", outline: "none", color: TXT, lineHeight: 1.35 }} />
+        <button onClick={send} aria-label="Invia il messaggio" title="Invia" style={{ width: 46, height: 46, borderRadius: "50%", background: text.trim() ? HONEY : NIGHT3, border: text.trim() ? "none" : `1px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background .15s" }}><NavIcon name="send" size={18} color={text.trim() ? INK : TXT2} sw={2} /></button>
       </div>
 
       {/* gestione membri */}
@@ -2810,128 +2813,128 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo }) {
+function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
+  // 14.37: tavola 4 — copertina con l'ultimo cielo, grado, statistiche, Raggio, griglia
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
   const stars = mine.reduce((s, p) => s + p.stars, 0);
+  const rank = beeStars(nMine);
   const [editing, setEditing] = useState(false);
-  const [showAll, setShowAll] = useState(false);   // 14.3: lista completa dei cieli sotto la griglia
+  const [showAll, setShowAll] = useState(false);
+  const cover = mine[0]?.img || null;
+  const Row = ({ icon, title, sub, onClick, right, border = true, honey }) => (
+    <button onClick={onClick} role={right === undefined ? undefined : "switch"} aria-checked={right === undefined ? undefined : !!right} style={{ width: "100%", background: "transparent", border: "none", borderBottom: border ? `1px solid ${LINE}` : "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+      <div style={{ width: 38, height: 38, borderRadius: 12, background: honey ? "rgba(245,184,46,.16)" : MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <NavIcon name={icon} size={20} color={honey ? HONEY2 : TXT} sw={1.9} /> : icon}</div>
+      <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14.5, color: TXT }}>{title}</div>
+        <div style={{ fontSize: 12, color: TXT2, lineHeight: 1.35 }}>{sub}</div>
+      </div>
+      {right === undefined ? <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} /> : (
+        <div style={{ width: 44, height: 26, borderRadius: 13, background: right ? HONEY : NIGHT3, border: right ? "none" : `1px solid ${LINE}`, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+          <div style={{ position: "absolute", top: 3, left: right ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: right ? INK : TXT2, transition: "left .2s" }} />
+        </div>
+      )}
+    </button>
+  );
+  const Tile = ({ p, big }) => {
+    const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
+    return (
+      <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: big ? undefined : "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%", minHeight: big ? 0 : undefined }}>
+        <img src={p.thumb || p.img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {p.awarded && <span style={{ position: "absolute", left: 7, top: 7, width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} /></span>}
+        {p.temp != null && Number.isFinite(p.temp) && <span style={{ position: "absolute", right: 7, top: 7, fontSize: 10.5, fontWeight: 800, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 6px", borderRadius: 999 }}>{Math.round(p.temp)}°</span>}
+        <span style={{ position: "absolute", left: 7, bottom: 7, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 800, color: HONEY2, background: "rgba(0,0,0,.42)", padding: "3px 7px", borderRadius: 999 }}><NavIcon name="starFill" size={10} />{p.stars}</span>
+        {big && when && <span style={{ position: "absolute", right: 7, bottom: 7, fontSize: 10.5, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 7px", borderRadius: 999 }}>{when}</span>}
+      </button>
+    );
+  };
+  const shown = showAll ? mine : mine.slice(0, mine.length > 9 ? 8 : 9);
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
-        <div style={{ position: "relative", background: `linear-gradient(180deg, ${HBLUE} 0%, #2F73B8 55%, #9CCBF0 100%)`, height: 150, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "content-box" }}>{/* 14.3: copertina con i tasti */}
-          <button onClick={onBack} title="Indietro" aria-label="Torna indietro" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", left: 16, width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={24} color="#fff" /></button>
-          <button onClick={onOpenNotif} title="Impostazioni" aria-label="Apri le impostazioni" style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", right: 16, width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(20,44,74,.5)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="gear" size={21} color="#fff" sw={1.9} /></button>
+        {/* COPERTINA: l'ultimo cielo */}
+        <div style={{ position: "relative", height: 230, paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "content-box", background: cover ? NIGHT3 : "linear-gradient(180deg,#2E1F5E 0%,#C04A6E 60%,#F2A65A 100%)", overflow: "hidden" }}>
+          {cover && <img src={cover} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to bottom, rgba(0,0,0,.3), rgba(0,0,0,0) 35%, ${NIGHT} 100%)` }} />
+          <button onClick={onBack} title="Indietro" aria-label="Torna indietro" style={{ position: "absolute", top: "calc(12px + env(safe-area-inset-top, 0px))", left: 14, width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(255,255,255,.14)", background: "rgba(0,0,0,.35)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={22} color="#fff" /></button>
+          <button onClick={onOpenNotif} title="Impostazioni" aria-label="Apri le impostazioni" style={{ position: "absolute", top: "calc(12px + env(safe-area-inset-top, 0px))", right: 14, width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(255,255,255,.14)", background: "rgba(0,0,0,.35)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="gear" size={20} color="#fff" sw={1.9} /></button>
         </div>
-        <div style={{ padding: "0 20px", marginTop: -46 }}>
-          <button onClick={() => setEditing(true)} aria-label="Cambia la foto del profilo" title="Cambia avatar" style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
-            <div style={{ width: 92, height: 92, borderRadius: "50%", background: CARD, border: `4px solid ${BODY}`, boxShadow: `0 0 0 3px ${ACCENT}, 0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <UserAvatar src={user.avatar} size={84} ring={false} stars={beeStars(nMine)} />
+        {/* IDENTITÀ */}
+        <div style={{ padding: "0 18px", marginTop: -58, position: "relative", display: "flex", alignItems: "flex-end", gap: 14 }}>
+          <button onClick={() => setEditing(true)} aria-label="Cambia la foto del profilo" title="Cambia avatar" style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", flexShrink: 0 }}>
+            <div style={{ width: 92, height: 92, borderRadius: 30, background: NIGHT2, border: `3px solid ${NIGHT}`, boxShadow: `0 0 0 2px ${HONEY}, 0 10px 30px rgba(0,0,0,.45)`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <UserAvatar src={user.avatar} size={86} ring={false} />
             </div>
-            <div style={{ position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: "50%", background: HBLUE, border: "2.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={15} color="#fff" sw={2} /></div>
+            <div title={`${beeRank(nMine)}`} style={{ position: "absolute", right: -8, bottom: -8, width: 34, height: 34, borderRadius: "50%", background: HONEY, border: `3px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={rank >= 5 ? "crown" : "bee"} size={17} color={INK} sw={2} /></div>
           </button>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{user.name}
-              {isAdmin && <span style={{ height: 22, padding: "0 8px", borderRadius: 11, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
+          <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 24, letterSpacing: "-.6px", color: TXT, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.name}</div>
+              {isAdmin && <span style={{ height: 20, padding: "0 7px", borderRadius: 10, background: MIST, color: TXT, fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", letterSpacing: ".06em", flexShrink: 0 }}>ADMIN</span>}
+              {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: MIST, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="edit" size={14} color={TXT} sw={2} /></button>}
             </div>
-            {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4, flexWrap: "wrap" }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
-            {beeStars(nMine) > 0 && <><span style={{ color: "#B8860B", letterSpacing: ".04em", fontSize: 12, marginLeft: 6 }}>{"★".repeat(beeStars(nMine))}</span><span>{beeRank(nMine)}</span></>}
-            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px -12px -14px -8px" }}><NavIcon name="edit" size={15} color={TXT} sw={1.9} /></button>}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 6, fontWeight: 500 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} />{user.city}{onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-8px 0 -8px -2px" }}><NavIcon name="edit" size={12} color={TXT2} sw={2} /></button>}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6, fontSize: 11, fontWeight: 800, color: HONEY2, background: "rgba(245,184,46,.14)", padding: "4px 9px", borderRadius: 999 }}><NavIcon name={rank >= 5 ? "crown" : "starFill"} size={12} color={HONEY2} sw={2} />{beeRank(nMine)} · {stars} {stars === 1 ? "stella" : "stelle"}</div>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, margin: "16px 16px 0" }}>
-          {[{ l: "cieli", v: nMine }, { l: "stelle", v: stars }, { l: "seguaci", v: (followersList || []).length }].map((s, i) => (
-            <div key={i} style={{ background: CARD, borderRadius: 16, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, boxShadow: "0 4px 14px rgba(18,60,107,.08)" }}>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 24, color: TXT }}>{s.v}</div>
-              <div style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{s.l}</div>
-            </div>
+        {/* STATISTICHE */}
+        <div style={{ display: "flex", margin: "16px 16px 0", background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 22, padding: "12px 4px" }}>
+          {[{ l: "Cieli", v: nMine }, { l: "Stelle", v: stars, honey: true }, { l: "Seguiti", v: (followingList || []).length, tab: "Seguiti" }, { l: "Follower", v: (followersList || []).length, tab: "Follower" }].map((x, i) => (
+            <button key={x.l} onClick={x.tab ? () => setFollowTab(t => t === x.tab ? null : x.tab) : undefined} aria-expanded={x.tab ? followTab === x.tab : undefined} style={{ flex: 1, background: followTab && followTab === x.tab ? MIST : "transparent", border: "none", borderLeft: i ? `1px solid ${LINE}` : "none", borderRadius: 12, padding: "4px 0", cursor: x.tab ? "pointer" : "default", fontFamily: "'Inter',sans-serif" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-.5px", color: x.honey ? HONEY2 : TXT }}>{x.v}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".5px" }}>{x.l}</div>
+            </button>
           ))}
         </div>
-        <div style={{ padding: "14px 16px 0" }}>{/* 14.3: la griglia dei cieli */}
+        {followTab && (
+          <div style={{ background: NIGHT2, borderRadius: 18, border: `1px solid ${LINE}`, margin: "10px 16px 0", overflow: "hidden" }}>
+            {((followTab === "Seguiti" ? followingList : followersList) || []).length === 0
+              ? <div style={{ padding: "18px 16px", color: TXT2, fontSize: 13.5, textAlign: "center" }}>{followTab === "Seguiti" ? "Non segui ancora nessuno." : "Nessun follower per ora — pubblica bei cieli!"}</div>
+              : (followTab === "Seguiti" ? followingList : followersList).map(c => (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
+                  <UserAvatar src={c.ava} size={38} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
+                    {c.city && <div style={{ fontSize: 11.5, color: TXT2 }}>{c.city}</div>}
+                  </div>
+                  {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 12, fontWeight: 800, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: following?.includes(c.name) ? `1px solid ${LINE}` : "none", background: following?.includes(c.name) ? "transparent" : HONEY, color: following?.includes(c.name) ? TXT : INK }}>{following?.includes(c.name) ? "Seguita" : "Segui"}</button>}
+                </div>
+              ))}
+          </div>
+        )}
+        {/* AZIONI */}
+        <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
+          {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ flex: 1, height: 44, borderRadius: 14, border: "none", background: ELEC, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 13.5, cursor: "pointer" }}>Reel precedenti</button>}
+          <button onClick={onOpenNotif} style={{ flex: 1, height: 44, borderRadius: 14, border: `1px solid ${LINE}`, background: NIGHT3, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><NavIcon name="gear" size={16} color={TXT} sw={2} />Impostazioni</button>
+        </div>
+        {/* RAGGIO */}
+        {setKm && <div role="group" aria-label="Raggio" style={{ display: "flex", alignItems: "center", gap: 6, margin: "10px 16px 0", background: MIST, border: `1px solid ${LINE}`, borderRadius: 14, padding: "6px 8px 6px 12px" }}>
+          <NavIcon name="pin" size={14} color={TXT2} sw={2.2} /><span style={{ fontSize: 13, fontWeight: 700, color: TXT, marginRight: 4 }}>Raggio</span>
+          {KM_STEPS.map(v => { const on = km === v; return <button key={v} onClick={() => setKm(v)} aria-pressed={on} style={{ flex: 1, height: 32, borderRadius: 10, border: "none", background: on ? HONEY : "transparent", color: on ? INK : TXT2, fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 12, cursor: "pointer" }}>{v}</button>; })}
+          <span style={{ fontSize: 10.5, color: TXT2, fontWeight: 600 }}>km</span>
+        </div>}
+        {/* I MIEI CIELI */}
+        <div style={{ padding: "16px 16px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
-            {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ background: "none", border: "none", padding: "0 4px", minHeight: 44, fontSize: 12, fontWeight: 700, color: TXT, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Reel precedenti</button>}
+            <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
+            {mine.length > 9 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{showAll ? "Mostra meno" : `Tutti (${mine.length})`}</button>}
           </div>
           {mine.length === 0
-            ? <div style={{ background: CARD, borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
-            : <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginBottom: 12 }}>
-                {(showAll ? mine : mine.slice(0, mine.length > 8 ? 7 : 8)).map(p => {   /* 14.17: "+N" espande la griglia sul posto */ const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || ""); return (
-                  <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>{/* 14.14: data e ora dello scatto · 14.21: pulsante */}
-                    <img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    {when && <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 3px 4px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.78) 100%)", color: "#fff", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", whiteSpace: "nowrap", letterSpacing: "-.01em" }}>{when}</div>}
-                  </button>
-                ); })}
-                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} aria-label={showAll ? "Mostra meno cieli" : `Mostra tutti i ${mine.length} cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: MIST, color: TXT, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
+            ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
+            : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6, marginBottom: 12 }}>
+                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0} />)}
               </div>}
-          <div style={{ display: "flex", background: CARD, borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
-            {[["Seguiti", followingList], ["Follower", followersList]].map(([label, list], i) => (
-              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} aria-expanded={followTab === label} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? MIST : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
-                <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT }}>{(list || []).length}</div>
-                <div style={{ fontSize: 12, color: TXT2 }}>{label}</div>
-              </button>
-            ))}
+          {/* IMPOSTAZIONI */}
+          <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, overflow: "hidden" }}>
+            <Row icon="bell" title="Configurazione" sub={notif?.enabled ? `Avvisi attivi · entro ${notif.radiusKm} km` : "Avvisi disattivati"} onClick={onOpenNotif} />
+            {onToggleReceipts && <Row icon={<span style={{ fontSize: 15, fontWeight: 800, color: TXT, letterSpacing: "-1px" }}>✓✓</span>} title="Conferma di lettura" sub={user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"} onClick={() => onToggleReceipts(!(user.readReceipts !== false))} right={user.readReceipts !== false} />}
+            {onToggleGeo && <Row icon="pin" title="Posizione precisa" sub={geoPrecise ? "Attiva · il GPS parte allo scatto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"} onClick={() => onToggleGeo(!geoPrecise)} right={!!geoPrecise} border={false} />}
           </div>
-          {followTab && (
-            <div style={{ background: CARD, borderRadius: 14, border: `1px solid ${LINE}`, marginBottom: 12, overflow: "hidden" }}>
-              {((followTab === "Seguiti" ? followingList : followersList) || []).length === 0
-                ? <div style={{ padding: "18px 16px", color: TXT2, fontSize: 13.5, textAlign: "center" }}>{followTab === "Seguiti" ? "Non segui ancora nessuno." : "Nessun follower per ora — pubblica bei cieli!"}</div>
-                : (followTab === "Seguiti" ? followingList : followersList).map(c => (
-                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
-                    <UserAvatar src={c.ava} size={38} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
-                      {c.city && <div style={{ fontSize: 11.5, color: TXT2 }}>{c.city}</div>}
-                    </div>
-                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Inter',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HONEY}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : TXT }}>{following?.includes(c.name) ? "Seguito già" : "+ Segui"}</button>}
-                  </div>
-                ))}
-            </div>
-          )}
-          <div style={{ background: CARD, borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden" }}>{/* 14.3: impostazioni in una card */}
-          <button onClick={onOpenNotif} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="gear" size={21} color={TXT} sw={1.8} /></div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Configurazione</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>{notif?.enabled ? `Attive · entro ${notif.radiusKm} km` : "Disattivate"}</div>
-            </div>
-            <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
-          </button>
-          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} role="switch" aria-checked={user.readReceipts !== false} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: TXT, letterSpacing: "-1px" }}>✓✓</div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Conferma di lettura</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>{user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"}</div>
-            </div>
-            <div style={{ width: 44, height: 26, borderRadius: 13, background: user.readReceipts !== false ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: CARD, boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
-            </div>
-          </button>}
-          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} role="switch" aria-checked={!!geoPrecise} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={TXT} sw={2} /></div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · il GPS parte allo scatto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
-            </div>
-            <div style={{ width: 44, height: 26, borderRadius: 13, background: geoPrecise ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: CARD, boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
-            </div>
-          </button>}
-          </div>
-          {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2C7A57", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
-          {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: CARD, border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Inter',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Messaggio all'alveare</div>
-              <div style={{ fontSize: 12, color: TXT2 }}>Invia un avviso a tutte le api (solo admin)</div>
-            </div>
-            <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
-          </button>}
-          {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Reel precedenti</button>}
-          <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
-          <div style={{ textAlign: "center", color: TXT, fontSize: 13, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
+          {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4ADE80", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
+          {isAdmin && <div style={{ background: NIGHT2, border: `1px solid ${HONEY}55`, borderRadius: 18, overflow: "hidden", marginTop: 10 }}><Row icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} /></div>}
+          <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, minHeight: 46, borderRadius: 14, border: `1px solid ${RED}55`, background: "rgba(240,86,91,.08)", color: "#FFB4B6", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color="#FFB4B6" /> Logout</button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: TXT2, fontSize: 12.5, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}><NavIcon name="bee" size={14} color={HONEY2} sw={1.8} />Beeweat v{APP_VERSION}</div>
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -5297,7 +5300,7 @@ function AppInner() {
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
