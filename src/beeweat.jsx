@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.40";
+const APP_VERSION = "14.41";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1449,7 +1449,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
       <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
-      <div style={{ position: "absolute", top: "calc(150px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.40: sotto il meteo del posto */}
+      <div style={{ position: "absolute", top: "calc(190px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
         {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
         {reported && <span style={chip}><NavIcon name="flag" size={12} color="#fff" sw={2.2} />In revisione</span>}
         {post.pending && <span style={{ ...chip, background: HONEY, color: INK }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa"}</span>}
@@ -1600,19 +1600,20 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const [rg, setRg] = useState(false);
   const visible = (worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || (following || []).includes(p.user));   // faro e premiata entrano anche fuori raggio
   const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
-  const pills = (<>
-    {wx && (   /* 14.40: temperatura e stato della giornata, in alto a sinistra */
-      <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
+  const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 700 };
+  const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
+    <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, right: 90, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
+      {wx && (<>
         <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{wx.temp}</div>
         <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700 }}><NavIcon name={skyIcon(wx.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(wx.condition)}{wx.windKmh != null ? ` · vento ${wx.windKmh} km/h` : ""}</div>
         <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 2 }}>max {wx.hi} · min {wx.lo}{placeName ? ` · ${placeName}` : ""}</div>
+      </>)}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
+        {onlineCount != null && <span style={pill}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api in volo</span>}
+        <span style={pill}><NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
       </div>
-    )}
-    <div style={{ position: "absolute", top: "calc(66px + env(safe-area-inset-top, 0px))", right: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, pointerEvents: "none" }}>
-      {onlineCount != null && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 700 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api in volo</span>}
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 700 }}><NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
     </div>
-  </>);
+  );
   if (visible.length === 0) {
     return (
       <div style={{ flex: 1, position: "relative", background: BODY, overflow: "hidden" }}>
