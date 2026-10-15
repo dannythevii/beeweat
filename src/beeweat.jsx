@@ -2,28 +2,37 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.33";
+const APP_VERSION = "14.34";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 };
-const HBLUE   = "#123C6B";   // blu notte: testata, barra, bottoni (14.0)
-const HBLUE2  = "#1B4A80";   // blu notte chiaro: card dentro la testata, campi
-const PANEL_A = "#5A93C8";   // pannello meteo top
-const PANEL_B = "#4585C1";   // pannello meteo bottom
-const NAV     = "#123C6B";   // barra inferiore = stesso colore dell'header (HBLUE)
-const NAVACT  = "#FFC61E";   // voce menu attiva (giallo dorato)
-const GREYP   = "#FFFFFF";   // fondo frame meteo + radar (bianco)
-const ACCENT  = "#FFC61E";   // giallo dorato (radar + attivo), uguale al menu
-const BODY    = "#EEF4FA";   // sfondo azzurrino chiaro
-const CARD    = "#FFFFFF";
-const TXT      = "#142C4A";   // testo scuro
-const TXT2     = "#5B7590";   // testo secondario
-const LINE      = "#CBD9E8";
+// 14.34: tema notte (tavole del 14 ottobre). Miele solo per le azioni, blu elettrico per tutto il meteo.
+const NIGHT   = "#0B1430";   // fondo
+const NIGHT2  = "#141F45";   // card e pannelli
+const NIGHT3  = "#1C2852";   // superfici rialzate, campi, pulsanti secondari
+const HONEY   = "#F5B82E";   // azione principale, voce attiva, stelle
+const HONEY2  = "#FFD166";   // miele chiaro (testo miele su fondo scuro)
+const INK     = "#2A1A00";   // testo scuro sopra il miele
+const ELEC    = "#2457D6";   // blu elettrico: meteo, Reel precedenti
+const HBLUE   = NIGHT3;      // (nome storico) pulsanti e chip blu → superfici rialzate
+const HBLUE2  = NIGHT2;      // (nome storico) card dentro la testata
+const PANEL_A = NIGHT2;
+const PANEL_B = NIGHT2;
+const NAV     = NIGHT;       // barra inferiore
+const NAVACT  = HONEY;       // voce menu attiva
+const GREYP   = NIGHT2;
+const ACCENT  = HONEY;
+const BODY    = NIGHT;
+const CARD    = NIGHT2;
+const TXT      = "#FFFFFF";   // testo
+const TXT2     = "#9DA7C4";   // testo secondario
+const LINE      = "#26304F";  // bordi
 const WHITE     = "#FFFFFF";
-const RED       = "#EF4444";
-const STAR      = "#F2B01E";
+const RED       = "#F0565B";
+const STAR      = HONEY;
+const MIST      = "rgba(255,255,255,.10)";   // chip e pulsanti in vetro sopra le foto
 
 // ─── ICONE METEO (linea bianca) ───────────────────────────────────────────────
 const WIcon = ({ name, size = 30, color = WHITE, sw = 2 }) => {
@@ -84,6 +93,25 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     flag: <><line x1="5" y1="21" x2="5" y2="4" {...p} /><path d="M5 4.5h12l-2.3 3.5L17 11.5H5z" {...p} /></>,
     beecast: <><path d="M12 3.2l6.2 3.6v7.2L12 17.6l-6.2-3.6V6.8z" {...p} /><line x1="12" y1="17.6" x2="12" y2="21" {...p} /><line x1="5.8" y1="6.8" x2="3" y2="5.2" {...p} /><line x1="18.2" y1="6.8" x2="21" y2="5.2" {...p} /></>,
     clock: <><circle cx="12" cy="12" r="9" {...p} /><polyline points="12,7 12,12 16,14" {...p} /></>,
+    // 14.34: set unico a tratto per la nuova grafica
+    radar: <><circle cx="12" cy="12" r="9" {...p} /><circle cx="12" cy="12" r="4" {...p} /><path d="M12 3v3M12 18v3" {...p} /></>,
+    cast: <><path d="M4 17a8 8 0 0 1 16 0" {...p} /><path d="M8 17a4 4 0 0 1 8 0" {...p} /><circle cx="12" cy="17" r="1" fill={color} stroke="none" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="3" {...p} /><path d="M3 10h18M8 3v4M16 3v4" {...p} /></>,
+    globe: <><circle cx="12" cy="12" r="9" {...p} /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" {...p} /></>,
+    bee: <><ellipse cx="12" cy="14" rx="4.5" ry="6" {...p} /><path d="M9 12h6M8.5 16h7M12 8V5M10 5l2-2 2 2" {...p} /><path d="M7.5 11c-4-2-5-6-2-6s4 3 2 6zM16.5 11c4-2 5-6 2-6s-4 3-2 6z" {...p} /></>,
+    share: <><path d="M7 17L17 7M9 7h8v8" {...p} /></>,
+    trophy: <><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v3M8 20h8M9 17h6" {...p} /></>,
+    crown: <><path d="M3 18h18M3 18L2 8l5 4 5-7 5 7 5-4-1 10" {...p} /></>,
+    sunset: <><path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 4v3M5 8l2 2M19 8l-2 2M2 21h20" {...p} /></>,
+    cloud: <><path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 18z" {...p} /></>,
+    waves: <><path d="M2 10c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 17c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2" {...p} /></>,
+    rain: <><path d="M7 15h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 15zM8 18l-1 3M12 18l-1 3M16 18l-1 3" {...p} /></>,
+    bolt: <><path d="M13 2L5 13h6l-1 9 9-12h-6z" {...p} /></>,
+    wind: <><path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 18h8a2 2 0 1 1-2 2" {...p} /></>,
+    storm: <><path d="M7 14h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 14zM13 14l-3 5h4l-3 4" {...p} /></>,
+    bag: <><path d="M6 9a6 6 0 0 1 12 0v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zM9 9V6a3 3 0 0 1 6 0v3M8 14h8" {...p} /></>,
+    warn: <><path d="M12 3l10 18H2zM12 10v5M12 18v.5" {...p} /></>,
+    hexplus: <><polygon points={hexPts(12, 12, 10)} fill={HONEY} stroke="none" /><path d="M8.5 12h7M12 8.5v7" stroke={INK} strokeWidth={2.6} strokeLinecap="round" fill="none" /></>,
     gear: <><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
@@ -128,19 +156,19 @@ function UserAvatar({ src, size = 44, ring = true, stars = 0 }) {
   if (stars > 0) {
     const inner = isImg
       ? <img src={src} alt="" style={{ ...common, objectFit: "cover", display: "block" }} />
-      : <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#DCEBF7,#fff)" }}>{src}</div>;
+      : <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#1C2852,#141F45)" }}>{src}</div>;
     return (
       <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         {inner}
         <div title={`${beeRank(stars * STAR_STEP)} · ${stars} ${stars === 1 ? "stella" : "stelle"}`}
-          style={{ position: "absolute", right: -2, bottom: -2, background: "#fff", color: HBLUE, borderRadius: 9, padding: size >= 56 ? "1px 6px" : "0 4px", fontSize: Math.max(8.5, size * 0.2), fontWeight: 800, lineHeight: 1.5, border: `1.5px solid ${HBLUE}`, boxShadow: "0 1px 4px rgba(0,0,0,.18)", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 1 }}>
+          style={{ position: "absolute", right: -2, bottom: -2, background: CARD, color: TXT, borderRadius: 9, padding: size >= 56 ? "1px 6px" : "0 4px", fontSize: Math.max(8.5, size * 0.2), fontWeight: 800, lineHeight: 1.5, border: `1.5px solid ${HONEY}`, boxShadow: "0 1px 4px rgba(0,0,0,.18)", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 1 }}>
           <span style={{ color: ACCENT }}>★</span>{stars}
         </div>
       </div>
     );
   }
   if (isImg) return <img src={src} alt="" style={{ ...common, objectFit: "cover", display: "block" }} />;
-  return <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#DCEBF7,#fff)" }}>{src || <NavIcon name="contatti" size={size * 0.55} color={HBLUE} />}</div>;
+  return <div style={{ ...common, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.55, background: "linear-gradient(135deg,#1C2852,#141F45)" }}>{src || <NavIcon name="contatti" size={size * 0.55} color={TXT} />}</div>;
 }
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
@@ -702,10 +730,10 @@ const NEARBY_PLACES = [
 
 // ─── STYLES ─────────────────────────────────────────────────────────────────
 const G = `
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-  body { background: ${BODY}; color: ${TXT}; font-family: 'Sora', sans-serif; overflow: hidden; height: 100vh; height: 100dvh; -webkit-font-smoothing: antialiased; }
+  body { background: ${BODY}; color: ${TXT}; font-family: 'Inter',sans-serif; overflow: hidden; height: 100vh; height: 100dvh; -webkit-font-smoothing: antialiased; }
   .safe-top { padding-top: env(safe-area-inset-top, 0px); }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${TXT2}66; border-radius: 4px; }
@@ -721,7 +749,7 @@ const G = `
   .fade-up { animation: fadeUp .3s ease-out both; }
   .star-pop { animation: pop .3s ease-out both; }
   @keyframes shimmer { 0%{opacity:.55} 50%{opacity:1} 100%{opacity:.55} }
-  .bw-skel { background: #DCE6F1; animation: shimmer 1.4s ease-in-out infinite; }
+  .bw-skel { background: #1C2852; animation: shimmer 1.4s ease-in-out infinite; }
   /* 14.18: chi ha chiesto meno movimento non vede animazioni (resta solo il cambio di stato) */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
@@ -731,11 +759,13 @@ const G = `
   :focus { outline: none; }
   :focus-visible { outline: 3px solid ${ACCENT}; outline-offset: 2px; border-radius: 6px; }
   input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
-  input, textarea, select { font-family: 'Sora', sans-serif; }
+  input, textarea, select { font-family: 'Inter',sans-serif; }
   input::placeholder, textarea::placeholder { color: ${TXT2}; }
   input[type=range] { -webkit-appearance:none; appearance:none; height:44px; padding:19.5px 0; background:${LINE}; background-clip:content-box !important; border-radius:5px; outline:none; cursor:pointer; }   /* 14.23: la riga si vede anche senza stile inline */   /* 14.22: presa 44 px, riga 5 px */
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:9px; background:${ACCENT}; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; }
-  input[type=range]::-moz-range-thumb { width:22px; height:22px; border-radius:8px; background:${ACCENT}; border:3px solid #fff; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:9px; background:${ACCENT}; border:3px solid ${NIGHT}; box-shadow:0 2px 6px rgba(0,0,0,.35); cursor:pointer; }
+  input[type=range]::-moz-range-thumb { width:22px; height:22px; border-radius:8px; background:${ACCENT}; border:3px solid ${NIGHT}; cursor:pointer; }
+  select option { background: ${NIGHT2}; color: ${TXT}; }
+  input[type=date], input[type=time], input[type=datetime-local] { color-scheme: dark; }
 `;
 
 // ─── INFORMATIVA PRIVACY ──────────────────────────────────────────────────────
@@ -776,23 +806,23 @@ const TERMS = [
 
 function LegalDoc({ title, intro, sections, onClose, onAccept }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 80, display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "absolute", inset: 0, background: CARD, zIndex: 80, display: "flex", flexDirection: "column" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
-        <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18 }}>{title}</span>
+        <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18 }}>{title}</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 8px" }}>
         {intro && <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>{intro}</div>}
         {sections.map((s, i) => (
           <div key={i} style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: HBLUE, marginBottom: 5 }}>{s.h}</div>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: TXT, marginBottom: 5 }}>{s.h}</div>
             <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.55 }}>{s.p}</div>
           </div>
         ))}
       </div>
       {onAccept && (
         <div style={{ padding: "12px 16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom,0px))", borderTop: `1px solid ${LINE}`, flexShrink: 0 }}>
-          <button onClick={onAccept} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Ho letto e accetto</button>
+          <button onClick={onAccept} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Ho letto e accetto</button>
         </div>
       )}
     </div>
@@ -817,7 +847,7 @@ function AuthScreen({ onLogin, sb }) {
   const HINTS = { name: "Come vuoi farti chiamare", city: "Es. Capri", email: "nome@esempio.it", password: type => type === "password" ? "Almeno 8 caratteri" : "" };   // 14.22
   const inp = (ph, k, type = "text") => <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
     <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>{ph}</span>
-    <input type={type} placeholder={k === "password" ? HINTS.password(type) : (HINTS[k] || "")} value={form[k]} autoComplete={k === "email" ? "email" : k === "password" ? (mode === "register" ? "new-password" : "current-password") : k === "name" ? "name" : k === "city" ? "address-level2" : "off"} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "13px 16px", minHeight: 46, color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
+    <input type={type} placeholder={k === "password" ? HINTS.password(type) : (HINTS[k] || "")} value={form[k]} autoComplete={k === "email" ? "email" : k === "password" ? (mode === "register" ? "new-password" : "current-password") : k === "name" ? "name" : k === "city" ? "address-level2" : "off"} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "13px 16px", minHeight: 46, color: TXT, fontSize: 14, outline: "none" }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
   </label>;
   const handleEmail = async () => {
     if (mode === "register" && !accepted) { setWarn(true); return; }
@@ -855,25 +885,25 @@ function AuthScreen({ onLogin, sb }) {
   };
 
   if (view === "welcome") return (
-    <div style={{ height: "100%", width: "100%", background: "linear-gradient(180deg,#FAFCFE 0%,#EAF4FB 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 28px", position: "relative", overflow: "hidden" }}>
+    <div style={{ height: "100%", width: "100%", background: "linear-gradient(180deg,#0B1430 0%,#141F45 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 28px", position: "relative", overflow: "hidden" }}>
       {/* motivo a nido d'ape soffuso */}
       <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, opacity: 0.06, pointerEvents: "none" }} aria-hidden="true">
         <defs><pattern id="comb" width="56" height="48" patternUnits="userSpaceOnUse" patternTransform="scale(1)">
-          <path d="M14 0 L42 0 L56 24 L42 48 L14 48 L0 24 Z" fill="none" stroke={HBLUE} strokeWidth="2" />
+          <path d="M14 0 L42 0 L56 24 L42 48 L14 48 L0 24 Z" fill="none" stroke={TXT} strokeWidth="2" />
         </pattern></defs>
         <rect width="100%" height="100%" fill="url(#comb)" />
       </svg>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 60, position: "relative" }}>
         <div style={{ display: "inline-block", animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={150} /></div>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 44, letterSpacing: ".02em", color: HBLUE, marginTop: 14, lineHeight: 1 }}>BEEWEAT</div>
-        <div style={{ fontSize: 15, color: HBLUE, marginTop: 8, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 44, letterSpacing: ".02em", color: TXT, marginTop: 14, lineHeight: 1 }}>BEEWEAT</div>
+        <div style={{ fontSize: 15, color: TXT, marginTop: 8, fontWeight: 600, fontStyle: "italic", letterSpacing: ".02em" }}>Mille occhi, un solo cielo.</div>
         <div style={{ fontSize: 13.5, color: TXT2, marginTop: 8, fontWeight: 500, lineHeight: 1.5 }}>Solo cielo, mare e natura, scattati adesso.</div>
-        {userCount != null && <div style={{ fontSize: 13.5, color: HBLUE, marginTop: 10, fontWeight: 700 }}>🐝 {userCount} api nell'alveare</div>}
-        <div style={{ fontSize: 12, color: "#9FB4C8", marginTop: 6 }}>v{APP_VERSION}</div>
+        {userCount != null && <div style={{ fontSize: 13.5, color: TXT, marginTop: 10, fontWeight: 700 }}>🐝 {userCount} api nell'alveare</div>}
+        <div style={{ fontSize: 12, color: TXT2, marginTop: 6 }}>v{APP_VERSION}</div>
       </div>
       <div className="fade-up" style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16, animationDelay: ".05s", position: "relative" }}>
-        <button onClick={() => { setView("email"); setMode("register"); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: ACCENT, color: TXT, fontWeight: 600, fontSize: 15, fontFamily: "'Sora',sans-serif" }}><MailIcon /> Entra usando la tua Email</button>
-        <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
+        <button onClick={() => { setView("email"); setMode("register"); }} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: 15, borderRadius: 10, border: "none", cursor: "pointer", background: ACCENT, color: INK, fontWeight: 600, fontSize: 15, fontFamily: "'Inter',sans-serif" }}><MailIcon /> Entra usando la tua Email</button>
+        <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.45, marginTop: 2 }}>Continuando accetti i <span onClick={() => setLegal("terms")} style={{ color: TXT, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: TXT, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.</div>
       </div>
       {legal === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Beeweat tiene alla tua privacy. Di seguito trovi l'informativa completa sul trattamento dei dati personali ai sensi del Regolamento (UE) 2016/679 (GDPR)." sections={PRIVACY} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
       {legal === "terms" && <LegalDoc title="Termini di Servizio" intro="Leggi i termini che regolano l'uso di Beeweat." sections={TERMS} onClose={() => setLegal(null)} onAccept={() => { setAccepted(true); setWarn(false); setLegal(null); }} />}
@@ -883,22 +913,22 @@ function AuthScreen({ onLogin, sb }) {
   // ── RECUPERO PASSWORD ──
   if (view === "recover") return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
-      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
-      <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
+      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={TXT} /></button>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 26, color: HONEY2, marginTop: 8 }}>BEEWEAT</div></div>
+      <div className="fade-up" style={{ background: CARD, borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
         {!recoverSent ? (
           <>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 6 }}>Reimposta la password</div>
             <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Inserisci l'email del tuo account: ti invieremo un link sicuro per reimpostare la password.</div>
-            <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: "#F4F8FC", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none", marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
-            <button onClick={async () => { if (!recoverEmail.trim()) return; try { if (sb?.isConfigured) await sb.resetPassword(recoverEmail.trim()); } catch (_) {} setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
+            <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, outline: "none", marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HBLUE} onBlur={e => e.target.style.borderColor = LINE} />
+            <button onClick={async () => { if (!recoverEmail.trim()) return; try { if (sb?.isConfigured) await sb.resetPassword(recoverEmail.trim()); } catch (_) {} setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
           </>
         ) : (
           <>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div></div>
             <div style={{ fontWeight: 700, fontSize: 17, color: TXT, textAlign: "center", marginBottom: 8 }}>Controlla la tua email</div>
             <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.55, textAlign: "center" }}>Se <b>{recoverEmail}</b> è associata a un account Beeweat, riceverai un'email con un <b>link sicuro</b> per reimpostare la password.<br /><br />Il link è valido per <b>30 minuti</b>, è utilizzabile una sola volta e funziona solo dal dispositivo da cui lo apri. Controlla anche lo spam.</div>
-            <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ width: "100%", marginTop: 18, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Torna all'accesso</button>
+            <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ width: "100%", marginTop: 18, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Torna all'accesso</button>
           </>
         )}
       </div>
@@ -908,28 +938,28 @@ function AuthScreen({ onLogin, sb }) {
 
   return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => setView("welcome")} aria-label="Torna indietro" title="Indietro" style={{ position: "absolute", top: 18, left: 18, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={HBLUE} /></button>
-      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 26, color: "#2A7DC4", marginTop: 8 }}>BEEWEAT</div></div>
-      <div className="fade-up" style={{ background: "#fff", borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
-        <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} style={{ flex: 1, padding: 9, minHeight: 44, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Sora',sans-serif", background: mode === m ? "#fff" : "transparent", color: mode === m ? HBLUE : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
+      <button onClick={() => setView("welcome")} aria-label="Torna indietro" title="Indietro" style={{ position: "absolute", top: 18, left: 18, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={TXT} /></button>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 26, color: HONEY2, marginTop: 8 }}>BEEWEAT</div></div>
+      <div className="fade-up" style={{ background: CARD, borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
+        <div style={{ display: "flex", marginBottom: 20, background: BODY, borderRadius: 12, padding: 4 }}>{["login", "register"].map(m => <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} style={{ flex: 1, padding: 9, minHeight: 44, borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Inter',sans-serif", background: mode === m ? NIGHT3 : "transparent", color: mode === m ? TXT : TXT2, boxShadow: mode === m ? `0 2px 8px ${HBLUE}22` : "none" }}>{m === "login" ? "Accedi" : "Registrati"}</button>)}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "register" && <>{inp("Il tuo nome", "name")}{inp("La tua città", "city")}</>}
           {inp("Email", "email", "email")}{inp("Password", "password", "password")}
           {mode === "register" && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 2 }}>
               <button onClick={() => { setAccepted(a => !a); setWarn(false); }} role="checkbox" aria-checked={accepted} aria-label="Ho letto e accetto i Termini di Servizio e l'Informativa sulla Privacy" style={{ flexShrink: 0, width: 44, height: 44, margin: "-10px -10px -10px -11px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{/* 14.22: presa 44 px, casella 24 px */}
-                <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${warn && !accepted ? RED : accepted ? HBLUE : LINE}`, background: accepted ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{accepted && <NavIcon name="check" size={14} color="#fff" sw={3} />}</span>
+                <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${warn && !accepted ? RED : accepted ? HONEY : LINE}`, background: accepted ? HBLUE : NIGHT3, display: "flex", alignItems: "center", justifyContent: "center" }}>{accepted && <NavIcon name="check" size={14} color="#fff" sw={3} />}</span>
               </button>
               <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.45 }}>
-                Ho letto e accetto i <span onClick={() => setLegal("terms")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: HBLUE, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.
+                Ho letto e accetto i <span onClick={() => setLegal("terms")} style={{ color: TXT, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Termini di Servizio</span> e l'<span onClick={() => setLegal("privacy")} style={{ color: TXT, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Informativa sulla Privacy</span>.
               </div>
             </div>
           )}
           {warn && mode === "register" && !accepted && <div style={{ fontSize: 12, color: RED }}>Per registrarti devi accettare i Termini di Servizio e l'informativa sulla privacy.</div>}
-          {mode === "login" && <div style={{ textAlign: "right", marginTop: -4 }}><span onClick={() => { setRecoverEmail(form.email); setRecoverSent(false); setView("recover"); }} style={{ fontSize: 12.5, color: HBLUE, fontWeight: 600, cursor: "pointer" }}>Password dimenticata?</span></div>}
+          {mode === "login" && <div style={{ textAlign: "right", marginTop: -4 }}><span onClick={() => { setRecoverEmail(form.email); setRecoverSent(false); setView("recover"); }} style={{ fontSize: 12.5, color: TXT, fontWeight: 600, cursor: "pointer" }}>Password dimenticata?</span></div>}
           {authErr && <div style={{ color: RED, fontSize: 12.5, fontWeight: 600 }}>{authErr}</div>}
           {info && <div style={{ color: "#3BA776", fontSize: 12.5, fontWeight: 600 }}>{info}</div>}
-          <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Sora',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "ENTER"}</button>
+          <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "ENTER"}</button>
           {mode === "register" && <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.4 }}>Servizio non destinato a minori di 14 anni.</div>}
         </div>
       </div>
@@ -942,9 +972,9 @@ function AuthScreen({ onLogin, sb }) {
 // ─── HEADER ─────────────────────────────────────────────────────────────────
 function Header({ title, left, right }) {
   return (
-    <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56, flexShrink: 0 }}>
+    <div style={{ background: NIGHT, color: "#fff", padding: "12px 16px 10px", paddingTop: "calc(12px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56, flexShrink: 0 }}>{/* 14.34: testata notte */}
       <div style={{ minWidth: 72, display: "flex", justifyContent: "flex-start" }}>{left}</div>
-      <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-.01em", flex: 1, textAlign: "center", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{title}</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-.02em", flex: 1, textAlign: "center", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{title}</div>
       <div style={{ minWidth: 72, display: "flex", justifyContent: "flex-end" }}>{right}</div>
     </div>
   );
@@ -955,25 +985,25 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
   const W = wx || WEATHER;
   const M = ({ icon, children }) => <div style={{ flex: "1 1 auto", display: "flex", alignItems: "center", gap: 5, borderRadius: 11, background: HBLUE, padding: "5px 8px", fontSize: 12, minWidth: 0 }}>{/* 14.33: niente troncature a 375 px */}<WIcon name={icon} size={16} color="#8FD3FF" sw={2} /><span style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span></div>;
   return (
-    <div style={{ background: HBLUE, padding: "0 14px 10px", flexShrink: 0 }}>
-      <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "9px 14px 10px", display: "flex", flexDirection: "column", gap: 7 }}>
+    <div style={{ background: NIGHT, padding: "0 14px 10px", flexShrink: 0 }}>
+      <div style={{ background: NIGHT2, color: "#fff", borderRadius: 20, padding: "9px 14px 10px", display: "flex", flexDirection: "column", gap: 7, border: `1px solid ${LINE}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 40, fontWeight: 800, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
               <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
-              <div style={{ fontSize: 12, color: "#B9CCE3", whiteSpace: "nowrap" }} title={W.feels != null ? `Temperatura percepita ${W.feels}°` : undefined}>max {W.hi} · min {W.lo}{W.feels != null ? ` · perc. ${W.feels}°` : ` · ${new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</div>
+              <div style={{ fontSize: 12, color: TXT2, whiteSpace: "nowrap" }} title={W.feels != null ? `Temperatura percepita ${W.feels}°` : undefined}>max {W.hi} · min {W.lo}{W.feels != null ? ` · perc. ${W.feels}°` : ` · ${new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 30, lineHeight: 1 }}>{W.condition.split(" ")[0]}</span>
-            <button onClick={onOpenChat} title="Chat pubblica del posto" aria-label={`Apri la chat del posto (${commentCount} messaggi)`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, height: 44, backgroundColor: ACCENT, backgroundClip: "padding-box", color: TXT, border: "8px solid transparent", borderRadius: 18, padding: "0 8px", margin: "-8px -8px -8px 0", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{/* 14.33: presa 44, aspetto 28 */}<WIcon name="chat" size={13} color={TXT} sw={2.2} /><span>{commentCount}</span></button>
+            <button onClick={onOpenChat} title="Chat pubblica del posto" aria-label={`Apri la chat del posto (${commentCount} messaggi)`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, height: 44, backgroundColor: ACCENT, backgroundClip: "padding-box", color: INK, border: "8px solid transparent", borderRadius: 18, padding: "0 8px", margin: "-8px -8px -8px 0", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{/* 14.33: presa 44, aspetto 28 */}<WIcon name="chat" size={13} color={INK} sw={2.2} /><span>{commentCount}</span></button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <M icon="drop">{W.humidity}</M>
           <M icon="compass">{W.wind}{W.windKmh != null ? ` ${W.windKmh} km/h` : ""}</M>
-          {W.pressure && <M icon="thermo"><span title={W.pressure.delta != null ? `${W.pressure.delta >= 0 ? "+" : ""}${W.pressure.delta.toFixed(1)} hPa in 3 ore` : "pressione"}>{W.pressure.hpa} <span style={{ color: W.pressure.trend === "↓" ? "#FFB3A7" : W.pressure.trend === "↑" ? "#B9F0C8" : "#B9CCE3" }}>{W.pressure.trend}</span></span></M>}{/* 14.26: pressione con tendenza */}
+          {W.pressure && <M icon="thermo"><span title={W.pressure.delta != null ? `${W.pressure.delta >= 0 ? "+" : ""}${W.pressure.delta.toFixed(1)} hPa in 3 ore` : "pressione"}>{W.pressure.hpa} <span style={{ color: W.pressure.trend === "↓" ? "#FFB3A7" : W.pressure.trend === "↑" ? "#B9F0C8" : TXT2 }}>{W.pressure.trend}</span></span></M>}{/* 14.26: pressione con tendenza */}
           {W.sea ? <M icon="thermo">{W.sea.state} · {W.sea.wave}</M> : !W.pressure ? <M icon="thermo">{W.hi}/{W.lo}</M> : null}
         </div>
       </div>
@@ -990,22 +1020,24 @@ const GlobeIcon = ({ size = 14, color = "#fff" }) => (
   </svg>
 );
 const WorldBtn = ({ on, onClick, h = 30 }) => (
-  <button onClick={onClick} title="Tutto il mondo" aria-label={on ? "Torna ai cieli vicini" : "Mostra tutto il mondo"} aria-pressed={on} style={{ height: 44, padding: "0 12px", borderRadius: 10 + (44 - h) / 2, border: `${(44 - h) / 2}px solid transparent`, backgroundClip: "padding-box", backgroundColor: on ? ACCENT : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Sora',sans-serif", boxShadow: on ? `inset 0 0 0 1.5px ${ACCENT}` : `inset 0 0 0 1.5px ${HBLUE}66`, transition: "background .15s, color .15s" }}>{/* 14.23: bianco + bordo da spento, miele da acceso */}
-    <GlobeIcon size={14} color={HBLUE} /> {on ? "Mondo ✓" : "Mondo"}
+  <button onClick={onClick} title="Tutto il mondo" aria-label={on ? "Torna ai cieli vicini" : "Mostra tutto il mondo"} aria-pressed={on} style={{ height: 44, padding: "0 12px", borderRadius: 10 + (44 - h) / 2, border: `${(44 - h) / 2}px solid transparent`, backgroundClip: "padding-box", backgroundColor: on ? ACCENT : NIGHT3, cursor: "pointer", fontSize: 13, fontWeight: 700, color: on ? INK : TXT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0, fontFamily: "'Inter',sans-serif", boxShadow: on ? "none" : `inset 0 0 0 1px ${LINE}`, transition: "background .15s, color .15s" }}>{/* 14.34: superficie notte da spento, miele da acceso */}
+    <NavIcon name="globe" size={14} color={on ? INK : TXT} sw={2} /> {on ? "Mondo ✓" : "Mondo"}
   </button>
 );
 
 // Doppio passo del radar: nel primo km si scala di 100 m, poi di km in km
 const idxToKm = i => (i <= 9 ? (i + 1) / 10 : i - 8);          // 0..9 → 0,1..1,0 km · 10..108 → 2..100 km
 const kmToIdx = k => (k <= 1 ? Math.round(k * 10) - 1 : Math.round(k) + 8);
+// 14.34: il Raggio è uno solo per tutta l'app (Feed, Radar, BeeWorld, Eventi): tre pillole, niente cursore
+const KM_STEPS = [10, 25, 50];
+const snapKm = v => KM_STEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a, KM_STEPS[0]);
 function RadarBar({ km, setKm }) {
-  const idx = kmToIdx(km);
-  const pct = (idx / 108) * 100;
   return (
-    <div style={{ background: HBLUE2, padding: "8px 18px 30px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>{/* 14.2: il cursore sta in alto, sotto resta lo spazio del bottone miele */}
-      <span style={{ fontSize: 12, fontWeight: 600, color: "#B9CCE3", whiteSpace: "nowrap" }}>Raggio</span>
-      <input type="range" min={0} max={108} value={idx} aria-label="Raggio del radar" aria-valuetext={km < 1 ? `${Math.round(km * 1000)} metri` : `${km} chilometri`} onChange={e => setKm(idxToKm(+e.target.value))} style={{ flex: 1, background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${pct}%, ${HBLUE} ${pct}%, ${HBLUE} 100%)` }} />
-      <span style={{ color: "#fff", fontWeight: 800, fontSize: 17, fontFamily: "'Bricolage Grotesque',sans-serif", minWidth: 64, textAlign: "right" }}>{km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`}</span>
+    <div role="group" aria-label="Raggio" style={{ background: NIGHT, padding: "6px 16px 30px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>{/* sotto resta lo spazio del bottone miele */}
+      <span style={{ fontSize: 12, fontWeight: 700, color: TXT2, whiteSpace: "nowrap", marginRight: 4 }}>Raggio</span>
+      {KM_STEPS.map(v => { const on = km === v; return (
+        <button key={v} onClick={() => setKm(v)} aria-pressed={on} style={{ flex: 1, height: 44, border: on ? "none" : `1px solid ${LINE}`, borderRadius: 14, background: on ? HONEY : NIGHT3, color: on ? INK : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer", transition: "background .15s, color .15s" }}>{v} km</button>
+      ); })}
     </div>
   );
 }
@@ -1013,30 +1045,36 @@ function RadarBar({ km, setKm }) {
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
 function BottomNav({ tab, setTab, onPlus }) {
   // 14.1: cinque voci fisse. Al centro il bottone miele è il Feed; dentro il Feed diventa la fotocamera.
-  const tabs = [
-    { id: "beecast", icon: "beecast", label: "BeeCast" },   // 14.23: BeeCast e Radar invertiti
-    { id: "vicini", icon: "vicini", label: "Radar" },
-    { id: "eventi", icon: "eventi", label: "Eventi" },
-    { id: "contatti", icon: "contatti", label: "BeeWorld" },
+  const tabs = [   // 14.34: icone a tratto unico della nuova grafica
+    { id: "vicini", icon: "radar", label: "Radar" },
+    { id: "beecast", icon: "cast", label: "BeeCast" },
+    { id: "eventi", icon: "calendar", label: "Eventi" },
+    { id: "contatti", icon: "globe", label: "BeeWorld" },
   ];
   const onFeed = tab === "feed";
   const Tab = t => {
     const a = tab === t.id;
     return (
       <button key={t.id} onClick={() => setTab(t.id)} aria-label={t.label} aria-current={a ? "page" : undefined} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>{/* 14.18: tocco ≥ 44 px */}
-        <NavIcon name={t.icon} size={24} color={a ? NAVACT : "#9FB8D6"} sw={a ? 2.2 : 1.9} />
-        <span style={{ fontSize: 12, fontWeight: a ? 700 : 500, color: a ? NAVACT : "#9FB8D6" }}>{t.label}</span>
+        <NavIcon name={t.icon} size={24} color={a ? HONEY2 : TXT2} sw={a ? 2 : 1.8} />
+        <span style={{ fontSize: 11, fontWeight: a ? 700 : 600, color: a ? HONEY2 : TXT2, letterSpacing: ".2px" }}>{t.label}</span>
       </button>
     );
   };
   return (
-    <div style={{ display: "flex", alignItems: "center", background: NAV, minHeight: 66, padding: "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", background: NAV, minHeight: 66, padding: "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0, borderTop: `1px solid ${LINE}` }}>
       {tabs.slice(0, 2).map(Tab)}
       <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
-        <span style={{ width: 58, height: 58, marginTop: -32, borderRadius: "50%", background: ACCENT, color: TXT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 8px 18px rgba(255,198,30,.45), 0 0 0 5px ${NAV}` }}>
-          <NavIcon name={onFeed && onPlus ? "camera" : "feed"} size={27} color={TXT} sw={2.3} />
+        <span style={{ width: 64, height: 64, marginTop: -34, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 10px 22px rgba(245,184,46,.45))" }}>{/* 14.34: esagono miele */}
+          <svg width="64" height="64" viewBox="0 0 64 64" style={{ display: "block" }}>
+            <polygon points="32,6 55,19 55,45 32,58 9,45 9,19" fill={HONEY} />
+            <polygon points="32,12 50,22 50,42 32,52 14,42 14,22" fill="none" stroke={HONEY2} strokeWidth="1.5" opacity=".7" />
+            {onFeed && onPlus
+              ? <g transform="translate(19 19)"><rect x="2" y="7" width="22" height="15" rx="3.5" fill="none" stroke={INK} strokeWidth="2.4" strokeLinejoin="round" /><circle cx="13" cy="14.5" r="4" fill="none" stroke={INK} strokeWidth="2.4" /><path d="M9 7V5a1 1 0 011-1h6a1 1 0 011 1v2" fill="none" stroke={INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></g>
+              : <path d="M24 32h16M32 24v16" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />}
+          </svg>
         </span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: NAVACT }}>{onFeed && onPlus ? "Scatta" : "Feed"}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: HONEY2, letterSpacing: ".2px" }}>{onFeed && onPlus ? "Scatta" : "Feed"}</span>
       </button>
       {tabs.slice(2).map(Tab)}
     </div>
@@ -1090,26 +1128,26 @@ function ReportModal({ post, onSubmit, onClose }) {
   const [sent, setSent] = useState(false);
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
         {!sent ? (
           <>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Segnala il contenuto</div>
             <div style={{ fontSize: 13, color: TXT2, marginBottom: 14 }}>Perché vuoi segnalare il post di {post.user}?</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
               {REPORT_REASONS.map(r => (
-                <button key={r} onClick={() => setReason(r)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${reason === r ? HBLUE : LINE}`, background: reason === r ? HBLUE + "0E" : "#fff", cursor: "pointer", textAlign: "left", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif", fontWeight: 500 }}>
-                  <span style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${reason === r ? HBLUE : LINE}`, background: reason === r ? HBLUE : "#fff", flexShrink: 0 }} />{r}
+                <button key={r} onClick={() => setReason(r)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${reason === r ? HONEY : LINE}`, background: reason === r ? MIST : NIGHT3, cursor: "pointer", textAlign: "left", fontSize: 14, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 500 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${reason === r ? HONEY : LINE}`, background: reason === r ? HBLUE : NIGHT3, flexShrink: 0 }} />{r}
                 </button>
               ))}
             </div>
-            <button onClick={() => { if (reason) { onSubmit(post, reason); setSent(true); } }} disabled={!reason} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: reason ? 1 : .5 }}>Invia segnalazione</button>
+            <button onClick={() => { if (reason) { onSubmit(post, reason); setSent(true); } }} disabled={!reason} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: reason ? 1 : .5 }}>Invia segnalazione</button>
           </>
         ) : (
           <div style={{ textAlign: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div>
             <div style={{ fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 6 }}>Segnalazione inviata</div>
             <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.</div>
-            <button onClick={onClose} style={{ width: "100%", padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Chiudi</button>
+            <button onClick={onClose} style={{ width: "100%", padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Chiudi</button>
           </div>
         )}
       </div>
@@ -1123,30 +1161,30 @@ function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLa
   const dlg = useDialog(onLater || onAccept, "Invito");
   if (sheet) return (   // 14.3: foglio dal basso (invito posizione allo scatto)
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.55)", display: "flex", alignItems: "flex-end" }}>
-      <div ref={dlg} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "28px 28px 0 0", padding: "14px 22px calc(28px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -10px 30px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "28px 28px 0 0", padding: "14px 22px calc(28px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -10px 30px rgba(0,0,0,.25)", fontFamily: "'Inter',sans-serif" }}>
         <div style={{ width: 44, height: 5, borderRadius: 3, background: LINE, alignSelf: "center" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={28} color={HBLUE} sw={2.2} /></div>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 21, fontWeight: 700, color: TXT, lineHeight: 1.15 }}>{title}</div>
+          <div style={{ width: 52, height: 52, borderRadius: 16, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={28} color={TXT} sw={2.2} /></div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 21, fontWeight: 700, color: TXT, lineHeight: 1.15 }}>{title}</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13.5, lineHeight: 1.5, color: TXT }}>
-          {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: HBLUE, fontWeight: 700, minWidth: 12 }}>{l[0]}</span><span>{l[1]}</span></div>)}
+          {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8 }}><span style={{ color: TXT, fontWeight: 700, minWidth: 12 }}>{l[0]}</span><span>{l[1]}</span></div>)}
         </div>
-        <button onClick={onAccept} style={{ height: 52, borderRadius: 16, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{cta}</button>
-        {onLater && <button onClick={onLater} style={{ height: 44, borderRadius: 16, border: `1.5px solid ${LINE}`, background: "#fff", color: TXT, fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>{laterLabel || "Più tardi"}</button>}
+        <button onClick={onAccept} style={{ height: 52, borderRadius: 16, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{cta}</button>
+        {onLater && <button onClick={onLater} style={{ height: 44, borderRadius: 16, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>{laterLabel || "Più tardi"}</button>}
       </div>
     </div>
   );
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,30,60,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
-      <div ref={dlg} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} className="fade-up" style={{ width: "100%", maxWidth: 340, background: CARD, borderRadius: 22, padding: "26px 22px 20px", textAlign: "center", boxShadow: "0 18px 50px rgba(0,0,0,.35)", fontFamily: "'Inter',sans-serif" }}>
         <div style={{ fontSize: 54, lineHeight: 1 }}>{emoji}</div>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 19, color: HBLUE, marginTop: 12 }}>{title}</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 19, color: TXT, marginTop: 12 }}>{title}</div>
         <div style={{ fontSize: 14.5, color: TXT, lineHeight: 1.55, marginTop: 10, textAlign: "left" }}>
           {lines.map((l, i) => <div key={i} style={{ display: "flex", gap: 8, marginTop: i ? 6 : 0 }}><span>{l[0]}</span><span>{l[1]}</span></div>)}
         </div>
-        <button onClick={onAccept} style={{ marginTop: 18, width: "100%", padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{cta}</button>
-        {onLater && <button onClick={onLater} style={{ marginTop: 8, width: "100%", padding: 10, borderRadius: 12, border: "none", background: "none", color: TXT2, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{laterLabel || "Più tardi"}</button>}
+        <button onClick={onAccept} style={{ marginTop: 18, width: "100%", padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{cta}</button>
+        {onLater && <button onClick={onLater} style={{ marginTop: 8, width: "100%", padding: 10, borderRadius: 12, border: "none", background: "none", color: TXT2, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{laterLabel || "Più tardi"}</button>}
         <div style={{ fontSize: 11.5, color: TXT2, marginTop: 8 }}>Al prossimo passo il telefono ti chiederà conferma: tocca <b>Consenti</b> 🐝</div>
       </div>
     </div>
@@ -1157,19 +1195,19 @@ function AwardModal({ post, message, onClose, onOpen }) {
   const dlg = useDialog(onClose, "Foto premiata");
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 60, background: "rgba(10,30,60,.66)", display: "flex", alignItems: "center", justifyContent: "center", padding: 22 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: `0 0 0 6px ${ACCENT}44, 0 18px 50px rgba(0,0,0,.35)`, border: `2px solid ${ACCENT}`, fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", maxWidth: 340, background: CARD, borderRadius: 22, padding: "26px 20px 20px", textAlign: "center", boxShadow: `0 0 0 6px ${ACCENT}44, 0 18px 50px rgba(0,0,0,.35)`, border: `2px solid ${ACCENT}`, fontFamily: "'Inter',sans-serif" }}>
         <div style={{ fontSize: 58, lineHeight: 1, filter: "drop-shadow(0 4px 10px rgba(240,185,41,.55))" }}>🏅</div>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: ".14em", color: "#B8860B", marginTop: 10 }}>FOTO PREMIATA</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: ".14em", color: "#B8860B", marginTop: 10 }}>FOTO PREMIATA</div>
         <div style={{ fontSize: 16.5, color: TXT, lineHeight: 1.45, marginTop: 8 }}>
-          La foto migliore è stata scattata da <b style={{ color: HBLUE }}>{post.user}</b>
-          {post.city ? <> a <b style={{ color: HBLUE }}>{post.city}</b></> : null}
+          La foto migliore è stata scattata da <b style={{ color: TXT }}>{post.user}</b>
+          {post.city ? <> a <b style={{ color: TXT }}>{post.city}</b></> : null}
         </div>
         {message && <div style={{ fontSize: 13.5, color: TXT2, marginTop: 6, fontStyle: "italic" }}>«{message}»</div>}
         <button onClick={onOpen} title="Apri il post premiato" style={{ display: "block", width: "100%", marginTop: 14, padding: 0, border: `3px solid ${ACCENT}`, borderRadius: 16, overflow: "hidden", background: "#000", cursor: "pointer", boxShadow: "0 6px 18px rgba(0,0,0,.25)" }}>
           <img src={post.img} alt="" style={{ width: "100%", height: 190, objectFit: "cover", display: "block" }} />
         </button>
         <div style={{ fontSize: 12, color: TXT2, marginTop: 8 }}>Tocca la foto per vedere il post 🐝</div>
-        <button onClick={onClose} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Complimenti! 🎉</button>
+        <button onClick={onClose} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Complimenti! 🎉</button>
       </div>
     </div>
   );
@@ -1181,22 +1219,22 @@ function EditPostModal({ post, onSave, onClose, onDelete, onAward }) {
   const [city, setCity] = useState(post.city || "");
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica post</div>
-        <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Descrivi il meteo…" rows={3} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", resize: "none", fontFamily: "'Sora',sans-serif", marginBottom: 10 }} />
-        <select value={cond} onChange={e => setCond(e.target.value)} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14, fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: CARD, borderRadius: 18, padding: 18, width: "100%", maxWidth: 400, boxShadow: "0 16px 44px rgba(0,0,0,.28)" }}>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 12 }}>Modifica post</div>
+        <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Descrivi il meteo…" rows={3} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", resize: "none", fontFamily: "'Inter',sans-serif", marginBottom: 10 }} />
+        <select value={cond} onChange={e => setCond(e.target.value)} style={{ width: "100%", background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14, fontFamily: "'Inter',sans-serif" }}>
           {CONDITIONS.map(c => <option key={c}>{c}</option>)}
         </select>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <NavIcon name="pin" size={16} color={HBLUE} sw={2} />
-          <input value={city} onChange={e => setCity(e.target.value)} placeholder="Città del post (es. Sorrento)" style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", fontFamily: "'Sora',sans-serif" }} />
+          <NavIcon name="pin" size={16} color={TXT} sw={2} />
+          <input value={city} onChange={e => setCity(e.target.value)} placeholder="Città del post (es. Sorrento)" style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: TXT, outline: "none", fontFamily: "'Inter',sans-serif" }} />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
-          <button onClick={() => onSave({ caption: caption.trim(), cond, city: titleCase(city) || post.city || "" })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Salva</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Annulla</button>
+          <button onClick={() => onSave({ caption: caption.trim(), cond, city: titleCase(city) || post.city || "" })} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Salva</button>
         </div>
-        {onAward && <button onClick={() => { const m = window.prompt("🏅 Premiare questa foto? Messaggio facoltativo per l'annuncio (Annulla per non premiare):", ""); if (m !== null) onAward(m.trim()); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: `1.5px solid ${ACCENT}`, background: ACCENT + "22", color: "#8A5A12", fontWeight: 700, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>🏅 Premia questa foto (annuncio a tutte le api)</button>}
-        {onDelete && <button onClick={() => { if (window.confirm("Eliminare definitivamente questo post?")) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>}
+        {onAward && <button onClick={() => { const m = window.prompt("🏅 Premiare questa foto? Messaggio facoltativo per l'annuncio (Annulla per non premiare):", ""); if (m !== null) onAward(m.trim()); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: `1.5px solid ${ACCENT}`, background: ACCENT + "22", color: "#8A5A12", fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>🏅 Premia questa foto (annuncio a tutte le api)</button>}
+        {onDelete && <button onClick={() => { if (window.confirm("Eliminare definitivamente questo post?")) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Cancella elemento</button>}
       </div>
     </div>
   );
@@ -1247,9 +1285,9 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
   const L = { ...labelStyle };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(10,18,30,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", width: "100%", maxWidth: 480, maxHeight: "92%", overflowY: "auto", boxShadow: "0 -8px 34px rgba(0,0,0,.25)", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ background: CARD, borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", width: "100%", maxWidth: 480, maxHeight: "92%", overflowY: "auto", boxShadow: "0 -8px 34px rgba(0,0,0,.25)", fontFamily: "'Inter',sans-serif" }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 12 }}>{isSocial ? "Modifica evento social 🎉" : "Modifica evento meteo ⛈️"}</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 12 }}>{isSocial ? "Modifica evento social 🎉" : "Modifica evento meteo ⛈️"}</div>
         <div style={L}>Titolo</div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titolo" style={F} />
         {isSocial ? (
@@ -1266,7 +1304,7 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
             <div style={L}>Tipo</div>
             <select value={type} onChange={e => setType(e.target.value)} style={F}>{EVENT_TYPES.slice(1).map(t => <option key={t}>{t}</option>)}</select>
             <div style={L}>Severità</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HBLUE : LINE}`, background: sev === x ? HBLUE + "12" : "#fff", color: sev === x ? HBLUE : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{x}</button>)}</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HONEY : LINE}`, background: sev === x ? MIST : NIGHT3, color: sev === x ? TXT : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{x}</button>)}</div>
             <div style={L}>Valido fino a</div>
             <input type="date" value={ends} onChange={e => setEnds(e.target.value)} style={F} />
           </>
@@ -1281,10 +1319,10 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
           <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Telefono, WhatsApp o email" style={F} />
         </>}
         <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Annulla</button>
-          <button onClick={save} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: saving ? .7 : 1 }}>{saving ? "Cerco la posizione…" : "Salva modifiche"}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Annulla</button>
+          <button onClick={save} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: saving ? .7 : 1 }}>{saving ? "Cerco la posizione…" : "Salva modifiche"}</button>
         </div>
-        <button onClick={() => { if (window.confirm(`Eliminare definitivamente l'evento "${ev.title}"?\nNon si può annullare.`)) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Elimina evento</button>
+        <button onClick={() => { if (window.confirm(`Eliminare definitivamente l'evento "${ev.title}"?\nNon si può annullare.`)) onDelete(); }} style={{ width: "100%", marginTop: 10, padding: 12, borderRadius: 12, border: "1.5px solid #E5484D55", background: "#E5484D0E", color: "#C43C41", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}><NavIcon name="trash" size={15} color="#C43C41" sw={2} /> Elimina evento</button>
       </div>
     </div>
   );
@@ -1319,7 +1357,7 @@ function PhotoViewer({ src, caption, onClose }) {
       </div>
       <div onClick={e => e.stopPropagation()} style={{ padding: "14px 16px calc(18px + env(safe-area-inset-bottom))" }}>
         {caption && <div style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
-        <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : "#fff", color: saved ? "#fff" : HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Fatto" : "Condividi"}</button>
+        <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : NIGHT3, color: saved ? "#fff" : TXT, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{saved ? "✓ Fatto" : "Condividi"}</button>
       </div>
     </div>
   );
@@ -1352,12 +1390,12 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
   const like = e => { e.stopPropagation(); if (post.mine) return; setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
   const Stat = ({ icon, count, color, onClick, active }) => (
     <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: onClick ? "pointer" : "default", padding: 0 }}>
-      <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 600, fontSize: 18, color: TXT }}>{count}</span>
+      <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 18, color: TXT }}>{count}</span>
       <span className={active ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={icon} size={22} color={color} sw={1.9} /></span>
     </button>
   );
   return (
-    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: "#fff", border: (focused || post.awarded) ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 22, padding: 0, overflow: "hidden", marginBottom: 14, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : post.awarded ? `0 0 0 3px ${ACCENT}33, 0 4px 18px ${ACCENT}44` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
+    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: CARD, border: (focused || post.awarded) ? `2px solid ${ACCENT}` : `1px solid ${LINE}`, borderRadius: 22, padding: 0, overflow: "hidden", marginBottom: 14, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 2px 14px ${ACCENT}55` : post.awarded ? `0 0 0 3px ${ACCENT}33, 0 4px 18px ${ACCENT}44` : `0 2px 10px ${HBLUE}0D`, transition: "box-shadow .3s, border .3s" }}>
       {post.awarded && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", background: ACCENT, color: "#3A2B05", fontWeight: 800, fontSize: 12.5, letterSpacing: ".04em" }}>
           <span style={{ fontSize: 18 }}>🏅</span>
@@ -1365,7 +1403,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         </div>
       )}
       {/* FOTO a tutta larghezza, con chi/dove/quando in sovrimpressione (14.0) */}
-      <div style={{ position: "relative", width: "100%", aspectRatio: "3 / 2", overflow: "hidden", background: "#dfe8f1" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "3 / 2", overflow: "hidden", background: NIGHT3 }}>
         <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
         <div style={{ position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 6, height: 28, padding: "0 10px 0 8px", borderRadius: 14, background: "rgba(20,44,74,.72)", color: "#fff", fontSize: 12.5, fontWeight: 600 }}>
           <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span><span>{post.cond.replace(/^[^ ]+ /, "")}{post.temp != null && Number.isFinite(post.temp) ? ` · ${Math.round(post.temp)}°` : ""}</span>
@@ -1382,8 +1420,8 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
               {post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <><span>·</span><span>{post.dist} km</span></>}
             </div>
           </div>
-          {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>{post.checking ? "🔎 controllo" : "🎒 in attesa"}</span>}
-          {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: TXT, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>⏫ invio…</span>}
+          {post.pending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: INK, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>{post.checking ? "🔎 controllo" : "🎒 in attesa"}</span>}
+          {post.sending && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: INK, background: ACCENT, borderRadius: 8, padding: "3px 7px", flexShrink: 0 }}>⏫ invio…</span>}
         </div>
       </div>
 
@@ -1393,17 +1431,17 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         <HiveReading post={post} modelCond={modelCond} />{/* 14.28 */}
         {/* AZIONI: stella (miele) · commenti · occhi · segui · segnala/modifica */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : "Metti una stella"} aria-label={post.mine ? `${post.stars} stelle ricevute` : post.starred ? "Togli la stella" : "Metti una stella"} aria-pressed={post.mine ? undefined : !!post.starred} style={{ height: 40, padding: "0 13px", borderRadius: 18, border: "none", background: post.mine ? LINE : post.starred ? "#EF4D6A" : ACCENT, color: post.mine ? TXT2 : post.starred ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: post.mine ? "default" : "pointer" }}>
+          <button onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : "Metti una stella"} aria-label={post.mine ? `${post.stars} stelle ricevute` : post.starred ? "Togli la stella" : "Metti una stella"} aria-pressed={post.mine ? undefined : !!post.starred} style={{ height: 40, padding: "0 13px", borderRadius: 18, border: "none", background: post.mine ? LINE : post.starred ? "#EF4D6A" : ACCENT, color: post.mine ? TXT2 : post.starred ? "#fff" : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: post.mine ? "default" : "pointer" }}>
             <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={post.starred ? "heartFill" : "heart"} size={16} color={post.mine ? TXT2 : post.starred ? "#fff" : TXT} sw={2.2} /></span><span>{post.stars}</span>
           </button>
-          <button onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria-label={`Apri i commenti (${post.comments})`} style={{ height: 40, padding: "0 12px", borderRadius: 18, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: onChat ? "pointer" : "default" }}>
-            <NavIcon name="comment" size={16} color={HBLUE} sw={2.2} /><span>{post.comments}</span>
+          <button onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria-label={`Apri i commenti (${post.comments})`} style={{ height: 40, padding: "0 12px", borderRadius: 18, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: onChat ? "pointer" : "default" }}>
+            <NavIcon name="comment" size={16} color={TXT} sw={2.2} /><span>{post.comments}</span>
           </button>
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, fontSize: 12, color: TXT2, minWidth: 0 }}><NavIcon name="eye" size={15} color={TXT2} sw={2} /><span>{post.views}</span></div>
           {onReport && !post.mine && <button onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" aria-label={reported ? "Segnalato, in revisione" : "Segnala questo cielo"} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, margin: "-4px -8px -4px -4px" }}><NavIcon name="flag" size={17} color={reported ? "#E5484D" : TXT2} sw={1.9} /></button>}
-          {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria-label="Modifica questo cielo" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, margin: "-4px -8px -4px -4px" }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
+          {onEdit && canDelete && <button onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria-label="Modifica questo cielo" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 46, height: 46, margin: "-4px -8px -4px -4px" }}><NavIcon name="edit" size={17} color={TXT} sw={1.9} /></button>}
           {onFollow && !post.mine && (
-            <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ height: 36, fontSize: 12.5, fontWeight: 700, fontFamily: "'Sora',sans-serif", padding: "0 12px", borderRadius: 18, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: isFollowing ? HBLUE : "#fff", color: isFollowing ? "#fff" : HBLUE, flexShrink: 0 }}>{isFollowing ? "Seguito" : "Segui"}</button>
+            <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} style={{ height: 36, fontSize: 12.5, fontWeight: 700, fontFamily: "'Inter',sans-serif", padding: "0 12px", borderRadius: 18, cursor: "pointer", border: `1.5px solid ${HONEY}`, background: isFollowing ? HBLUE : NIGHT3, color: isFollowing ? "#fff" : TXT, flexShrink: 0 }}>{isFollowing ? "Seguito" : "Segui"}</button>
           )}
         </div>
       </div>
@@ -1461,7 +1499,7 @@ function FeedSkeleton() {   // 14.18: due card "in arrivo" al posto dell'icona l
   return <div aria-live="polite" aria-busy="true" role="status">
     <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Lettura del cielo in corso</span>
     {[0, 1].map(i => (
-      <div key={i} style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, overflow: "hidden", marginBottom: 14 }}>
+      <div key={i} style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, overflow: "hidden", marginBottom: 14 }}>
         <div className="bw-skel" style={{ width: "100%", aspectRatio: "3 / 2" }} />
         <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div className="bw-skel" style={{ height: 14, width: "70%", borderRadius: 7 }} />
@@ -1478,19 +1516,19 @@ function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: BODY }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: 1 }}><span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: TXT }}>{worldOn ? "Cieli dal mondo" : "Cieli vicini"}</span><span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${worldCount ?? visible.length} in tutto il mondo` : `${visible.length} entro ${km} km`}</span></span>
+        <span style={{ display: "flex", flexDirection: "column", gap: 1 }}><span style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: TXT }}>{worldOn ? "Cieli dal mondo" : "Cieli vicini"}</span><span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${worldCount ?? visible.length} in tutto il mondo` : `${visible.length} entro ${km} km`}</span></span>
         {onToggleWorld && <WorldBtn on={worldOn} onClick={onToggleWorld} h={28} />}
       </div>
       {visible.length === 0
         ? (loading
             ? (slow ? <FeedSkeleton /> : null)
-            : <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, textAlign: "center", padding: "36px 20px 28px", color: TXT2 }}>{/* 14.18: stato vuoto con un'azione */}
+            : <div style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, textAlign: "center", padding: "36px 20px 28px", color: TXT2 }}>{/* 14.18: stato vuoto con un'azione */}
                 <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{worldOn ? "Nessun cielo nel mondo, per ora" : `Nessun cielo entro ${km} km`}</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{worldOn ? "Nessun cielo nel mondo, per ora" : `Nessun cielo entro ${km} km`}</div>
                 <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 16 }}>{worldOn ? "Appena un'ape pubblica, compare qui." : "Allarga il raggio per vedere i cieli delle api più lontane, oppure pubblica tu il primo."}</div>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                  {!worldOn && onWiden && km < 50 && <button onClick={() => onWiden(50)} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Allarga a 50 km</button>}
-                  {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
+                  {!worldOn && onWiden && km < 50 && <button onClick={() => onWiden(50)} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Allarga a 50 km</button>}
+                  {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
                 </div>
               </div>)
         : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} modelCond={modelCond} />)}
@@ -1505,14 +1543,14 @@ function SolanoCard({ solano }) {
   const lvColor = l => l >= 4 ? "#C62828" : l === 3 ? "#E8700A" : "#D9A400";
   const dayLabel = date => { const t = new Date(); const d = new Date(date + "T12:00:00"); const diff = Math.round((d - new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12)) / 86400000); return diff === 0 ? "oggi" : diff === 1 ? "domani" : d.toLocaleDateString("it-IT", { weekday: "short" }); };
   const peakLocal = iso => { if (!iso) return ""; const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z")); return isNaN(d) ? "" : d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
-  const CARD = { background: "#fff", borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 };
-  if (solano === undefined) return <div style={CARD}><div className="bw-skel" style={{ height: 16, width: "60%", borderRadius: 8 }} /><div className="bw-skel" style={{ height: 14, width: "85%", borderRadius: 7 }} /></div>;
-  if (!solano) return <div style={{ ...CARD, color: TXT2, fontSize: 13 }}>Allerte ufficiali non disponibili in questo momento. Riprova tra poco.</div>;
+  const CARDST = { background: NIGHT2, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(0,0,0,.25)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 };
+  if (solano === undefined) return <div style={CARDST}><div className="bw-skel" style={{ height: 16, width: "60%", borderRadius: 8 }} /><div className="bw-skel" style={{ height: 14, width: "85%", borderRadius: 7 }} /></div>;
+  if (!solano) return <div style={{ ...CARDST, color: TXT2, fontSize: 13 }}>Allerte ufficiali non disponibili in questo momento. Riprova tra poco.</div>;
   const storm = solano.storm?.days || [];
   const today = solano.models?.[0]?.days?.[0]?.date;
   const sea = solano.sea?.days?.[0];
   return (
-    <div style={CARD}>
+    <div style={CARDST}>
       {solano.alerts.length === 0
         ? <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, color: TXT }}><span style={{ width: 10, height: 10, borderRadius: 5, background: "#2E9E63", flexShrink: 0 }} /><b>Nessuna allerta ufficiale</b>&nbsp;per questa zona</div>
         : solano.alerts.map((a, i) => (
@@ -1529,7 +1567,7 @@ function SolanoCard({ solano }) {
           {storm.map(d => (
             <div key={d.date} style={{ flex: 1, background: BODY, borderRadius: 14, padding: "8px 10px" }}>
               <div style={{ fontSize: 12, color: TXT2, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>Temporali {dayLabel(d.date)}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 22, color: d.score >= 7 ? "#C62828" : d.score >= 4 ? "#E8700A" : HBLUE }}>{Number(d.score).toFixed(1).replace(".", ",")}</span><span style={{ fontSize: 12, color: TXT2 }}>/10 · {d.category}</span></div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 22, color: d.score >= 7 ? "#C62828" : d.score >= 4 ? "#E8700A" : TXT }}>{Number(d.score).toFixed(1).replace(".", ",")}</span><span style={{ fontSize: 12, color: TXT2 }}>/10 · {d.category}</span></div>
               <div style={{ fontSize: 12, color: TXT2 }}>{d.organisation ? d.organisation + " · " : ""}picco verso le {peakLocal(d.peakUtc)}{d.confidence ? ` · fiducia ${d.confidence === "high" ? "alta" : d.confidence === "medium" ? "media" : "bassa"}` : ""}</div>
             </div>
           ))}
@@ -1549,7 +1587,7 @@ function SolanoCard({ solano }) {
           </div>
         </div>
       )}
-      <a href={solano.url} target="_blank" rel="noopener" style={{ fontSize: 12, color: TXT2, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, minHeight: 44, margin: "-6px 0 -10px" }}>Fonte: <b style={{ color: HBLUE }}>Solano</b> · MeteoAlarm · MeteoAM · modelli internazionali <NavIcon name="chevron" size={14} color={TXT2} sw={2.2} /></a>
+      <a href={solano.url} target="_blank" rel="noopener" style={{ fontSize: 12, color: TXT2, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, minHeight: 44, margin: "-6px 0 -10px" }}>Fonte: <b style={{ color: TXT }}>Solano</b> · MeteoAlarm · MeteoAM · modelli internazionali <NavIcon name="chevron" size={14} color={TXT2} sw={2.2} /></a>
     </div>
   );
 }
@@ -1621,13 +1659,13 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "0 16px 16px" }}>{/* 14.9 */}
       {/* riquadro principale: dentro la testata blu */}
       <div style={{ margin: "0 -16px 0", padding: "4px 16px 14px", background: HBLUE }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 10 }}>Previsione collaborativa · {km} km</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 10 }}>Previsione collaborativa · {km} km</div>
         <div style={{ background: HBLUE2, color: "#fff", borderRadius: 20, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>{/* 14.11: schema a numeri */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{RAW ? (RAW.incoming ? "🌧️" : RAW.domCond.split(" ")[0]) : "🐝"}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min` : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min` : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
             </div>
             <span style={{ fontSize: 12, background: RAW ? (RAW.conf === "alta" ? "#2E9E63" : RAW.conf === "media" ? ACCENT : HBLUE) : HBLUE, borderRadius: 12, padding: "5px 10px", fontWeight: 700, color: RAW && RAW.conf === "media" ? TXT : "#fff", flexShrink: 0, textTransform: "capitalize" }}>{RAW ? RAW.conf : "—"}</span>
           </div>
@@ -1638,37 +1676,37 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
               { v: RAW && RAW.model ? (RAW.agree ? "✓" : "✗") : "—", l: RAW && RAW.model ? (RAW.agree ? "modello ok" : "modello corretto") : "modello" },
             ].map((t, i) => (
               <div key={i} style={{ borderRadius: 12, background: HBLUE, padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, color: i === 2 && RAW && RAW.model ? (RAW.agree ? "#7FE0A8" : ACCENT) : "#fff", lineHeight: 1.1 }}>{t.v}</div>
-                <div style={{ fontSize: 12, color: "#B9CCE3", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 800, color: i === 2 && RAW && RAW.model ? (RAW.agree ? "#7FE0A8" : ACCENT) : "#fff", lineHeight: 1.1 }}>{t.v}</div>
+                <div style={{ fontSize: 12, color: TXT2, fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
               </div>
             ))}
           </div>
           {RAW && RAW.incoming && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
             {[{ v: RAW.incoming.n, l: "foto maltempo" }, { v: RAW.incoming.dir, l: "sopravento" }, { v: `${RAW.incoming.speed}`, l: "km/h vento" }].map((t, i) => (
               <div key={i} style={{ borderRadius: 12, background: "#D9482B", padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>{t.v}</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.1 }}>{t.v}</div>
                 <div style={{ fontSize: 12, color: "#FBD5CC", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
               </div>
             ))}
           </div>}
-          {RAW && RAW.model && <div style={{ fontSize: 11.5, color: "#B9CCE3" }}>Modello: {RAW.model}{RAW.agree ? " · confermato dalle foto" : " · le foto raccontano altro"}</div>}
+          {RAW && RAW.model && <div style={{ fontSize: 11.5, color: TXT2 }}>Modello: {RAW.model}{RAW.agree ? " · confermato dalle foto" : " · le foto raccontano altro"}</div>}
           {!RAW && <div style={{ fontSize: 12, color: "#D6E4F3", lineHeight: 1.45 }}>Nessuna foto nelle ultime 3 ore entro {km} km: appena qualcuno pubblica, i numeri si accendono.</div>}
         </div>
       </div>
 
       {/* allerta di prossimità (dalle foto della community) */}
-      <div style={{ marginTop: 14, background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ marginTop: 14, background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 58, height: 58, borderRadius: 16, background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{AL.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {sense && sense.alert && <div style={{ fontSize: 12, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>Maltempo in avvicinamento</div>}
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
             <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, fontSize: 12, color: TXT2, lineHeight: 1.4 }}>{AL.speed ? `Fenomeno in avvicinamento a ~${AL.speed} km/h. ` : ""}Vuoi essere avvisato quando BeeCast rileva maltempo vicino a te?</div>
-          <button onClick={armAlert} aria-pressed={!!alertOn} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: alertOn ? "#2E9E63" : ACCENT, color: alertOn ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
+          <button onClick={armAlert} aria-pressed={!!alertOn} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: alertOn ? "#2E9E63" : ACCENT, color: alertOn ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
             <NavIcon name={alertOn ? "check" : "bell"} size={15} color={alertOn ? "#fff" : TXT} sw={2.2} />{alertOn ? "Allerte attive" : "Avvisami"}
           </button>
         </div>
@@ -1688,13 +1726,13 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       {/* 14.26: prossimi 7 giorni (Open-Meteo) */}
       {wxDays && wxDays.length > 0 && <>
         <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossimi 7 giorni</div>
-        <div style={{ background: "#fff", borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
+        <div style={{ background: CARD, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
           {wxDays.map((d, i) => (
-            <div key={d.date} style={{ minWidth: 84, flex: "0 0 auto", textAlign: "center", padding: "4px 2px", borderRadius: 14, background: i === 0 ? HBLUE + "0E" : "transparent" }}>
+            <div key={d.date} style={{ minWidth: 84, flex: "0 0 auto", textAlign: "center", padding: "4px 2px", borderRadius: 14, background: i === 0 ? MIST : "transparent" }}>
               <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{d.dow}{i > 1 ? ` ${d.dnum}` : ""}</div>
               <div style={{ fontSize: 24, lineHeight: "30px", margin: "2px 0" }} title={d.l}>{d.e}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: TXT }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
-              <div style={{ fontSize: 12, color: d.rain >= 1 ? HBLUE : TXT2, fontWeight: d.rain >= 10 ? 700 : 500 }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm${d.pop != null ? ` · ${d.pop}%` : ""}` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
+              <div style={{ fontSize: 12, color: d.rain >= 1 ? TXT : TXT2, fontWeight: d.rain >= 10 ? 700 : 500 }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm${d.pop != null ? ` · ${d.pop}%` : ""}` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
             </div>
           ))}
@@ -1707,12 +1745,12 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
       {/* prossime 12 ore */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
-      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
+      <div style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
         {(wxHours || HOURS).map((x, i) => (
           <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
             <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{x.h}</div>
             <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }}>{x.t}°</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: TXT, fontFamily: "'Inter',sans-serif" }}>{x.t}°</div>
           </div>
         ))}
       </div>
@@ -1721,9 +1759,9 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Sole e luna</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
         {SKY.map((s, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", textAlign: "center", padding: "12px 6px" }}>
+          <div key={i} style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", textAlign: "center", padding: "12px 6px" }}>
             {s.kind === "moon" ? <div style={{ fontSize: 26, lineHeight: "30px" }}>{s.time}</div> : <SkyIcon kind={s.kind} />}
-            <div style={{ fontSize: 15, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif", marginTop: 3 }}>{s.kind === "moon" ? "" : s.time}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif", marginTop: 3 }}>{s.kind === "moon" ? "" : s.time}</div>
             <div style={{ fontSize: 12, color: TXT2, marginTop: 1 }}>{s.label}</div>
           </div>
         ))}
@@ -1731,11 +1769,11 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
       {/* stato del mare */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Stato del mare</div>
-      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14 }}>
+      <div style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WaveIcon /></div>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WaveIcon /></div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT }}>{(wxSea || SEA).state}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT }}>{(wxSea || SEA).state}</div>
             <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>
               {wxSea
                 ? <>Onda {wxSea.wave} da {wxSea.dir}{wxSea.period ? ` · periodo ${wxSea.period}` : ""}{wxSea.sst ? ` · mare ${wxSea.sst}` : ""}</>
@@ -1749,7 +1787,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: "center" }}>
               <div style={{ height: 7, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? ACCENT : "#E6EEF6" }} />
-              <div style={{ fontSize: 12, lineHeight: 1.1, color: i === (wxSea || SEA).scale - 1 ? HBLUE : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 4, textAlign: "center", whiteSpace: "pre-line" }}>{s.replace(" ", "\n")}</div>
+              <div style={{ fontSize: 12, lineHeight: 1.1, color: i === (wxSea || SEA).scale - 1 ? TXT : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 4, textAlign: "center", whiteSpace: "pre-line" }}>{s.replace(" ", "\n")}</div>
             </div>
           ))}
         </div>
@@ -1757,7 +1795,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
       {/* come funziona */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
-      <div style={{ background: "#fff", borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
+      <div style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14, fontSize: 13, color: TXT, lineHeight: 1.55 }}>
         BeeCast analizza le <b>foto della community</b> entro <b>{km} km</b> ({S.photos} nelle ultime ore), riconosce le condizioni reali — incluso lo <b>stato del mare</b> nelle foto della costa — e la loro direzione di spostamento, e le incrocia con i <b>modelli meteo e marini</b> per correggere la previsione delle prossime 12 ore.
         <div style={{ fontSize: 12, color: TXT2, marginTop: 8, lineHeight: 1.4 }}>Stima collaborativa indicativa, non è un'allerta ufficiale. Più foto ci sono, più è accurata.</div>
       </div>
@@ -1860,14 +1898,14 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
       {/* testata del radar: ultime 6 ore · conteggio · raggio */}
       <div style={{ margin: "0 -16px 14px", padding: "4px 16px 14px", background: HBLUE, color: "#fff", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: "#B9CCE3", letterSpacing: ".06em", textTransform: "uppercase" }}>Ultime 6 ore</div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>Ultime 6 ore</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 14px", borderRadius: 18, background: HBLUE2, fontSize: 13, fontWeight: 600 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 4, background: allWeather.length + allEvents.length ? "#2E9E63" : "#9FB8D6" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: allWeather.length + allEvents.length ? "#2E9E63" : TXT2 }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
           {[["meteo", `Meteo · ${allWeather.length}`, "beecast"], ["eventi", `Eventi · ${allEvents.length}`, "eventi"]].map(([id, label, ic]) => (
-            <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
+            <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? TXT : TXT2} sw={2} />{label}</button>
           ))}
         </div>
       </div>
@@ -1881,7 +1919,7 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke="#2A5A8F" strokeWidth="1" />
           <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke="#2A5A8F" strokeWidth="1" />
           <text x={cx - 6} y={cy - R + 13} fill="#fff" fontSize="12" fontWeight="700" textAnchor="end" fontFamily="Sora">N</text>
-          {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 5} y={cy - R * f + 14} fill="#B9CCE3" fontSize="12" fontWeight="600" fontFamily="Sora">{km < 1 ? `${Math.round(km * f * 1000)} m` : `${Math.round(km * f)} km`}</text>)}
+          {[0.33, 0.66, 1].map((f, i) => <text key={i} x={cx + 5} y={cy - R * f + 14} fill={TXT2} fontSize="12" fontWeight="600" fontFamily="Sora">{km < 1 ? `${Math.round(km * f * 1000)} m` : `${Math.round(km * f)} km`}</text>)}
           {/* io */}
           <circle cx={cx} cy={cy} r="18" fill={ACCENT} opacity="0.3"><animate attributeName="r" values="10;26" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.5;0" dur="2s" repeatCount="indefinite" /></circle>
           <circle cx={cx} cy={cy} r="7" fill={ACCENT} stroke="#fff" strokeWidth="2.5" />
@@ -1927,24 +1965,24 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
           })}
         </svg>
         <div style={{ position: "absolute", left: 18, bottom: 18, display: "flex", gap: 6 }}>
-          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #2F73B8" }} />cielo</span>
-          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff", border: "2px solid #D9482B" }} />allerta</span>
+          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: CARD, border: "2px solid #2F73B8" }} />cielo</span>
+          <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: "rgba(255,255,255,.14)", color: "#fff", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: CARD, border: "2px solid #D9482B" }} />allerta</span>
         </div>
-        <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} aria-label={zoomed ? "Torna alla vista intera" : "Ingrandisci il radar"} style={{ position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Sora',sans-serif" }}>{zoomed ? "−" : "+"}</button>
+        <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} aria-label={zoomed ? "Torna alla vista intera" : "Ingrandisci il radar"} style={{ position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(255,255,255,.14)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Inter',sans-serif" }}>{zoomed ? "−" : "+"}</button>
       </div>
       {/* cielo toccato */}
       {sel
-        ? <div ref={selRef} className="fade-up" onClick={() => onOpenPost && onOpenPost(sel)} style={{ marginTop: 12, borderRadius: 20, background: "#fff", padding: 12, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 6px 20px rgba(18,60,107,.10)", border: `2px solid ${ACCENT}`, cursor: "pointer" }}>
-            <div style={{ width: 72, height: 72, borderRadius: 14, overflow: "hidden", background: "#dfe8f1", flexShrink: 0 }}><img src={sel.thumb || sel.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
+        ? <div ref={selRef} className="fade-up" onClick={() => onOpenPost && onOpenPost(sel)} style={{ marginTop: 12, borderRadius: 20, background: CARD, padding: 12, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 6px 20px rgba(18,60,107,.10)", border: `2px solid ${ACCENT}`, cursor: "pointer" }}>
+            <div style={{ width: 72, height: 72, borderRadius: 14, overflow: "hidden", background: NIGHT3, flexShrink: 0 }}><img src={sel.thumb || sel.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span onClick={e => { if (onOpenUser && !sel.mine) { e.stopPropagation(); onOpenUser(sel); } }} style={{ fontWeight: 700, fontSize: 15, color: TXT, cursor: onOpenUser && !sel.mine ? "pointer" : "default", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.user}</span>{sel.stars_rank > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em" }}>{"★".repeat(sel.stars_rank)}</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT }}><b>{sel.cond.replace(/^[^ ]+ /, "")}{sel.temp != null && Number.isFinite(sel.temp) ? ` · ${Math.round(sel.temp)}°` : ""}</b>{sel.dir ? ` · verso ${sel.dir.label}` : (sel.bearing != null ? ` · verso ${dirName(sel.bearing)}` : "")}</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{sel.city} · {sel.dist} km · {agoText(sel.ts)}</div>
             </div>
             {selGroup && selGroup.items.length > 1 && <div onClick={e => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>{/* 14.24: più cieli nello stesso punto */}
-              <button onClick={() => stepSel(-1)} aria-label="Cielo precedente in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: HBLUE, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>‹</button>
+              <button onClick={() => stepSel(-1)} aria-label="Cielo precedente in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: TXT, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>‹</button>
               <span style={{ fontSize: 12, fontWeight: 700, color: TXT2, whiteSpace: "nowrap" }}>{selIdx + 1}/{selGroup.items.length}</span>
-              <button onClick={() => stepSel(1)} aria-label="Cielo successivo in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: HBLUE, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>›</button>
+              <button onClick={() => stepSel(1)} aria-label="Cielo successivo in questo punto" style={{ width: 44, height: 30, border: "none", background: "none", cursor: "pointer", color: TXT, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>›</button>
             </div>}
             <button onClick={e => { e.stopPropagation(); onOpenPost && onOpenPost(sel); }} title="Vai al cielo nel Feed" aria-label="Apri questo cielo nel Feed" style={{ width: 44, height: 44, borderRadius: 22, border: "none", background: HBLUE, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}><NavIcon name="chevron" size={20} color="#fff" sw={2.4} /></button>
           </div>
@@ -1968,7 +2006,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
       <div style={{ margin: "-14px -14px 12px", padding: "0 16px 14px", background: HBLUE }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>{/* 14.3: il selettore vive nella testata */}
         {[["meteo", "Meteo", "beecast"], ["social", "Social", "groups"]].map(([id, label, ic]) => (
-          <button key={id} onClick={() => setView(id)} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? "#fff" : "transparent", color: view === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? HBLUE : "#B9CCE3"} sw={2} />{label}</button>
+          <button key={id} onClick={() => setView(id)} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? TXT : TXT2} sw={2} />{label}</button>
         ))}
       </div></div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1977,15 +2015,15 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
       </div>
       {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
       {visible.length === 0 && (   /* 14.33: stato vuoto con un'azione */
-        <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2, marginBottom: 12 }}>
-          <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name={view === "social" ? "groups" : "beecast"} size={36} color={HBLUE} sw={1.7} /></div>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{inf ? `Nessun evento ${view === "social" ? "social" : "meteo"} nel mondo, per ora` : `Nessun evento ${view === "social" ? "social" : "meteo"} entro ${km} km`}</div>
+        <div style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2, marginBottom: 12 }}>
+          <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name={view === "social" ? "groups" : "beecast"} size={36} color={TXT} sw={1.7} /></div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{inf ? `Nessun evento ${view === "social" ? "social" : "meteo"} nel mondo, per ora` : `Nessun evento ${view === "social" ? "social" : "meteo"} entro ${km} km`}</div>
           <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 14 }}>{view === "social" ? "Allarga lo sguardo, oppure crea tu il primo con il tasto Nuovo in alto." : "Nessuna segnalazione attiva vicino a te: buon segno. Con il tasto Nuovo in alto puoi segnalarne una."}</div>
-          {!inf && <button onClick={() => setInf(true)} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
+          {!inf && <button onClick={() => setInf(true)} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
         </div>
       )}
       {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || e.user === userName || (myUid && e.uid === myUid))} onEdit={onEditEnds} /> : (
-        <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: e.id === focusId ? `2px solid ${ACCENT}` : "none", cursor: "pointer", transition: "box-shadow .3s" }}>{/* 14.4 */}
+        <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: CARD, borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: e.id === focusId ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: e.id === focusId ? `2px solid ${ACCENT}` : "none", cursor: "pointer", transition: "box-shadow .3s" }}>{/* 14.4 */}
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: sevColor[e.sev] || HBLUE, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, flexShrink: 0 }}>
               <div style={{ fontSize: 28, lineHeight: 1 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
@@ -1993,7 +2031,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
             </div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: sevColor[e.sev] || HBLUE, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat ? e.cat.replace(/^[^ ]+ /, "") : "Segnalazione meteo"}</div>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
               <div style={{ fontSize: 12.5, color: TXT2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
             </div>
@@ -2005,7 +2043,7 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
             <UserAvatar src={e.ava || avaOf(e.user)} size={22} />
             <span style={{ flex: 1, fontSize: 12, color: TXT2 }}>segnalato da <b style={{ color: TXT }}>{e.user}</b></span>
             <ShareBtn e={e} />
-            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: HBLUE + "12", border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
+            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: MIST, border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={TXT} sw={1.9} /></button>}
           </div>
         </div>
       ))}
@@ -2040,7 +2078,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
         <div onClick={() => onOpenUser && onOpenUser(p)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
           <UserAvatar src={p.ava} size={50} stars={beeStars(p.postsCount)} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{p.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{p.name}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
           </div>
         </div>
@@ -2053,28 +2091,28 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
       <div style={{ padding: "4px 16px 14px", background: HBLUE, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: HBLUE2 }}>
           {[["contatti", "BeePaper"], ["preferiti", "Seguiti"], ["gruppi", "Gruppi"]].map(([id, label]) => (
-            <button key={id} onClick={() => setSub(id)} aria-pressed={sub === id} style={{ flex: 1, height: 44, borderRadius: 12, border: "none", background: sub === id ? "#fff" : "transparent", color: sub === id ? HBLUE : "#B9CCE3", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{label}</button>
+            <button key={id} onClick={() => setSub(id)} aria-pressed={sub === id} style={{ flex: 1, height: 44, borderRadius: 12, border: "none", background: sub === id ? HONEY : "transparent", color: sub === id ? INK : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{label}</button>
           ))}
         </div>
         {sub === "contatti" && <div style={{ display: "flex", alignItems: "center", gap: 10, height: 46, padding: "0 8px 0 14px", borderRadius: 16, background: HBLUE2 }}>
-          <NavIcon name="search" size={18} color="#B9CCE3" sw={2.4} />
-          <input value={q} onChange={e => setQ(e.target.value)} type="search" aria-label="Cerca api, luoghi e città" placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, minHeight: 44, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Sora',sans-serif" }} />
-          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color="#B9CCE3" sw={2.2} /></button>}
+          <NavIcon name="search" size={18} color={TXT2} sw={2.4} />
+          <input value={q} onChange={e => setQ(e.target.value)} type="search" aria-label="Cerca api, luoghi e città" placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, minHeight: 44, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Inter',sans-serif" }} />
+          {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
           <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
         </div>}
       </div>
       <div style={{ display: "none" }}>
         {[].map(([id, label]) => (
-          <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? HBLUE : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
+          <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? TXT : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
         ))}
       </div>
 
       {sub === "preferiti" ? (
-        <div style={{ margin: 16, background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
+        <div style={{ margin: 16, background: CARD, borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
           <div style={{ padding: "10px 16px 0" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", borderRadius: 12, padding: "9px 12px", border: `1px solid ${LINE}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: CARD, borderRadius: 12, padding: "9px 12px", border: `1px solid ${LINE}` }}>
               <NavIcon name="search" size={17} color={TXT2} />
-              <input value={favQ} onChange={e => setFavQ(e.target.value)} placeholder="Cerca tra le api…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+              <input value={favQ} onChange={e => setFavQ(e.target.value)} placeholder="Cerca tra le api…" style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Inter',sans-serif" }} />
               {favQ && <button onClick={() => setFavQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
             </div>
           </div>
@@ -2084,7 +2122,7 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           {followedPlaces.length === 0 ? <div style={{ padding: "4px 16px 14px", color: TXT2, fontSize: 13.5 }}>Nessun luogo seguito — tocca la ⭐ accanto ai luoghi in BeePaper</div> : followedPlaces.map(pl => (
             <div key={pl.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
               <div onClick={() => onOpenPlace(pl)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{pl.name}</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{pl.name}</div>
                 {pl.dist != null && <div style={{ fontSize: 12.5, color: TXT2 }}>📍 {pl.dist} km da te</div>}
               </div>
               <button onClick={() => onTogglePlaceFav(pl.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name="starFill" size={24} color={STAR} /></button>
@@ -2094,17 +2132,17 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           {(people || []).filter(p => !favQ.trim() || (p.name || "").toLowerCase().includes(favQ.trim().toLowerCase()) || (p.city || "").toLowerCase().includes(favQ.trim().toLowerCase())).map(p => <FavRow key={p.id} p={p} />)}
         </div>
       ) : sub === "gruppi" ? (
-        <div style={{ margin: 16, background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
+        <div style={{ margin: 16, background: CARD, borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden", paddingBottom: 6 }}>
           <div style={{ padding: "14px 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>I tuoi gruppi ({(groups || []).length})</div>
           {(!groups || groups.length === 0)
             ? <div style={{ padding: "26px 16px", color: TXT2, fontSize: 14, textAlign: "center" }}>Nessun gruppo ancora.<br />Creane uno con l'icona 👥+ in alto!</div>
             : groups.map(g => (
               <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", borderBottom: `1px solid ${LINE}` }}>
-                {(isAdminG || g.mine) && <button onClick={() => onEditGroup(g)} title="Modifica gruppo" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={16} color={HBLUE} sw={1.9} /></button>}
+                {(isAdminG || g.mine) && <button onClick={() => onEditGroup(g)} title="Modifica gruppo" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={16} color={TXT} sw={1.9} /></button>}
                 <div onClick={() => onOpenGroup(g)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, cursor: "pointer", minWidth: 0 }}>
-                <div style={{ width: 50, height: 50, borderRadius: "50%", background: HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={HBLUE} /></div>
+                <div style={{ width: 50, height: 50, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={TXT} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: TXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
                   <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).map(id => ((contacts || []).find(c => c.id === id) || {}).name || "").filter(Boolean).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
                 </div>
                 <NavIcon name="chevron" size={18} color={TXT2} sw={2} />
@@ -2121,10 +2159,10 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           <div style={{ padding: "0 16px 8px", fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>{inf ? "Luoghi · tutto il mondo" : "Luoghi vicini"}</div>
           <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 4px", scrollbarWidth: "none" }}>
             {places.map((p, i) => { const on = (placeFavs || []).includes(p.name); const first = i === 0 && !inf; return (
-              <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", height: 40, borderRadius: 20, background: first ? HBLUE : "#fff", border: first ? "none" : `1.5px solid ${LINE}`, color: first ? "#fff" : TXT, flexShrink: 0, overflow: "hidden" }}>
-                <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px 0 10px", display: "flex" }}><NavIcon name={on ? "starFill" : "star"} size={15} color={on ? ACCENT : (first ? "#B9CCE3" : TXT2)} sw={2} /></button>
-                <button onClick={() => onOpenPlace(p)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 6px 0 2px", fontFamily: "'Sora',sans-serif", fontSize: 13, fontWeight: 600, color: "inherit", whiteSpace: "nowrap" }}>{p.name}{p.dist != null ? ` · ${fmt(p.dist)}` : ""}</button>
-                {p.events > 0 && <button onClick={() => onOpenPlaceEvents(p)} title="Eventi del luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 10px 0 2px", display: "flex", alignItems: "center", gap: 3, color: "inherit", fontFamily: "'Sora',sans-serif", fontSize: 12, fontWeight: 700 }}><NavIcon name="eventi" size={14} color={first ? "#fff" : HBLUE} sw={2} />{p.events}</button>}
+              <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", height: 40, borderRadius: 20, background: first ? HBLUE : NIGHT3, border: first ? "none" : `1.5px solid ${LINE}`, color: first ? "#fff" : TXT, flexShrink: 0, overflow: "hidden" }}>
+                <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px 0 10px", display: "flex" }}><NavIcon name={on ? "starFill" : "star"} size={15} color={on ? ACCENT : (first ? TXT2 : TXT2)} sw={2} /></button>
+                <button onClick={() => onOpenPlace(p)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 6px 0 2px", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600, color: "inherit", whiteSpace: "nowrap" }}>{p.name}{p.dist != null ? ` · ${fmt(p.dist)}` : ""}</button>
+                {p.events > 0 && <button onClick={() => onOpenPlaceEvents(p)} title="Eventi del luogo" style={{ background: "none", border: "none", cursor: "pointer", padding: "0 10px 0 2px", display: "flex", alignItems: "center", gap: 3, color: "inherit", fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700 }}><NavIcon name="eventi" size={14} color={first ? "#fff" : TXT} sw={2} />{p.events}</button>}
                 {!(p.events > 0) && <span style={{ width: 8 }} />}
               </div>
             ); })}
@@ -2137,23 +2175,23 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
         <div style={{ fontSize: 12, color: TXT2 }}>{contacts.length} nell'alveare{onlineCount != null ? <> · <b style={{ color: "#1F6B45" }}>{onlineCount} online</b></> : null}</div>
       </div>}
       {list.length === 0
-        ? <div style={{ margin: "8px 16px 16px", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2 }}>{/* 14.33: stato vuoto con un'azione */}
-            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="contatti" size={36} color={HBLUE} sw={1.7} /></div>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{ql ? `Nessuna ape per «${q.trim()}»` : inf ? "Nessuna ape nel mondo, per ora" : `Nessuna ape entro ${km} km`}</div>
+        ? <div style={{ margin: "8px 16px 16px", background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2 }}>{/* 14.33: stato vuoto con un'azione */}
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="contatti" size={36} color={TXT} sw={1.7} /></div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{ql ? `Nessuna ape per «${q.trim()}»` : inf ? "Nessuna ape nel mondo, per ora" : `Nessuna ape entro ${km} km`}</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 14 }}>{ql ? "Prova con il nome o la città scritti per esteso." : "Allarga il raggio o guarda tutto il mondo: le api non mancano."}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-              {ql && <button onClick={() => setQ("")} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Cancella la ricerca</button>}
-              {!inf && onToggleWorld && <button onClick={onToggleWorld} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
+              {ql && <button onClick={() => setQ("")} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Cancella la ricerca</button>}
+              {!inf && onToggleWorld && <button onClick={onToggleWorld} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
             </div>
           </div>
         : <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>{list.map(c => { const st = beeStars(c.postsCount); const on = (following || []).includes(c.name); return (
-          <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 18, background: "#fff", boxShadow: "0 4px 14px rgba(18,60,107,.08)", cursor: "pointer", border: c.me ? `1.5px solid ${ACCENT}` : "none" }}>
+          <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 18, background: CARD, boxShadow: "0 4px 14px rgba(18,60,107,.08)", cursor: "pointer", border: c.me ? `1.5px solid ${ACCENT}` : "none" }}>
             <UserAvatar src={c.ava} size={48} stars={0} />
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: HBLUE + "12", color: HBLUE, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 10, color: "#B8860B", letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: MIST, color: TXT, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
             </div>
-            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 18, border: on ? "none" : `1.5px solid ${HBLUE}`, background: on ? HBLUE + "12" : "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
+            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 18, border: on ? "none" : `1.5px solid ${HBLUE}`, background: on ? MIST : NIGHT3, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" style={{ width: 40, height: 40, borderRadius: 20, background: ACCENT, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><WIcon name="chat" size={18} color={TXT} sw={2.2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
@@ -2173,7 +2211,7 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
   const submit = () => { if (!name.trim() || sel.length === 0) return; onCreate({ name: name.trim(), members: sel }); };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Nuovo gruppo</div>
         <input placeholder="Nome del gruppo" value={name} onChange={e => setName(e.target.value)} style={{ background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: TXT, outline: "none", marginBottom: 14 }} />
         <div style={{ fontSize: 11, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Seleziona i membri ({sel.length}) · tu sei incluso automaticamente</div>
@@ -2183,13 +2221,13 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
             return (
               <div key={c.id} onClick={() => toggle(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
                 <UserAvatar src={c.ava} size={42} />
-                <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
-                <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
+                <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HONEY : LINE}`, background: on ? HBLUE : NIGHT3, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
               </div>
             );
           })}
         </div>
-        <button onClick={submit} disabled={!name.trim() || sel.length === 0} style={{ padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: (!name.trim() || sel.length === 0) ? .5 : 1 }}>Crea gruppo</button>
+        <button onClick={submit} disabled={!name.trim() || sel.length === 0} style={{ padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: (!name.trim() || sel.length === 0) ? .5 : 1 }}>Crea gruppo</button>
       </div>
     </div>
   );
@@ -2218,8 +2256,8 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 
       {/* banner chat pubblica */}
       {contact.public && (
-        <div style={{ background: "#fff", borderBottom: `1px solid ${LINE}`, padding: "10px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: HBLUE + "14", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={18} color={HBLUE} /></div>
+        <div style={{ background: CARD, borderBottom: `1px solid ${LINE}`, padding: "10px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={18} color={TXT} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>Chat pubblica · visibile a tutti</div>
             {contact.sub && <div style={{ fontSize: 12, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.sub}</div>}
@@ -2229,7 +2267,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 
       {/* barra membri del gruppo */}
       {group && (
-        <div style={{ background: "#fff", borderBottom: `1px solid ${LINE}`, padding: "10px 12px", flexShrink: 0 }}>
+        <div style={{ background: CARD, borderBottom: `1px solid ${LINE}`, padding: "10px 12px", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, overflowX: "auto" }}>
             {members.map(m => (
               <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56 }}>
@@ -2238,8 +2276,8 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
               </div>
             ))}
             <button onClick={() => setManage(true)} aria-label="Gestisci i membri del gruppo" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, minHeight: 44, background: "none", border: "none", cursor: "pointer" }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE + "14", border: `1.5px dashed ${HBLUE}66`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color={HBLUE} sw={2.2} /></div>
-              <span style={{ fontSize: 12, color: HBLUE, fontWeight: 600 }}>Gestisci</span>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: MIST, border: `1.5px dashed ${HONEY}66`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color={TXT} sw={2.2} /></div>
+              <span style={{ fontSize: 12, color: TXT, fontWeight: 600 }}>Gestisci</span>
             </button>
           </div>
         </div>
@@ -2247,21 +2285,21 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
 
       <div role="log" aria-live="polite" aria-label="Messaggi" style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, background: BODY }}>
         {msgs.length === 0 && (   /* 14.20: stato vuoto */
-          <div style={{ margin: "auto 0", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 18, padding: "26px 18px", textAlign: "center", color: TXT2 }}>
-            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="comment" size={34} color={HBLUE} sw={1.8} /></div>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{contact.public ? "Nessun messaggio, per ora" : group ? `Il gruppo “${group.name}” è appena nato` : `Ancora niente con ${who}`}</div>
+          <div style={{ margin: "auto 0", background: CARD, border: `1px solid ${LINE}`, borderRadius: 18, padding: "26px 18px", textAlign: "center", color: TXT2 }}>
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><NavIcon name="comment" size={34} color={TXT} sw={1.8} /></div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{contact.public ? "Nessun messaggio, per ora" : group ? `Il gruppo “${group.name}” è appena nato` : `Ancora niente con ${who}`}</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{contact.public ? "Racconta com'è il cielo qui adesso: lo leggono tutte le api del posto." : "Scrivi il primo messaggio qui sotto."}</div>
           </div>
         )}
         {msgs.map((m, mi) => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); askDelete(m); } }}>
-            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: HBLUE, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "75%", background: m.me ? `${HBLUE}` : "#fff", color: m.me ? "#fff" : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 12, opacity: .8, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .85, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? "#fff" : TXT2} sw={2} /></button>}</div></div>
+            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: TXT, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
+            <div style={{ maxWidth: "75%", background: m.me ? HONEY : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "12px 15px", fontSize: 17.5, lineHeight: 1.45, boxShadow: `0 2px 8px ${HBLUE}14` }}>{m.text}<div style={{ fontSize: 12, opacity: .8, marginTop: 5, display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 800, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? ACCENT : "#fff", opacity: (m.readAt || m.deliveredAt) ? 1 : .75 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700, color: m.readAt ? ACCENT : "#fff", opacity: .95 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .85, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? "#fff" : TXT2} sw={2} /></button>}</div></div>
           </div>
         ))}
         <div ref={ref} />
       </div>
-      <div style={{ padding: "12px 16px", background: "#fff", borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px", background: CARD, borderTop: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
         <textarea rows={1} placeholder="Scrivi un messaggio…" aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 18, padding: "10px 16px", fontSize: 16.5, resize: "none", outline: "none", color: TXT }} />
         <button onClick={send} aria-label="Invia il messaggio" title="Invia" style={{ width: 46, height: 46, borderRadius: 14, background: `${HBLUE}`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="send" size={18} color="#fff" /></button>
       </div>
@@ -2269,22 +2307,22 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
       {/* gestione membri */}
       {manage && group && (
         <div onClick={() => setManage(false)} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-          <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
+          <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 24px", maxHeight: "78%", display: "flex", flexDirection: "column" }}>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>Membri di “{group.name}”</div>
             <div style={{ fontSize: 12, color: TXT2, marginBottom: 14 }}>Tocca per aggiungere o rimuovere dai contatti</div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {(contacts || []).length === 0 ? <div style={{ color: TXT2, fontSize: 14 }}>Nessun contatto disponibile.</div> : (contacts || []).map(c => {
                 const on = group.members.includes(c.id);
                 return (
-                  <button key={c.id} onClick={() => toggleMember(c.id)} role="checkbox" aria-checked={on} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", minHeight: 56, cursor: "pointer", borderBottom: `1px solid ${LINE}`, background: "none", border: "none", textAlign: "left", fontFamily: "'Sora',sans-serif", fontSize: 14 }}>
+                  <button key={c.id} onClick={() => toggleMember(c.id)} role="checkbox" aria-checked={on} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", minHeight: 56, cursor: "pointer", borderBottom: `1px solid ${LINE}`, background: "none", border: "none", textAlign: "left", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
                     <UserAvatar src={c.ava} size={42} />
-                    <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
-                    <div aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HBLUE : LINE}`, background: on ? HBLUE : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
+                    <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                    <div aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HONEY : LINE}`, background: on ? HBLUE : NIGHT3, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
                   </button>
                 );
               })}
             </div>
-            <button onClick={() => setManage(false)} style={{ marginTop: 14, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Chiudi</button>
+            <button onClick={() => setManage(false)} style={{ marginTop: 14, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Chiudi</button>
           </div>
         </div>
       )}
@@ -2587,7 +2625,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: verdictReady ? (ai?.cls || null) : null, aiScore: verdictReady ? (ai?.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !verdictReady }); }, 300);
   };
   const GeoChip = () => geoReal ? null : geoApprox ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: HBLUE + "0E", color: HBLUE, border: `1px solid ${HBLUE}33` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: MIST, color: TXT, border: `1px solid ${HONEY}33` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
       <span><b>{locName ? locName + " (circa)" : "Zona approssimativa"}</b> — il cielo sarà pubblicato con la sola città.{!geoOff && onAskGeo && <> Vuoi il punto preciso sulla mappa? <b onClick={onAskGeo} style={{ cursor: "pointer", textDecoration: "underline" }}>Attiva la posizione</b>.</>}</span>
     </div>
@@ -2608,7 +2646,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     </div>
   ) : null;
   const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, background: HBLUE + "12", color: HBLUE, border: `1px solid ${HBLUE}33` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, background: MIST, color: TXT, border: `1px solid ${HONEY}33` }}>
       <span style={{ fontSize: 15 }}>👁️</span><span>Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</span>
     </div>
   ) : null;
@@ -2618,7 +2656,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       <span>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</span>
     </div>
   ) : (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? HBLUE + "0E" : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? HBLUE : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HBLUE + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? MIST : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? TXT : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HONEY + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
       <span style={{ fontSize: 15, flexShrink: 0 }}>{ai.checking ? "🐝" : ai.block ? "🚫" : "✅"}</span>
       <span>{ai.checking ? <>Gli occhi dell'alveare stanno guardando la foto… <b>puoi pubblicare subito</b>: il controllo continua da solo dietro le quinte.</> : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
     </div>
@@ -2636,19 +2674,19 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
                 ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
                 ["🔒", "La fotocamera si accende solo quando la apri tu, mai di nascosto."]]}
         cta="Apri la fotocamera 📸" onAccept={acceptCamInvite} onLater={onBack} />}
-      {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: "#fff", opacity: .85, pointerEvents: "none" }} />}
+      {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: CARD, opacity: .85, pointerEvents: "none" }} />}
       <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
         <span style={{ fontSize: 44 }}>📱</span>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
         <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza. 🐝</div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#0B1524", minHeight: format === "std" ? 280 : undefined, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
           {!captured ? <>
             <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
-            <button onClick={() => shotRef.current?.click()} style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: 380, border: `2px dashed ${HBLUE}66`, borderRadius: 16, background: "linear-gradient(160deg,#EAF3FB,#fff)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-              <div style={{ width: 88, height: 88, borderRadius: "50%", background: ACCENT, color: TXT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 22px rgba(255,198,30,.5)" }}><NavIcon name="camera" size={40} color={TXT} sw={2.2} /></div>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19, color: TXT }}>Scatta il cielo</div>
+            <button onClick={() => shotRef.current?.click()} style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: 380, border: `2px dashed ${HONEY}66`, borderRadius: 16, background: "linear-gradient(160deg,#1C2852,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+              <div style={{ width: 88, height: 88, borderRadius: "50%", background: ACCENT, color: INK, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 22px rgba(255,198,30,.5)" }}><NavIcon name="camera" size={40} color={TXT} sw={2.2} /></div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19, color: TXT }}>Scatta il cielo</div>
               <div style={{ fontSize: 12.5, color: TXT2 }}>Si apre la fotocamera del telefono · solo dal vivo, mai dall'archivio</div>
             </button>
           </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
@@ -2661,43 +2699,43 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           </div>
           {!captured && streaming && <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
             {[["std", "Std"], ["wide", "16:9"], ["pano", "Pano"]].map(([id, label]) => (
-              <button key={id} onClick={() => setFormat(id)} aria-pressed={format === id} aria-label={`Formato ${label}`} style={{ minHeight: 44, padding: "5px 16px", borderRadius: 22, border: `1.5px solid ${format === id ? HBLUE : LINE}`, background: format === id ? HBLUE : "#fff", color: format === id ? "#fff" : HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
+              <button key={id} onClick={() => setFormat(id)} aria-pressed={format === id} aria-label={`Formato ${label}`} style={{ minHeight: 44, padding: "5px 16px", borderRadius: 22, border: `1.5px solid ${format === id ? HONEY : LINE}`, background: format === id ? HBLUE : NIGHT3, color: format === id ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
             ))}
           </div>}
           {!captured && streaming && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "0 6px" }}>
             {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
-              <button key={z} onClick={() => applyZoom(z)} aria-pressed={Math.abs(zoom - z) < .25} aria-label={`Zoom ${z}×`} style={{ minWidth: 44, minHeight: 44, padding: "5px 0", borderRadius: 14, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HBLUE : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : "#fff", color: Math.abs(zoom - z) < .25 ? "#fff" : HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
+              <button key={z} onClick={() => applyZoom(z)} aria-pressed={Math.abs(zoom - z) < .25} aria-label={`Zoom ${z}×`} style={{ minWidth: 44, minHeight: 44, padding: "5px 0", borderRadius: 14, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HONEY : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : NIGHT3, color: Math.abs(zoom - z) < .25 ? "#fff" : TXT, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
             ))}
             <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} aria-label="Zoom" aria-valuetext={`${zoom.toFixed(1)}×`} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${HBLUE} 0%, ${HBLUE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} 100%)` }} />
           </div>}
           {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
-            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label={facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"} title="Gira la fotocamera" style={{ width: 46, height: 46, borderRadius: 14, background: "#fff", border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={HBLUE} /></button>
-            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" aria-label={grid ? "Nascondi la griglia" : "Mostra la griglia"} aria-pressed={grid} style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : "#fff", border: `1.5px solid ${grid ? HBLUE : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : HBLUE} sw={1.7} /></button>}
+            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label={facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"} title="Gira la fotocamera" style={{ width: 46, height: 46, borderRadius: 14, background: CARD, border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={TXT} /></button>
+            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" aria-label={grid ? "Nascondi la griglia" : "Mostra la griglia"} aria-pressed={grid} style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : NIGHT3, border: `1.5px solid ${grid ? HONEY : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : TXT} sw={1.7} /></button>}
             {streaming && <button onPointerDown={e => { e.preventDefault(); capture(); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); capture(); } }} aria-label="Scatta la foto" title="Scatta" style={{ width: 72, height: 72, borderRadius: "50%", background: `${HBLUE}`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55`, touchAction: "none" }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
-            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" aria-label={torchOn ? "Spegni la torcia" : "Accendi la torcia"} aria-pressed={torchOn} style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : "#fff", border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
+            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" aria-label={torchOn ? "Spegni la torcia" : "Accendi la torcia"} aria-pressed={torchOn} style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : NIGHT3, border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
           </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>{/* 14.21: etichette visibili */}
               <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Descrizione <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(facoltativa)</span></span>
-              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
+              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Condizione</span>
-              <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", minHeight: 44, fontSize: 14, outline: "none", color: TXT, width: "100%" }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
+              <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", minHeight: 44, fontSize: 14, outline: "none", color: TXT, width: "100%" }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
             </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px" }}>
               <span style={{ fontSize: 18 }}>🌡️</span>
               <span style={{ flex: 1, fontSize: 13.5, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
-              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: HBLUE, fontFamily: "'Bricolage Grotesque',sans-serif" }} />
-              <span style={{ fontSize: 16, fontWeight: 700, color: HBLUE }}>°</span>
+              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif" }} />
+              <span style={{ fontSize: 16, fontWeight: 700, color: TXT }}>°</span>
             </div>
             <GeoChip />
       <OfflineChip />
       <AiChip0 />
       <AiChip />
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={retake} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>↩ Rifai</button>
-              <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : "#fff", color: saved ? "#3BA776" : HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 2, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: !canPublish ? (!(geoReal || geoApprox) ? ACCENT : "#9AA7B8") : `${HBLUE}`, color: !canPublish && !(geoReal || geoApprox) ? TXT : "#fff", fontWeight: 600, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Sora',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
+              <button onClick={retake} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>↩ Rifai</button>
+              <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : NIGHT3, color: saved ? "#3BA776" : TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
+              <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 2, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: !canPublish ? (!(geoReal || geoApprox) ? ACCENT : "#9AA7B8") : `${HBLUE}`, color: !canPublish && !(geoReal || geoApprox) ? TXT : "#fff", fontWeight: 600, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Inter',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
             </div>
           </div>}
         </div>
@@ -2723,26 +2761,26 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         </div>
         <div style={{ padding: "0 20px", marginTop: -46 }}>
           <button onClick={() => setEditing(true)} aria-label="Cambia la foto del profilo" title="Cambia avatar" style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", borderRadius: "50%", marginBottom: 12, display: "block" }}>
-            <div style={{ width: 92, height: 92, borderRadius: "50%", background: "#fff", border: `4px solid ${BODY}`, boxShadow: `0 0 0 3px ${ACCENT}, 0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 92, height: 92, borderRadius: "50%", background: CARD, border: `4px solid ${BODY}`, boxShadow: `0 0 0 3px ${ACCENT}, 0 8px 24px ${HBLUE}33`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <UserAvatar src={user.avatar} size={84} ring={false} stars={beeStars(nMine)} />
             </div>
             <div style={{ position: "absolute", right: 2, bottom: 2, width: 30, height: 30, borderRadius: "50%", background: HBLUE, border: "2.5px solid #fff", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={15} color="#fff" sw={2} /></div>
           </button>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{user.name}
-              {isAdmin && <span style={{ height: 22, padding: "0 8px", borderRadius: 11, background: HBLUE + "12", color: HBLUE, fontSize: 12, fontWeight: 700, fontFamily: "'Sora',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 24, color: TXT, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{user.name}
+              {isAdmin && <span style={{ height: 22, padding: "0 8px", borderRadius: 11, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", display: "flex", alignItems: "center", letterSpacing: ".04em" }}>ADMIN</span>}
             </div>
-            {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
+            {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>Modifica</button>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 4, flexWrap: "wrap" }}><NavIcon name="pin" size={13} color={TXT2} /> {user.city}
             {beeStars(nMine) > 0 && <><span style={{ color: "#B8860B", letterSpacing: ".04em", fontSize: 12, marginLeft: 6 }}>{"★".repeat(beeStars(nMine))}</span><span>{beeRank(nMine)}</span></>}
-            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px -12px -14px -8px" }}><NavIcon name="edit" size={15} color={HBLUE} sw={1.9} /></button>}
+            {onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px -12px -14px -8px" }}><NavIcon name="edit" size={15} color={TXT} sw={1.9} /></button>}
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, margin: "16px 16px 0" }}>
           {[{ l: "cieli", v: nMine }, { l: "stelle", v: stars }, { l: "seguaci", v: (followersList || []).length }].map((s, i) => (
-            <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, boxShadow: "0 4px 14px rgba(18,60,107,.08)" }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 24, color: HBLUE }}>{s.v}</div>
+            <div key={i} style={{ background: CARD, borderRadius: 16, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, boxShadow: "0 4px 14px rgba(18,60,107,.08)" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 24, color: TXT }}>{s.v}</div>
               <div style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{s.l}</div>
             </div>
           ))}
@@ -2750,29 +2788,29 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         <div style={{ padding: "14px 16px 0" }}>{/* 14.3: la griglia dei cieli */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
-            {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ background: "none", border: "none", padding: "0 4px", minHeight: 44, fontSize: 12, fontWeight: 700, color: HBLUE, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
+            {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ background: "none", border: "none", padding: "0 4px", minHeight: 44, fontSize: 12, fontWeight: 700, color: TXT, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Reel precedenti</button>}
           </div>
           {mine.length === 0
-            ? <div style={{ background: "#fff", borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
+            ? <div style={{ background: CARD, borderRadius: 16, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginBottom: 12 }}>
                 {(showAll ? mine : mine.slice(0, mine.length > 8 ? 7 : 8)).map(p => {   /* 14.17: "+N" espande la griglia sul posto */ const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || ""); return (
-                  <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: "#dfe8f1", cursor: "pointer", border: "none", padding: 0, width: "100%" }}>{/* 14.14: data e ora dello scatto · 14.21: pulsante */}
+                  <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>{/* 14.14: data e ora dello scatto · 14.21: pulsante */}
                     <img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     {when && <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "14px 3px 4px", background: "linear-gradient(180deg, rgba(20,44,74,0) 0%, rgba(20,44,74,.78) 100%)", color: "#fff", fontSize: 12, fontWeight: 700, lineHeight: 1.1, textAlign: "center", whiteSpace: "nowrap", letterSpacing: "-.01em" }}>{when}</div>}
                   </button>
                 ); })}
-                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} aria-label={showAll ? "Mostra meno cieli" : `Mostra tutti i ${mine.length} cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: HBLUE + "12", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
+                {mine.length > 8 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} aria-label={showAll ? "Mostra meno cieli" : `Mostra tutti i ${mine.length} cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 12, border: "none", background: MIST, color: TXT, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{showAll ? "chiudi" : `+${mine.length - 7}`}</button>}
               </div>}
-          <div style={{ display: "flex", background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
+          <div style={{ display: "flex", background: CARD, borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", marginBottom: 12 }}>
             {[["Seguiti", followingList], ["Follower", followersList]].map(([label, list], i) => (
-              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} aria-expanded={followTab === label} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? HBLUE + "0E" : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 20, color: TXT }}>{(list || []).length}</div>
+              <button key={label} onClick={() => setFollowTab(t => t === label ? null : label)} aria-expanded={followTab === label} style={{ flex: 1, padding: "12px 8px", background: followTab === label ? MIST : "transparent", border: "none", borderRight: i === 0 ? `1px solid ${LINE}` : "none", cursor: "pointer" }}>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT }}>{(list || []).length}</div>
                 <div style={{ fontSize: 12, color: TXT2 }}>{label}</div>
               </button>
             ))}
           </div>
           {followTab && (
-            <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${LINE}`, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ background: CARD, borderRadius: 14, border: `1px solid ${LINE}`, marginBottom: 12, overflow: "hidden" }}>
               {((followTab === "Seguiti" ? followingList : followersList) || []).length === 0
                 ? <div style={{ padding: "18px 16px", color: TXT2, fontSize: 13.5, textAlign: "center" }}>{followTab === "Seguiti" ? "Non segui ancora nessuno." : "Nessun follower per ora — pubblica bei cieli!"}</div>
                 : (followTab === "Seguiti" ? followingList : followersList).map(c => (
@@ -2782,43 +2820,43 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
                       <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
                       {c.city && <div style={{ fontSize: 11.5, color: TXT2 }}>{c.city}</div>}
                     </div>
-                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HBLUE}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : HBLUE }}>{following?.includes(c.name) ? "Seguito già" : "+ Segui"}</button>}
+                    {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 11.5, fontWeight: 600, fontFamily: "'Inter',sans-serif", padding: "4px 12px", borderRadius: 16, cursor: "pointer", border: `1.5px solid ${HONEY}`, background: following?.includes(c.name) ? HBLUE : "transparent", color: following?.includes(c.name) ? "#fff" : TXT }}>{following?.includes(c.name) ? "Seguito già" : "+ Segui"}</button>}
                   </div>
                 ))}
             </div>
           )}
-          <div style={{ background: "#fff", borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden" }}>{/* 14.3: impostazioni in una card */}
+          <div style={{ background: CARD, borderRadius: 18, boxShadow: "0 4px 14px rgba(18,60,107,.08)", overflow: "hidden" }}>{/* 14.3: impostazioni in una card */}
           <button onClick={onOpenNotif} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="gear" size={21} color={HBLUE} sw={1.8} /></div>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="gear" size={21} color={TXT} sw={1.8} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Configurazione</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{notif?.enabled ? `Attive · entro ${notif.radiusKm} km` : "Disattivate"}</div>
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>
-          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} role="switch" aria-checked={user.readReceipts !== false} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: HBLUE, letterSpacing: "-1px" }}>✓✓</div>
+          {onToggleReceipts && <button onClick={() => onToggleReceipts(!(user.readReceipts !== false))} role="switch" aria-checked={user.readReceipts !== false} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #E6EEF6", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: TXT, letterSpacing: "-1px" }}>✓✓</div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Conferma di lettura</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"}</div>
             </div>
             <div style={{ width: 44, height: 26, borderRadius: 13, background: user.readReceipts !== false ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
+              <div style={{ position: "absolute", top: 3, left: user.readReceipts !== false ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: CARD, boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
-          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} role="switch" aria-checked={!!geoPrecise} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={HBLUE} sw={2} /></div>
+          {onToggleGeo && <button onClick={() => onToggleGeo(!geoPrecise)} role="switch" aria-checked={!!geoPrecise} style={{ width: "100%", background: "transparent", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="pin" size={20} color={TXT} sw={2} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Posizione precisa</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{geoPrecise ? "Attiva · il GPS parte allo scatto (zona di ~1 km, mai la casa)" : "Spenta · i cieli portano solo la città"}</div>
             </div>
             <div style={{ width: 44, height: 26, borderRadius: 13, background: geoPrecise ? ACCENT : LINE, position: "relative", transition: "background .2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
+              <div style={{ position: "absolute", top: 3, left: geoPrecise ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: CARD, boxShadow: "0 1px 4px rgba(0,0,0,.25)", transition: "left .2s" }} />
             </div>
           </button>}
           </div>
           {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#2C7A57", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
-          {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: "#fff", border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Sora',sans-serif" }}>
+          {isAdmin && <button onClick={onBroadcast} style={{ width: "100%", background: CARD, border: `1px solid ${ACCENT}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginTop: 10, fontFamily: "'Inter',sans-serif" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "26", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📣</div>
             <div style={{ flex: 1, textAlign: "left" }}>
               <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>Messaggio all'alveare</div>
@@ -2826,9 +2864,9 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             </div>
             <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />
           </button>}
-          {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Reel precedenti</button>}
-          <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
-          <div style={{ textAlign: "center", color: HBLUE, fontSize: 13, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
+          {onArchive && <button onClick={onArchive} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Reel precedenti</button>}
+          <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: `1.5px solid ${RED}44`, background: "transparent", color: RED, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color={RED} /> Logout</button>
+          <div style={{ textAlign: "center", color: TXT, fontSize: 13, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}>Beeweat v{APP_VERSION} 🐝</div>
         </div>
       </div>
       {editing && <AvatarEditor current={user.avatar} onPick={a => { onAvatar(a); setEditing(false); }} onClose={() => setEditing(false)} />}
@@ -2847,31 +2885,31 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
     <>
       <Header title={(profile.name || "Utente").split(" ")[0]} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
-        <div style={{ background: "#fff", padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, color: HBLUE, borderBottom: `1px solid ${LINE}` }}>
+        <div style={{ background: CARD, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, color: TXT, borderBottom: `1px solid ${LINE}` }}>
           <UserAvatar src={profile.ava} size={56} ring stars={rankStars} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left" }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, lineHeight: 1.15 }}>{profile.name}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={HBLUE} /> {profile.city}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, lineHeight: 1.15 }}>{profile.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: TXT2, marginTop: 1 }}><NavIcon name="pin" size={12} color={TXT} /> {profile.city}</div>
             {rankStars > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 4, background: ACCENT + "2E", color: "#8A5A12", borderRadius: 9, padding: "2px 8px", fontSize: 11.5, fontWeight: 700 }}>{"⭐".repeat(rankStars)} {BEE_RANKS[rankStars]}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={HBLUE} /> Messaggio</button>
-              {isAdmin && <button onClick={() => onAdminEdit && onAdminEdit(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: HBLUE }}>Modifica</button>}
-              {isAdmin && <button onClick={() => onBan && onBan(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${RED}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: "transparent", color: RED }}>Ban</button>}
-              {isAdmin && <button onClick={() => onDeleteUser && onDeleteUser(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: RED, color: "#fff" }}>Elimina</button>}
-              <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HBLUE}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Sora',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : HBLUE }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
+              <button onClick={() => onChat(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HONEY}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Inter',sans-serif", background: "transparent", color: TXT, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="send" size={13} color={TXT} /> Messaggio</button>
+              {isAdmin && <button onClick={() => onAdminEdit && onAdminEdit(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HONEY}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Inter',sans-serif", background: "transparent", color: TXT }}>Modifica</button>}
+              {isAdmin && <button onClick={() => onBan && onBan(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${RED}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Inter',sans-serif", background: "transparent", color: RED }}>Ban</button>}
+              {isAdmin && <button onClick={() => onDeleteUser && onDeleteUser(profile)} style={{ padding: "6px 14px", borderRadius: 18, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Inter',sans-serif", background: RED, color: "#fff" }}>Elimina</button>}
+              <button onClick={() => onFollow(profile.name)} style={{ padding: "6px 14px", borderRadius: 18, border: `1.5px solid ${HONEY}`, cursor: "pointer", fontWeight: 600, fontSize: 12.5, fontFamily: "'Inter',sans-serif", background: isFollowing ? HBLUE : "transparent", color: isFollowing ? "#fff" : TXT }}>{isFollowing ? "Seguito già" : "+ Segui"}</button>
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{mine.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>post</div></div>
-            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{myEvents.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>eventi</div></div>
-            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{totStars}</div><div style={{ fontSize: 10.5, color: TXT2 }}>stelle</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{mine.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>post</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{myEvents.length}</div><div style={{ fontSize: 10.5, color: TXT2 }}>eventi</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{totStars}</div><div style={{ fontSize: 10.5, color: TXT2 }}>stelle</div></div>
           </div>
         </div>
         {myEvents.length > 0 && (
           <div style={{ padding: "14px 16px 0" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Eventi pubblicati</div>
             {myEvents.map(e => (
-              <div key={e.id} onClick={() => onOpenEvent && onOpenEvent(e)} style={{ background: "#fff", borderRadius: 14, padding: 13, marginBottom: 10, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", display: "flex", gap: 13, alignItems: "center" }}>
+              <div key={e.id} onClick={() => onOpenEvent && onOpenEvent(e)} style={{ background: CARD, borderRadius: 14, padding: 13, marginBottom: 10, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer", display: "flex", gap: 13, alignItems: "center" }}>
                 <div style={{ fontSize: 30 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{e.title}</div>
@@ -2884,7 +2922,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         )}
         <div style={{ padding: 16 }}>
           {mine.length === 0
-            ? <div style={{ background: "#fff", borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
+            ? <div style={{ background: CARD, borderRadius: 14, padding: "30px 20px", textAlign: "center", color: TXT2 }}>Nessun post da mostrare.</div>
             : mine.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} canDelete={isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
         </div>
       </div>
@@ -2898,12 +2936,12 @@ function AddContactModal({ people, contacts, onAdd, onClose }) {
   const available = people.filter(p => !contacts.some(c => c.id === p.id));
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 50 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px", maxHeight: "70%", overflowY: "auto" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 28px", maxHeight: "70%", overflowY: "auto" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 14 }}>Aggiungi contatto</div>
         {available.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Hai già aggiunto tutti gli utenti disponibili 🎉</div> : available.map(p => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: `1px solid ${LINE}` }}>
             <img src={p.ava} style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover" }} alt="" />
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: HBLUE }}>{p.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{p.city}</div></div>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{p.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{p.city}</div></div>
             <button onClick={() => onAdd(p)} style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color="#fff" sw={2.4} /></button>
           </div>
         ))}
@@ -2952,7 +2990,7 @@ function SocialMap({ events, me, onPick }) {
     return () => { alive = false; };
   }, [events, me?.lat, me?.lng]);
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
-  return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3", marginBottom: 12, position: "relative", zIndex: 0, isolation: "isolate" }} />;
+  return <div ref={ref} style={{ height: 220, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: NIGHT3, marginBottom: 12, position: "relative", zIndex: 0, isolation: "isolate" }} />;
 }
 // ── Condividi un evento: foglio nativo (WhatsApp, Messaggi…) o, in mancanza, copia negli appunti (14.12) ──
 const shareEvent = async e => {
@@ -2988,7 +3026,7 @@ const shareEvent = async e => {
   return "prompt";
 };
 const ShareBtn = ({ e, dark }) => (
-  <button onClick={ev => { ev.stopPropagation(); shareEvent(e); }} title="Condividi l'evento" aria-label={`Condividi l'evento ${e.title || ""}`.trim()} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: dark ? HBLUE : ACCENT, color: dark ? "#fff" : TXT, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
+  <button onClick={ev => { ev.stopPropagation(); shareEvent(e); }} title="Condividi l'evento" aria-label={`Condividi l'evento ${e.title || ""}`.trim()} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 44, padding: "0 16px", borderRadius: 22, border: "none", background: dark ? HBLUE : ACCENT, color: dark ? "#fff" : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer", flexShrink: 0 }}>
     <NavIcon name="send" size={15} color={dark ? "#fff" : TXT} sw={2.2} />Condividi
   </button>
 );
@@ -2996,31 +3034,31 @@ const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.
 function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
   const [more, setMore] = useState(false);
   return (
-    <div id={"event-" + e.id} className="fade-up" style={{ background: "#fff", borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: focused ? `2px solid ${ACCENT}` : "none" }}>{/* 14.0b */}
+    <div id={"event-" + e.id} className="fade-up" style={{ background: CARD, borderRadius: 22, padding: 14, marginBottom: 12, boxShadow: focused ? `0 0 0 4px ${ACCENT}33, 0 6px 20px ${ACCENT}55` : "0 6px 20px rgba(18,60,107,.10)", border: focused ? `2px solid ${ACCENT}` : "none" }}>{/* 14.0b */}
       <div style={{ display: "flex", gap: 12 }}>
         {e.startsAt
-          ? <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: ACCENT, color: TXT, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          ? <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: ACCENT, color: INK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em" }}>{new Date(e.startsAt).toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "").toUpperCase()}</div>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{new Date(e.startsAt).getDate()}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{new Date(e.startsAt).getDate()}</div>
               <div style={{ fontSize: 11, fontWeight: 600 }}>{new Date(e.startsAt).toLocaleDateString("it-IT", { month: "short" }).replace(".", "").toUpperCase()}</div>
             </div>
-          : <div style={{ width: 58, minHeight: 76, borderRadius: 16, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0 }}>{(e.cat || "🎉").split(" ")[0]}</div>}
+          : <div style={{ width: 58, minHeight: 76, borderRadius: 16, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0 }}>{(e.cat || "🎉").split(" ")[0]}</div>}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-          {e.cat && <div style={{ fontSize: 11, fontWeight: 700, color: HBLUE, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat}</div>}
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
+          {e.cat && <div style={{ fontSize: 11, fontWeight: 700, color: TXT, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat}</div>}
+          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
           {e.startsAt && <div style={{ fontSize: 12.5, color: TXT2 }}>ore {new Date(e.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}{(e.address || e.place) ? ` · ${e.address || e.place}` : ""}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
           {!e.startsAt && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.address || e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
         </div>
         {e.img && <img src={e.img} alt="" onClick={() => onOpen(e)} style={{ width: 64, height: 84, borderRadius: 14, objectFit: "cover", flexShrink: 0, cursor: "pointer" }} />}
-        {canEdit && <button onClick={ev => { ev.stopPropagation(); onEdit && onEdit(e); }} title="Modifica o elimina l'evento" style={{ alignSelf: "flex-start", background: HBLUE + "12", border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={17} color={HBLUE} sw={1.9} /></button>}
+        {canEdit && <button onClick={ev => { ev.stopPropagation(); onEdit && onEdit(e); }} title="Modifica o elimina l'evento" style={{ alignSelf: "flex-start", background: MIST, border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={17} color={TXT} sw={1.9} /></button>}
       </div>
       {e.description && <div onClick={() => setMore(m => !m)} style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 10, whiteSpace: "pre-wrap", cursor: "pointer", ...(more ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{e.description}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <button onClick={() => onOpen(e)} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>🗺️ Vedi sulla mappa</button>
-        {e.link && <a href={/^https?:/i.test(e.link) ? e.link : "https://" + e.link} target="_blank" rel="noopener" style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>🔗 Info</a>}
-        {e.contact && <a href={/@/.test(e.contact) ? "mailto:" + e.contact : "tel:" + e.contact.replace(/\s+/g, "")} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Sora',sans-serif" }}>📞 Contatto</a>}
+        <button onClick={() => onOpen(e)} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>🗺️ Vedi sulla mappa</button>
+        {e.link && <a href={/^https?:/i.test(e.link) ? e.link : "https://" + e.link} target="_blank" rel="noopener" style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Inter',sans-serif" }}>🔗 Info</a>}
+        {e.contact && <a href={/@/.test(e.contact) ? "mailto:" + e.contact : "tel:" + e.contact.replace(/\s+/g, "")} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Inter',sans-serif" }}>📞 Contatto</a>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 12.5, color: TXT2 }}><UserAvatar src={e.ava} size={26} /><span style={{ flex: 1, minWidth: 0 }}>Organizzato da <b style={{ color: HBLUE }}>{e.user}</b></span><ShareBtn e={e} /></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${LINE}`, fontSize: 12.5, color: TXT2 }}><UserAvatar src={e.ava} size={26} /><span style={{ flex: 1, minWidth: 0 }}>Organizzato da <b style={{ color: TXT }}>{e.user}</b></span><ShareBtn e={e} /></div>
     </div>
   );
 }
@@ -3105,7 +3143,7 @@ const parseAddress = str => {
 };
 const streetLine = a => (a.street || "").trim() ? [a.stype !== "Altro" ? a.stype : "", a.street.trim(), (a.num || "").trim()].filter(Boolean).join(" ").trim() : "";   // senza nome della strada, niente via
 const addressString = a => [streetLine(a), (a.city || "").trim()].filter(Boolean).join(", ");
-const inputStyle = { background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 12px", fontSize: 14, color: TXT, outline: "none", width: "100%", fontFamily: "'Sora',sans-serif", boxSizing: "border-box" };
+const inputStyle = { background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 12px", fontSize: 14, color: TXT, outline: "none", width: "100%", fontFamily: "'Inter',sans-serif", boxSizing: "border-box" };
 const labelStyle = { fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 };
 function AddressFields({ a, onChange, onFind, geoState, precision, coords, keepText }) {
   const set = k => e => onChange({ ...a, [k]: e.target.value });
@@ -3120,7 +3158,7 @@ function AddressFields({ a, onChange, onFind, geoState, precision, coords, keepT
       <div style={labelStyle}>Città</div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input placeholder="Città (es. Napoli)" value={a.city} onChange={set("city")} style={{ ...inputStyle, flex: 1 }} />
-        <button onClick={onFind} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Sora',sans-serif" }}>📍 Trova</button>
+        <button onClick={onFind} style={{ padding: "11px 12px", borderRadius: 12, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Inter',sans-serif" }}>📍 Trova</button>
       </div>
       <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.4, color: geoState === "found" ? "#2C7A57" : geoState === "fallback" ? "#B8860B" : geoState === "notfound" ? "#C43C41" : TXT2 }}>
         {geoState === "searching" ? "Cerco il posto sulla mappa…"
@@ -3189,14 +3227,14 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
     });
   };
   const pill = (id, label, emoji) => (
-    <button key={id} onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? `${HBLUE}` : "#fff", color: kind === id ? "#fff" : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{emoji} {label}</button>
+    <button key={id} onClick={() => setKind(id)} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, border: kind === id ? "none" : `1.5px solid ${LINE}`, background: kind === id ? HONEY : NIGHT3, color: kind === id ? INK : TXT2, fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{emoji} {label}</button>
   );
   const addressBlock = <AddressFields a={addr} onChange={v => { setAddr(v); setCoords(null); setGeoState("idle"); }} onFind={resolveCoords} geoState={geoState} precision={precision} coords={coords} />;
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1200, display: "flex", alignItems: "flex-end" }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Sora',sans-serif" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} style={{ width: "100%", maxHeight: "92%", overflowY: "auto", background: CARD, borderRadius: "20px 20px 0 0", padding: "18px 18px 24px", fontFamily: "'Inter',sans-serif" }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: LINE, margin: "0 auto 14px" }} />
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 12 }}>Segnala un evento</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 12 }}>Segnala un evento</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>{pill("meteo", "Eventi meteo", "⛈️")}{pill("social", "Eventi social", "🎉")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {kind === "meteo" ? (
@@ -3205,7 +3243,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
                 <select value={type} onChange={e => setType(e.target.value)} style={inputStyle}>{EVENT_TYPES.slice(1).map(t => <option key={t}>{t}</option>)}</select></div>
               <div><div style={labelStyle}>Titolo</div><input placeholder="Es. Temporale violento sul porto" value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></div>
               <div><div style={labelStyle}>Severità</div>
-                <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HBLUE : LINE}`, background: sev === x ? HBLUE + "12" : "#fff", color: sev === x ? HBLUE : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>{x}</button>)}</div></div>
+                <div style={{ display: "flex", gap: 8 }}>{["Bassa", "Media", "Alta"].map(x => <button key={x} onClick={() => setSev(x)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${sev === x ? HONEY : LINE}`, background: sev === x ? MIST : NIGHT3, color: sev === x ? TXT : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{x}</button>)}</div></div>
               <div><div style={labelStyle}>Valido fino a</div><input type="date" value={ends} min={new Date().toISOString().slice(0, 10)} onChange={e => setEnds(e.target.value)} style={inputStyle} /></div>
               <div>{addressBlock}</div>
             </>
@@ -3224,16 +3262,16 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
           )}
           <input ref={shotRef} type="file" accept="image/*" {...(kind === "meteo" ? { capture: "environment" } : {})} onChange={onShot} style={{ display: "none" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 12, background: BODY, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "10px 12px" }}>
-            {photo ? <img src={photo.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${HBLUE}` }} />
-                   : <div style={{ width: 56, height: 56, borderRadius: 10, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{kind === "meteo" ? "📸" : "🖼️"}</div>}
+            {photo ? <img src={photo.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${HONEY}` }} />
+                   : <div style={{ width: 56, height: 56, borderRadius: 10, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{kind === "meteo" ? "📸" : "🖼️"}</div>}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{photo ? "Immagine pronta ✓" : kind === "meteo" ? "Aggiungi una foto" : "Logo o immagine"}</div>
               <div style={{ fontSize: 12, color: TXT2 }}>{photo ? "Comparirà sull'evento" : kind === "meteo" ? "Facoltativa · scattata sul momento" : "Facoltativa · dal telefono"}</div>
             </div>
-            <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Cambia" : kind === "meteo" ? "Scatta" : "Scegli"}</button>
+            <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Cambia" : kind === "meteo" ? "Scatta" : "Scegli"}</button>
             {photo && <button onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="close" size={18} color={TXT2} sw={2.2} /></button>}
           </div>
-          <button onClick={submit} disabled={sending} style={{ padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif", opacity: sending ? .7 : 1 }}>{sending ? "Cerco la posizione…" : kind === "meteo" ? "Pubblica evento meteo" : "Pubblica evento social"}</button>
+          <button onClick={submit} disabled={sending} style={{ padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: sending ? .7 : 1 }}>{sending ? "Cerco la posizione…" : kind === "meteo" ? "Pubblica evento meteo" : "Pubblica evento social"}</button>
         </div>
       </div>
     </div>
@@ -3247,19 +3285,19 @@ function AvatarEditor({ current, onPick, onClose }) {
   const upload = e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => onPick(r.result); r.readAsDataURL(f); };
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: "#fff", borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 28px" }}>
         <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 16 }}>Icona profilo</div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
           <UserAvatar src={current} size={64} />
-          <button onClick={() => fileRef.current?.click()} style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: HBLUE + "10", color: HBLUE, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>
-            <NavIcon name="camera" size={18} color={HBLUE} /> Carica un'immagine
+          <button onClick={() => fileRef.current?.click()} style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1.5px solid ${HONEY}`, background: HBLUE + "10", color: TXT, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}>
+            <NavIcon name="camera" size={18} color={TXT} /> Carica un'immagine
           </button>
           <input ref={fileRef} type="file" accept="image/*" onChange={upload} style={{ display: "none" }} />
         </div>
         <div style={{ fontSize: 12, color: TXT2, marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Oppure scegli un'emoji</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: 8 }}>
           {emojis.map(e => (
-            <button key={e} onClick={() => onPick(e)} style={{ aspectRatio: "1", borderRadius: 12, border: current === e ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: current === e ? HBLUE + "14" : BODY, fontSize: 22, cursor: "pointer" }}>{e}</button>
+            <button key={e} onClick={() => onPick(e)} style={{ aspectRatio: "1", borderRadius: 12, border: current === e ? `2px solid ${HBLUE}` : `1.5px solid ${LINE}`, background: current === e ? MIST : BODY, fontSize: 22, cursor: "pointer" }}>{e}</button>
           ))}
         </div>
       </div>
@@ -3284,18 +3322,18 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
       <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {/* riepilogo luogo */}
-        <div style={{ background: "#fff", padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
+        <div style={{ background: CARD, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 46, height: 46, borderRadius: "50%", background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={24} color={HBLUE} /></div>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={24} color={TXT} /></div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 20, color: HBLUE, lineHeight: 1.1 }}>{place.name}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT, lineHeight: 1.1 }}>{place.name}</div>
               <div style={{ fontSize: 13, color: TXT2, marginTop: 1 }}>{fmt(place.dist)} da te · {users.length} utenti collegati{placePosts.length > 0 ? ` · ${placePosts.length} foto` : ""}</div>
             </div>
           </div>
           {/* azioni */}
           <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-            <button onClick={() => onChat(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><span style={{ fontSize: 14 }}>🌐</span> Chat pubblica</button>
-            <button onClick={() => onEvents(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: `1.5px solid ${HBLUE}`, background: "#fff", color: HBLUE, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}><NavIcon name="eventi" size={16} color={HBLUE} /> Eventi ({evCount})</button>
+            <button onClick={() => onChat(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><span style={{ fontSize: 14 }}>🌐</span> Chat pubblica</button>
+            <button onClick={() => onEvents(place)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 8px", borderRadius: 12, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name="eventi" size={16} color={TXT} /> Eventi ({evCount})</button>
           </div>
         </div>
 
@@ -3303,17 +3341,17 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         <div style={{ padding: "12px 16px 2px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Post da {place.name}</div>
         <div style={{ padding: "8px 14px 0" }}>
           {placePosts.length === 0
-            ? <div style={{ background: "#fff", borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
+            ? <div style={{ background: CARD, borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
             : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
         </div>
 
         {/* utenti collegati al luogo */}
         <div style={{ padding: "12px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Api a {place.name} 🐝</div>
         {users.map(u => (
-          <div key={u.uid || u.id || u.name} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: "#fff", cursor: "pointer" }}>
+          <div key={u.uid || u.id || u.name} onClick={() => onOpenUser(u)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}`, background: CARD, cursor: "pointer" }}>
             <UserAvatar src={u.ava} size={50} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: HBLUE }}>{u.name}{u.me && <span style={{ color: TXT2, fontWeight: 500 }}> (tu)</span>}</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{u.name}{u.me && <span style={{ color: TXT2, fontWeight: 500 }}> (tu)</span>}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {place.name}</div>
             </div>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3BA776", flexShrink: 0 }} title="online" />
@@ -3334,14 +3372,14 @@ function PlaceEventsView({ place, events, onBack, onOpen }) {
       <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
         <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{list.length} eventi a {place.name}</div>
         {list.length === 0
-          ? <div style={{ background: "#fff", borderRadius: 14, padding: "34px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun evento attivo a {place.name} in questo momento.</div>
+          ? <div style={{ background: CARD, borderRadius: 14, padding: "34px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun evento attivo a {place.name} in questo momento.</div>
           : list.map(e => (
-            <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: "#fff", borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
+            <div key={e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: CARD, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[e.sev]}`, cursor: "pointer" }}>
               <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                 <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
-                  {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
+                  {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 600, color: TXT, background: MIST, borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
                   <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}</div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[e.sev], background: sevColor[e.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{e.sev}</span>
@@ -3363,32 +3401,32 @@ function EventMapView({ event, onBack }) {
       <Header title="Posizione evento" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {/* riepilogo evento */}
-        <div style={{ background: "#fff", margin: 14, borderRadius: 14, padding: 14, display: "flex", gap: 12, alignItems: "center", boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[event.sev]}` }}>
+        <div style={{ background: CARD, margin: 14, borderRadius: 14, padding: 14, display: "flex", gap: 12, alignItems: "center", boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[event.sev]}` }}>
           <div style={{ fontSize: 32 }}>{event.type || (event.cat ? event.cat.split(" ")[0] : "📍")}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{event.title}</div>
-            {event.cat && <span style={{ display: "inline-block", marginTop: 3, fontSize: 11, fontWeight: 600, color: HBLUE, background: HBLUE + "12", borderRadius: 8, padding: "2px 8px" }}>{event.cat}</span>}
+            {event.cat && <span style={{ display: "inline-block", marginTop: 3, fontSize: 11, fontWeight: 600, color: TXT, background: MIST, borderRadius: 8, padding: "2px 8px" }}>{event.cat}</span>}
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2, marginTop: 2 }}><NavIcon name="pin" size={13} color={TXT2} /> {event.place} · {event.time}</div>
           </div>
           <span style={{ fontSize: 11, fontWeight: 700, color: sevColor[event.sev], background: sevColor[event.sev] + "1A", borderRadius: 8, padding: "4px 9px" }}>{event.sev}</span>
         </div>
 
         {/* cartina vera: Google Maps (incorporata, senza chiave) */}
-        <div style={{ position: "relative", margin: "0 14px", height: 320, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: "#E7EFE3" }}>
+        <div style={{ position: "relative", margin: "0 14px", height: 320, borderRadius: 16, overflow: "hidden", boxShadow: `0 2px 14px ${HBLUE}1A`, background: NIGHT3 }}>
           <iframe title="mappa" src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`} style={{ width: "100%", height: "100%", border: "none" }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
         </div>
         {event.kind === "social" && (event.description || event.startsAt || event.address || event.link || event.contact) && (
-          <div style={{ background: "#fff", margin: 14, borderRadius: 14, padding: 14, boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13.5, color: TXT, lineHeight: 1.5 }}>
+          <div style={{ background: CARD, margin: 14, borderRadius: 14, padding: 14, boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13.5, color: TXT, lineHeight: 1.5 }}>
             {event.startsAt && <div style={{ fontWeight: 700, marginBottom: 6 }}>🗓️ {fmtWhen(event.startsAt)}</div>}
             {event.address && <div style={{ color: TXT2, marginBottom: 6 }}>📍 {event.address}</div>}
             {event.description && <div style={{ whiteSpace: "pre-wrap", marginBottom: 8 }}>{event.description}</div>}
-            {event.link && <div>🔗 <a href={/^https?:/i.test(event.link) ? event.link : "https://" + event.link} target="_blank" rel="noopener" style={{ color: HBLUE }}>{event.link}</a></div>}
+            {event.link && <div>🔗 <a href={/^https?:/i.test(event.link) ? event.link : "https://" + event.link} target="_blank" rel="noopener" style={{ color: TXT }}>{event.link}</a></div>}
             {event.contact && <div>📞 {event.contact}</div>}
           </div>
         )}
 
         <div style={{ padding: 14 }}>
-          <button onClick={() => window.open(mapsUrl, "_blank")} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Sora',sans-serif" }}>
+          <button onClick={() => window.open(mapsUrl, "_blank")} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}>
             <NavIcon name="pin" size={18} color="#fff" /> Apri in Google Maps
           </button>
         </div>
@@ -3401,7 +3439,7 @@ function EventMapView({ event, onBack }) {
 function Toggle({ on, onChange }) {
   return (
     <button onClick={() => onChange(!on)} style={{ width: 46, height: 27, borderRadius: 14, border: "none", cursor: "pointer", background: on ? HBLUE : "#C9D7E6", position: "relative", transition: "background .2s", flexShrink: 0, padding: 0 }}>
-      <span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 21, height: 21, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
+      <span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 21, height: 21, borderRadius: "50%", background: CARD, transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.25)" }} />
     </button>
   );
 }
@@ -3449,12 +3487,12 @@ function PermissionsPanel({ onGeoGranted }) {
           <div style={{ fontSize: 13.5, fontWeight: 600, color: TXT }}>{label}</div>
           <div style={{ fontSize: 11.5, color: ok ? "#2C7A57" : no ? "#C43C41" : TXT2 }}>{ok ? "Consentito ✓" : no ? (/iPhone|iPad/i.test(navigator.userAgent) ? "Negato dal sistema · Impostazioni iPhone → Privacy → Localizzazione → Siti web Safari, e Impostazioni → Safari" : "Negato dal sistema · sbloccalo nelle impostazioni del browser") : "Da richiedere"}</div>
         </div>
-        {!ok && <button onClick={onAsk} style={{ padding: "7px 12px", borderRadius: 10, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Richiedi</button>}
+        {!ok && <button onClick={onAsk} style={{ padding: "7px 12px", borderRadius: 10, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Richiedi</button>}
       </div>
     );
   };
   return (
-    <div style={{ background: "#fff", borderRadius: 16, padding: "6px 16px 4px", marginTop: 14, boxShadow: `0 2px 12px ${HBLUE}14` }}>
+    <div style={{ background: CARD, borderRadius: 16, padding: "6px 16px 4px", marginTop: 14, boxShadow: `0 2px 12px ${HBLUE}14` }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", padding: "10px 0 4px" }}>Permessi del telefono</div>
       <Row emoji="📍" label="Posizione" state={st.geo} onAsk={askGeo} />
       <Row emoji="📷" label="Fotocamera" state={st.cam} onAsk={askCam} />
@@ -3468,7 +3506,7 @@ const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","
 const DEEP_BLUE_BAND = "#1B4E96";
 function MonthBar({ label, count, onClick }) {
   return (
-    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px 14px", marginBottom: 8, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Sora',sans-serif", boxShadow: `0 2px 8px ${HBLUE}0D` }}>
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "12px 14px", marginBottom: 8, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Inter',sans-serif", boxShadow: `0 2px 8px ${HBLUE}0D` }}>
       <span>{label}</span>
       <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>· {count} {count === 1 ? "cielo" : "cieli"}</span>
     </button>
@@ -3488,7 +3526,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
   }, [groups]);
   const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Reel precedenti";
   return (
-    <div style={{ position: "absolute", inset: 0, background: "#E3EBF4", zIndex: 90, display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "absolute", inset: 0, background: NIGHT3, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 11.5, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>🗄️ Storico · i cieli dei mesi passati</div>
       <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
@@ -3497,7 +3535,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
           years.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 40, lineHeight: 1.5 }}>Nessun reel archiviato ancora.<br />Il 1° di ogni mese, i cieli più vecchi di due mesi vengono messi qui al sicuro.</div>
           : years.map(([yy, keys]) => (
             <div key={yy} style={{ marginBottom: 18 }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 20, color: HBLUE, margin: "4px 4px 10px" }}>{yy}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 20, color: TXT, margin: "4px 4px 10px" }}>{yy}</div>
               {keys.map(k => <MonthBar key={k} label={MESI[+k.split("-")[1] - 1]} count={groups[k].length} onClick={() => setSel(k)} />)}
             </div>
           ))
@@ -3534,8 +3572,8 @@ function HelpView({ onClose }) {
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 12 }}>Le domande più frequenti dell'alveare. Non trovi la tua? Scrivi agli amministratori dal Centro assistenza 🐝</div>
         {HELP_FAQ.map((f, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 14, marginBottom: 10, border: `1px solid ${LINE}`, overflow: "hidden" }}>
-            <button onClick={() => setOpen(open === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
+          <div key={i} style={{ background: CARD, borderRadius: 14, marginBottom: 10, border: `1px solid ${LINE}`, overflow: "hidden" }}>
+            <button onClick={() => setOpen(open === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "'Inter',sans-serif" }}>
               <span style={{ flex: 1, fontWeight: 600, fontSize: 14.5, color: TXT }}>{f.q}</span>
               <span style={{ transform: open === i ? "rotate(90deg)" : "none", transition: "transform .2s", display: "flex" }}><NavIcon name="chevron" size={18} color={TXT2} sw={2.2} /></span>
             </button>
@@ -3586,14 +3624,14 @@ function IntroView({ onClose }) {
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         <IntroVideo />
         <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", marginBottom: 14 }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19 }}>Mille occhi, un solo cielo.</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19 }}>Mille occhi, un solo cielo.</div>
           <div style={{ fontSize: 13.5, opacity: .95, marginTop: 6, lineHeight: 1.5 }}>Beeweat è il meteo fatto dalle persone: ogni foto è un'ape che torna all'alveare con una notizia. Più siamo, più il tempo vero si compone.</div>
         </div>
         {INTRO_STEPS.map(([e, t, d], i) => (
-          <div key={i} style={{ display: "flex", gap: 12, background: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, border: `1px solid ${LINE}` }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{e}</div>
+          <div key={i} style={{ display: "flex", gap: 12, background: CARD, borderRadius: 14, padding: 14, marginBottom: 10, border: `1px solid ${LINE}` }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{e}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: HBLUE }}>{i + 1}. {t}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: TXT }}>{i + 1}. {t}</div>
               <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 3 }}>{d}</div>
             </div>
           </div>
@@ -3609,14 +3647,14 @@ function SupportView({ admins, onPick, onClose }) {
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title="Chat con gli amministratori" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
-        <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginBottom: 12, background: "#fff", borderRadius: 14, padding: 14, border: `1px solid ${LINE}` }}>Un problema, un'idea, una foto respinta ingiustamente? Scrivi a chi tiene in piedi l'alveare: ti risponde in chat 🐝</div>
+        <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginBottom: 12, background: CARD, borderRadius: 14, padding: 14, border: `1px solid ${LINE}` }}>Un problema, un'idea, una foto respinta ingiustamente? Scrivi a chi tiene in piedi l'alveare: ti risponde in chat 🐝</div>
         {admins === null ? <div style={{ textAlign: "center", color: TXT2, padding: 30 }}>Cerco gli amministratori…</div>
           : admins.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 30 }}>Nessun amministratore disponibile al momento.</div>
           : admins.map(a => (
-            <button key={a.id} onClick={() => onPick(a)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 14px", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, marginBottom: 10, cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
+            <button key={a.id} onClick={() => onPick(a)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 14px", background: CARD, border: `1px solid ${LINE}`, borderRadius: 14, marginBottom: 10, cursor: "pointer", textAlign: "left", fontFamily: "'Inter',sans-serif" }}>
               <UserAvatar src={a.avatar_url} size={50} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 16, color: HBLUE }}>{a.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: TXT }}>{a.name}</div>
                 <div style={{ fontSize: 12.5, color: TXT2 }}>Amministratore Beeweat{a.city ? " · " + a.city : ""}</div>
               </div>
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="send" size={17} color="#fff" sw={2} /></div>
@@ -3638,7 +3676,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
   const pushLabel = { on: "Attive su questo dispositivo ✓", off: "Da attivare su questo dispositivo", denied: "Bloccate dal browser (sbloccale nelle impostazioni del sito)", unsupported: "Non supportate qui (iPhone: aggiungi ad Home)" }[pushState || "off"];
   const Row = ({ icon, label, desc, children }) => (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
-      {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={HBLUE} /></div>}
+      {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={TXT} /></div>}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{label}</div>
         {desc && <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{desc}</div>}
@@ -3653,7 +3691,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
       <Header title="Configurazione" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Notifiche</div>
-        <div style={{ background: "#fff" }}>
+        <div style={{ background: CARD }}>
           <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, background: HBLUE + "06" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "33", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="bell" size={19} color="#8A5A12" /></div>
@@ -3662,19 +3700,19 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
               <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{pushLabel}</div>
             </div>
             {(pushState === "off" || !pushState) &&
-              <button onClick={onEnablePush} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 18, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Attiva</button>}
+              <button onClick={onEnablePush} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 18, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Attiva</button>}
             {pushState === "on" && <NavIcon name="check" size={20} color="#3BA776" sw={2.4} />}
           </div>
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Raggio di prossimità</div>
-        <div style={{ background: "#fff", padding: "14px 16px", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: TXT, marginBottom: 8 }}><span>Avvisami entro</span><b style={{ color: HBLUE }}>{settings.radiusKm} km</b></div>
+        <div style={{ background: CARD, padding: "14px 16px", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: TXT, marginBottom: 8 }}><span>Avvisami entro</span><b style={{ color: TXT }}>{settings.radiusKm} km</b></div>
           <input type="range" min="1" max="100" value={settings.radiusKm} aria-label="Raggio degli avvisi" aria-valuetext={`${settings.radiusKm} chilometri`} onChange={e => set("radiusKm", +e.target.value)} style={{ width: "100%", background: `linear-gradient(to right, ${ACCENT} 0%, ${ACCENT} ${((settings.radiusKm - 1) / 99) * 100}%, ${LINE} ${((settings.radiusKm - 1) / 99) * 100}%, ${LINE} 100%)` }} />
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Cosa notificare</div>
-        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+        <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
           <Row icon="camera" label="Nuovi post" desc="Foto meteo pubblicate vicino a te"><Toggle on={settings.posts} onChange={v => set("posts", v)} /></Row>
           <Row icon="pin" label="Eventi" desc="Eventi e segnalazioni nella tua zona"><Toggle on={settings.eventi} onChange={v => set("eventi", v)} /></Row>
           <Row icon="bell" label="Allerte meteo" desc="Temporali, mareggiate e avvisi importanti"><Toggle on={settings.allerte} onChange={v => set("allerte", v)} /></Row>
@@ -3682,7 +3720,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Orari di silenzio</div>
-        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
+        <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
           <Row label="Non disturbare (22:00 – 8:00)" desc="Nessuna notifica durante la notte"><Toggle on={settings.quiet} onChange={v => set("quiet", v)} /></Row>
         </div>
 
@@ -3692,12 +3730,12 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
         <PermissionsPanel onGeoGranted={onGeoGranted} />
 
         <div style={{ padding: "18px 16px 6px", fontSize: 11, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Centro assistenza</div>
-        <div style={{ background: "#fff", borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, marginBottom: 20 }}>
+        <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, marginBottom: 20 }}>
           {[["❓", "Come possiamo aiutarti", "Le risposte alle domande più frequenti", onHelp],
             ["💬", "Chat con gli amministratori", "Scrivi a chi tiene in piedi l'alveare", onSupport],
             ["🚀", "Inizia", "Come funziona Beeweat, in sei passi", onIntro]].map(([e, t, d, fn]) => (
-            <button key={t} onClick={fn} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left", fontFamily: "'Sora',sans-serif" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{e}</div>
+            <button key={t} onClick={fn} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left", fontFamily: "'Inter',sans-serif" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{e}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{t}</div>
                 <div style={{ fontSize: 12, color: TXT2, marginTop: 1 }}>{d}</div>
@@ -3752,7 +3790,7 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
   );
   const Row = ({ icon, ava, title, sub, onClick }) => (
     <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left" }}>
-      {ava ? <UserAvatar src={ava} size={40} /> : <div style={{ width: 40, height: 40, borderRadius: 12, background: HBLUE + "12", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <span style={{ fontSize: 20 }}>{icon}</span> : icon}</div>}
+      {ava ? <UserAvatar src={ava} size={40} /> : <div style={{ width: 40, height: 40, borderRadius: 12, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <span style={{ fontSize: 20 }}>{icon}</span> : icon}</div>}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{title}</div>
         {sub && <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{sub}</div>}
@@ -3766,9 +3804,9 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
       {/* barra di ricerca */}
       <div style={{ background: HBLUE, padding: "12px 14px", paddingTop: "calc(12px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "#ffffff", borderRadius: 12, padding: "9px 12px" }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: CARD, borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={18} color={TXT2} />
-          <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Sora',sans-serif" }} />
+          <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Inter',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={16} color={TXT2} sw={2.2} /></button>}
           <WorldBtn on={worldOn} onClick={() => setWorldOn(v => !v)} h={30} />
         </div>
@@ -3782,13 +3820,13 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
         ) : (
           <>
             <Section label="Luoghi vicino a te" count={near.length}>
-              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={p.name} sub={`📍 ${fmt(p.dist)} da te · ${p.photos ?? 0} post · ${p.events ?? 0} eventi · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
+              {near.map(p => <Row key={"n" + p.id} icon={<NavIcon name="pin" size={20} color={TXT} />} title={p.name} sub={`📍 ${fmt(p.dist)} da te · ${p.photos ?? 0} post · ${p.events ?? 0} eventi · ${p.users?.length ?? 0} utenti`} onClick={() => onOpenNearPlace(p)} />)}
             </Section>
             <Section label="Persone" count={fp.length}>
               {fp.map(p => <Row key={"p" + p.id} ava={p.ava} title={p.name} sub={"📍 " + p.city} onClick={() => onPerson(p)} />)}
             </Section>
             <Section label="Altri luoghi" count={fpl.length}>
-              {fpl.map(c => <Row key={"l" + c} icon={<NavIcon name="pin" size={20} color={HBLUE} />} title={c} sub="Esplora la zona sulla mappa" onClick={() => onPlace(c)} />)}
+              {fpl.map(c => <Row key={"l" + c} icon={<NavIcon name="pin" size={20} color={TXT} />} title={c} sub="Esplora la zona sulla mappa" onClick={() => onPlace(c)} />)}
             </Section>
             <Section label="Eventi" count={fe.length}>
               {fe.map(e => <Row key={"e" + e.id} icon={e.type} title={e.title} sub={"📍 " + e.place + " · " + e.time} onClick={() => onEvent(e)} />)}
@@ -3873,7 +3911,7 @@ function AppInner() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [km, setKm] = useState(() => { try { const v = +localStorage.getItem("bw_km"); return v >= 1 && v <= 100 ? v : 10; } catch (_) { return 10; } });
+  const [km, setKm] = useState(() => { try { const v = +localStorage.getItem("bw_km"); return v >= 1 && v <= 100 ? snapKm(v) : 10; } catch (_) { return 10; } });   // 14.34: i valori vecchi del cursore si agganciano a 10 · 25 · 50
   useEffect(() => { try { localStorage.setItem("bw_km", String(km)); } catch (_) {} }, [km]);
   const [posts, setPosts] = useState([]);   // niente post demo: si parte dal database reale
   const [events, setEvents] = useState([]);   // niente eventi demo: solo quelli reali degli utenti
@@ -5177,10 +5215,10 @@ function AppInner() {
     <Frame>
       <div style={{ minHeight: "100%", background: BODY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 14 }}>🚫</div>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 21, color: TXT, marginBottom: 10 }}>Account sospeso</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 21, color: TXT, marginBottom: 10 }}>Account sospeso</div>
         <div style={{ fontSize: 15, color: TXT, lineHeight: 1.5, marginBottom: 8 }}>{banInfo.reason || "Il tuo account è stato temporaneamente sospeso."}</div>
         <div style={{ fontSize: 13, color: TXT2, marginBottom: 24 }}>Fino al {new Date(banInfo.until).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}</div>
-        <button onClick={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setBanInfo(null); }} style={{ padding: "12px 28px", borderRadius: 12, border: `1.5px solid ${LINE}`, background: "#fff", color: HBLUE, fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Esci</button>
+        <button onClick={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setBanInfo(null); }} style={{ padding: "12px 28px", borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Esci</button>
       </div>
     </Frame>
   );
@@ -5233,22 +5271,22 @@ function AppInner() {
     <div className="scr" style={{ background: BODY, minHeight: "100%", height: "100%", overflowY: "auto" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 5 }}>
         <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={26} color="#fff" sw={2} /></button>
-        <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
-        {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Segna tutti letti</button>}
+        <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
+        {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Segna tutti letti</button>}
       </div>
       {alerts.length === 0
         ? <div style={{ padding: "40px 20px", textAlign: "center", color: TXT2, fontSize: 14 }}>Nessun avviso per ora.<br />Quando qualcuno ti scrive, lo troverai qui.</div>
         : alerts.map(a => (
           <div key={a.id} onClick={() => openAlertChat(a)} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", borderBottom: `1px solid ${LINE}`, cursor: "pointer", background: a.read ? "transparent" : HBLUE + "0C" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : HBLUE + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "broadcast" ? <span style={{ fontSize: 20 }}>📣</span> : a.type === "followEvent" ? <span style={{ fontSize: 20 }}>📌</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={HBLUE} />}</div>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: (a.type === "alert" || a.type === "nudge") ? "#F0B92933" : MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{a.type === "alert" ? <span style={{ fontSize: 20 }}>⛈️</span> : a.type === "broadcast" ? <span style={{ fontSize: 20 }}>📣</span> : a.type === "followEvent" ? <span style={{ fontSize: 20 }}>📌</span> : (a.type === "nudge" || a.type === "followPost") ? <span style={{ fontSize: 20 }}>📸</span> : <NavIcon name="comment" size={20} color={TXT} />}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14.5, color: TXT }}>{a.type === "alert"
-                ? <b style={{ color: HBLUE }}>Allerta BeeCast</b>
+                ? <b style={{ color: TXT }}>Allerta BeeCast</b>
                 : a.type === "nudge"
-                ? <b style={{ color: HBLUE }}>Il cielo ti chiama</b>
+                ? <b style={{ color: TXT }}>Il cielo ti chiama</b>
                 : a.type === "broadcast"
-                ? <b style={{ color: HBLUE }}>Messaggio dall'alveare 📣</b>
-                : <><b style={{ color: HBLUE }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : "ti ha scritto"}</>}</div>
+                ? <b style={{ color: TXT }}>Messaggio dall'alveare 📣</b>
+                : <><b style={{ color: TXT }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : "ti ha scritto"}</>}</div>
               {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 11, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
@@ -5321,7 +5359,7 @@ function AppInner() {
         <button onClick={() => setOverlay("addContact")} aria-label="Aggiungi un contatto" title="Aggiungi contatto" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44 }}><NavIcon name="plus" size={24} color="#fff" sw={2.2} /></button>
       </div>
     : tab === "eventi"
-      ? <button onClick={() => setOverlay("addEvent")} aria-label="Crea un nuovo evento" style={{ height: 44, padding: "0 14px 0 10px", borderRadius: 22, background: ACCENT, border: "none", cursor: "pointer", color: TXT, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13 }}><NavIcon name="plus" size={18} color={TXT} sw={2.6} />Nuovo</button>
+      ? <button onClick={() => setOverlay("addEvent")} aria-label="Crea un nuovo evento" style={{ height: 44, padding: "0 14px 0 10px", borderRadius: 22, background: ACCENT, border: "none", cursor: "pointer", color: INK, display: "flex", alignItems: "center", gap: 4, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13 }}><NavIcon name="plus" size={18} color={TXT} sw={2.6} />Nuovo</button>
       : null;   // 14.0: il nuovo cielo si scatta dal bottone miele della barra inferiore
   const rightBtn = (
     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -5337,15 +5375,15 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
-      {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#F3F8FD,#E6F0F9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+      {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#0B1430,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
         <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
-        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 36, letterSpacing: ".04em", color: "#2A7DC4" }}>BEEWEAT</div>
-        <div style={{ fontSize: 14, color: "#6E8BA6", fontWeight: 500 }}>Mille occhi, un solo cielo.</div>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 36, letterSpacing: ".04em", color: HONEY2 }}>BEEWEAT</div>
+        <div style={{ fontSize: 14, color: TXT2, fontWeight: 500 }}>Mille occhi, un solo cielo.</div>
         <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          {userCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: HBLUE }}>🐝 {userCount} api nell'alveare</span>}
-          {isAdmin && onlineCount != null && <span style={{ background: "#fff", border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: "#2C7A57" }}>● {onlineCount} online</span>}
+          {userCount != null && <span style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: TXT, display: "flex", alignItems: "center", gap: 6 }}><NavIcon name="bee" size={16} color={HONEY2} sw={1.8} />{userCount} api nell'alveare</span>}
+          {isAdmin && onlineCount != null && <span style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 20, padding: "7px 14px", fontSize: 14, fontWeight: 700, color: "#2C7A57" }}>● {onlineCount} online</span>}
         </div>
-        <div style={{ fontSize: 12, color: "#9FB4C8", marginTop: 10 }}>v{APP_VERSION}</div>
+        <div style={{ fontSize: 12, color: TXT2, marginTop: 10 }}>v{APP_VERSION}</div>
       </div>}
       {/* 13.7: nessun invito alla posizione all'avvio — si chiede al primo cielo, dalla fotocamera */}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { failAlert("Premio non riuscito", e); } } : undefined} />}
@@ -5355,7 +5393,7 @@ function AppInner() {
 
   return (
     <Frame>
-      <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} aria-label="Apri il tuo profilo" title="Profilo" style={{ padding: 0, width: 44, height: 44, borderRadius: "50%", background: "#ffffff22", border: "1.5px solid #ffffff66", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={41} ring={false} /></button>} right={rightBtn} />
+      <Header title={titles[tab]} left={<button onClick={() => setOverlay("profile")} aria-label="Apri il tuo profilo" title="Profilo" style={{ padding: 0, width: 44, height: 44, borderRadius: "50%", background: MIST, border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={41} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
           <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
@@ -5432,7 +5470,7 @@ function UpdateBanner() {
   };
   return (
     <div onClick={hardReload} role="button" aria-label={stuck ? "Aggiornamento non riuscito: chiudi e riapri l'app" : `Aggiorna a Beeweat ${nv}`}
-      style={{ position: "fixed", top: 10, left: 12, right: 12, zIndex: 600, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 14, padding: "12px 16px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Sora',sans-serif", boxShadow: "0 8px 26px rgba(224,163,21,.45)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+      style={{ position: "fixed", top: 10, left: 12, right: 12, zIndex: 600, background: "linear-gradient(135deg,#F0B929,#E0A315)", color: "#3A2B05", borderRadius: 14, padding: "12px 16px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Inter',sans-serif", boxShadow: "0 8px 26px rgba(224,163,21,.45)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
       <span style={{ fontSize: 18 }}>🐝</span>
       <span style={{ flex: 1 }}>{stuck ? <>Beeweat v{nv} non è ancora arrivata: <b>chiudi del tutto l'app e riaprila</b> (oppure tocca di nuovo)</> : <>È pronta <b>Beeweat v{nv}</b> — tocca qui per aggiornare</>}</span>
       <span style={{ fontSize: 16 }}>🔄</span>
@@ -5446,13 +5484,13 @@ class BeeBoundary extends React.Component {
   static getDerivedStateFromError(e) { return { err: e }; }
   render() {
     if (this.state.err) return (
-      <div style={{ minHeight: "100vh", background: "#EAF2FA", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Sora',sans-serif" }}>
-        <div style={{ background: "#fff", borderRadius: 18, padding: 24, maxWidth: 420, width: "100%", boxShadow: "0 10px 34px rgba(27,78,150,.18)", textAlign: "center" }}>
+      <div style={{ minHeight: "100vh", background: NIGHT3, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Inter',sans-serif" }}>
+        <div style={{ background: CARD, borderRadius: 18, padding: 24, maxWidth: 420, width: "100%", boxShadow: "0 10px 34px rgba(27,78,150,.18)", textAlign: "center" }}>
           <div style={{ fontSize: 40 }}>🐝</div>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 700, fontSize: 19, color: "#22467A", margin: "8px 0 6px" }}>Ops, l'alveare è inciampato</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19, color: "#22467A", margin: "8px 0 6px" }}>Ops, l'alveare è inciampato</div>
           <div style={{ fontSize: 13, color: "#5B7397", marginBottom: 12 }}>Fai uno screenshot di questo messaggio e mandalo agli sviluppatori:</div>
-          <pre style={{ textAlign: "left", background: "#F2F6FB", borderRadius: 10, padding: 10, fontSize: 11, color: "#C43C41", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflowY: "auto" }}>{String(this.state.err?.message || this.state.err)}</pre>
-          <button onClick={() => window.location.reload()} style={{ marginTop: 12, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2E6BB8,#1B4E96)", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Sora',sans-serif" }}>Ricarica Beeweat</button>
+          <pre style={{ textAlign: "left", background: NIGHT3, borderRadius: 10, padding: 10, fontSize: 11, color: "#C43C41", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflowY: "auto" }}>{String(this.state.err?.message || this.state.err)}</pre>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 12, padding: "12px 22px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2457D6,#1B3F9E)", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Ricarica Beeweat</button>
         </div>
       </div>
     );
