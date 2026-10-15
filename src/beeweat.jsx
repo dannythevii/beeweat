@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.41";
+const APP_VERSION = "14.42";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -72,6 +72,9 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     check: <><polyline points="20 6 9 17 4 12" {...p} /></>,
     star: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" stroke={color} strokeWidth={sw} fill="none" />,
     starFill: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" fill={STAR} stroke="none" />,
+    starSolid: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" fill={color} stroke="none" />,   // 14.42: piena, nel colore chiesto
+    commentFill: <path d="M21 11.5a8 8 0 01-11.6 7.1L4 20l1.4-5.4A8 8 0 1121 11.5z" fill={color} stroke="none" />,
+    pinFill: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" fill={color} stroke="none" /><circle cx="12" cy="10" r="2.4" fill={NIGHT} stroke="none" /></>,
     send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
     flip: <><path d="M1 4v6h6M23 20v-6h-6" {...p} /><path d="M20.5 9A9 9 0 005.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 013.5 15" {...p} /></>,
     grid: <><rect x="4" y="4" width="16" height="16" rx="2" {...p} /><line x1="9.3" y1="4" x2="9.3" y2="20" {...p} /><line x1="14.7" y1="4" x2="14.7" y2="20" {...p} /><line x1="4" y1="9.3" x2="20" y2="9.3" {...p} /><line x1="4" y1="14.7" x2="20" y2="14.7" {...p} /></>,
@@ -1449,7 +1452,7 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
       <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
-      <div style={{ position: "absolute", top: "calc(190px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
+      <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
         {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
         {reported && <span style={chip}><NavIcon name="flag" size={12} color="#fff" sw={2.2} />In revisione</span>}
         {post.pending && <span style={{ ...chip, background: HONEY, color: INK }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa"}</span>}
@@ -1463,10 +1466,10 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow(post.user); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguita" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -9, transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={11} color={INK} sw={3} /></span>}
         </button>
         <Rail onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : post.starred ? "Togli la stella" : "Metti una stella"} pressed={post.mine ? undefined : !!post.starred} label={post.stars} style={post.mine ? {} : { background: post.starred ? HONEY : "rgba(255,255,255,.16)", border: post.starred ? "none" : "1px solid rgba(255,255,255,.18)", boxShadow: post.starred ? `0 8px 22px ${HONEY}66` : "none" }}>
-          <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={post.starred ? "starFill" : "star"} size={22} color={post.starred ? INK : "#fff"} sw={2} /></span>
+          <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name="starSolid" size={22} color={post.starred ? INK : "#fff"} /></span>
         </Rail>
-        <Rail onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria={`Apri i commenti (${post.comments})`} label={post.comments}><NavIcon name="comment" size={20} color="#fff" sw={2} /></Rail>
-        {!post.mine && post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <Rail title={`A ${post.dist} km da te`} label={`${post.dist} km`}><NavIcon name="pin" size={20} color="#fff" sw={2} /></Rail>}
+        <Rail onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria={`Apri i commenti (${post.comments})`} label={post.comments}><NavIcon name="commentFill" size={20} color="#fff" /></Rail>
+        {!post.mine && post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <Rail title={`A ${post.dist} km da te`} label={`${post.dist} km`}><NavIcon name="pinFill" size={20} color="#fff" /></Rail>}
         {canShare && <Rail onClick={share} title="Condividi"><NavIcon name="share" size={20} color="#fff" sw={2} /></Rail>}
         {onReport && !post.mine && <Rail onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" aria={reported ? "Segnalato, in revisione" : "Segnala questo cielo"} style={{ width: 36, height: 36 }}><NavIcon name="flag" size={15} color={reported ? "#FF9A9A" : "#fff"} sw={2} /></Rail>}
         {onEdit && canDelete && <Rail onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria="Modifica questo cielo" style={{ width: 36, height: 36 }}><NavIcon name="edit" size={15} color="#fff" sw={2} /></Rail>}
@@ -1477,15 +1480,13 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 800, fontSize: 16, cursor: onOpenUser && !post.mine ? "pointer" : "default" }}>{post.user}</span>
           {post.stars_rank > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: HONEY2, background: "rgba(245,184,46,.16)", padding: "2px 7px", borderRadius: 999 }}>{beeRank(post.stars_rank * STAR_STEP)}</span>}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 600, color: "rgba(255,255,255,.8)" }}><NavIcon name="starFill" size={12} />{post.stars}<span style={{ margin: "0 2px" }}>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.8)" sw={2} />{post.views}</span>{/* 14.42: accanto al nome */}
         </div>
         <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.dir ? ` · ${post.dir.label}` : ""}</div>
         {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
-        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {post.aiClass && <span style={chip}><NavIcon name="eye" size={12} color="#fff" sw={2.2} />Occhi dell'alveare ✓</span>}
-          {r && <span style={chip} title={`Foto: ${r.photo ? skyLabel(r.photo.cls) : "—"} · Testo: ${r.text ? skyLabel(r.text.cls) : "—"} · Scelta: ${r.choice ? skyLabel(r.choice.cls) : "—"}`}><NavIcon name="bee" size={12} color={HONEY2} sw={2} />{skyLabel(r.cls)} · {Math.round(r.agree * 100)}% {r.reliability}</span>}
-        </div>
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "rgba(255,255,255,.75)" }}>
-          <NavIcon name="starFill" size={12} />{post.stars} {post.stars === 1 ? "stella" : "stelle"}<span>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.75)" sw={2} />{post.views} occhi
+        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "nowrap", overflow: "hidden" }}>{/* 14.42: una riga sola */}
+          {post.aiClass && <span style={{ ...chip, flexShrink: 0 }}><NavIcon name="eye" size={12} color="#fff" sw={2.2} />Occhi dell'alveare ✓</span>}
+          {r && <span style={{ ...chip, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", display: "inline-block", lineHeight: "26px" }} title={`Foto: ${r.photo ? skyLabel(r.photo.cls) : "—"} · Testo: ${r.text ? skyLabel(r.text.cls) : "—"} · Scelta: ${r.choice ? skyLabel(r.choice.cls) : "—"}`}><span style={{ display: "inline-flex", verticalAlign: "top", marginRight: 5, height: 26, alignItems: "center" }}><NavIcon name="bee" size={12} color={HONEY2} sw={2} /></span>{skyLabel(r.cls)} · {Math.round(r.agree * 100)}% {r.reliability}</span>}
         </div>
       </div>
     </div>
@@ -1594,7 +1595,7 @@ function FeedSkeleton() {   // 14.39: una pagina "in arrivo"
     <div style={{ position: "absolute", left: 14, bottom: 30, right: 90 }}><div className="bw-skel" style={{ height: 16, width: "40%", borderRadius: 8, background: "rgba(255,255,255,.12)" }} /><div className="bw-skel" style={{ height: 12, width: "70%", borderRadius: 6, marginTop: 10, background: "rgba(255,255,255,.1)" }} /></div>
   </div>;
 }
-function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, onOpenPlaceChat, wx }) {   // 14.40: wx per il meteo del posto
+function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, placeExact, onOpenPlaceChat, wx }) {   // 14.40: wx per il meteo del posto · 14.42: placeExact = nome trovato sul punto GPS
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
@@ -1604,9 +1605,14 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
     <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, right: 90, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
       {wx && (<>
-        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{wx.temp}</div>
-        <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700 }}><NavIcon name={skyIcon(wx.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(wx.condition)}{wx.windKmh != null ? ` · vento ${wx.windKmh} km/h` : ""}</div>
-        <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 2 }}>max {wx.hi} · min {wx.lo}{placeName ? ` · ${placeName}` : ""}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{/* 14.42: condizione e vento accanto alla temperatura */}
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{wx.temp}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700 }}><NavIcon name={skyIcon(wx.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(wx.condition)}</div>
+            {wx.windKmh != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.85)" }}><NavIcon name="wind" size={13} color="#fff" sw={2.2} />{wx.windKmh} km/h{wx.wind ? ` ${wx.wind}` : ""}</div>}
+          </div>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>max {wx.hi} · min {wx.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</div>
       </>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
         {onlineCount != null && <span style={pill}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api in volo</span>}
@@ -5596,7 +5602,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
+        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
