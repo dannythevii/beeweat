@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.38";
+const APP_VERSION = "14.39";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -753,6 +753,10 @@ const G = `
   @keyframes ping { 0%{transform:scale(.6);opacity:.8} 80%,100%{transform:scale(2.4);opacity:0} }
   @keyframes drop { 0%{transform:translateY(-40px);opacity:0} 60%{transform:translateY(4px);opacity:1} 100%{transform:translateY(0)} }
   .fade-up { animation: fadeUp .3s ease-out both; }
+  /* 14.39: feed a pagine intere */
+  .bw-reel { scroll-snap-type: y mandatory; overscroll-behavior-y: contain; scrollbar-width: none; }
+  .bw-reel::-webkit-scrollbar { display: none; }
+  .bw-reel > * { scroll-snap-align: start; scroll-snap-stop: always; }
   .star-pop { animation: pop .3s ease-out both; }
   @keyframes shimmer { 0%{opacity:.55} 50%{opacity:1} 100%{opacity:.55} }
   .bw-skel { background: #1C2852; animation: shimmer 1.4s ease-in-out infinite; }
@@ -1034,6 +1038,41 @@ const WorldBtn = ({ on, onClick, h = 30 }) => (
 // Doppio passo del radar: nel primo km si scala di 100 m, poi di km in km
 const idxToKm = i => (i <= 9 ? (i + 1) / 10 : i - 8);          // 0..9 → 0,1..1,0 km · 10..108 → 2..100 km
 const kmToIdx = k => (k <= 1 ? Math.round(k * 10) - 1 : Math.round(k) + 8);
+// 14.39: pillola "◎ 25 km ▾" e foglietto del Raggio — uguali in Feed, Radar, BeeWorld ed Eventi
+function RaggioPill({ km, open, onClick, dark }) {
+  return (
+    <button onClick={onClick} aria-expanded={open} aria-label={`Raggio ${km} km, apri le opzioni`} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 36, padding: "0 11px", borderRadius: 999, background: open ? HONEY : dark ? "rgba(0,0,0,.35)" : "rgba(36,87,214,.45)", border: open ? "none" : "1px solid rgba(143,193,236,.5)", color: open ? INK : "#fff", fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", cursor: "pointer", flexShrink: 0, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+      <NavIcon name="radar" size={14} color={open ? INK : "#fff"} sw={2.2} />{km} km <span style={{ fontSize: 9, opacity: .8 }}>▾</span>
+    </button>
+  );
+}
+function RaggioMenu({ km, setKm, count, countLabel, worldOn, onToggleWorld, followedOn, onToggleFollowed, rain6, onOpenCast, placeChat, onOpenPlaceChat, onOpenRadar, onClose, anchor }) {
+  const dlg = useDialog(onClose, "Raggio");
+  const Sw = ({ on }) => <span aria-hidden="true" style={{ marginLeft: "auto", width: 36, height: 20, borderRadius: 10, background: on ? HONEY : "rgba(255,255,255,.14)", position: "relative", flexShrink: 0, transition: "background .15s" }}><span style={{ position: "absolute", top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: on ? INK : "rgba(255,255,255,.6)", transition: "left .15s" }} /></span>;
+  const Opt = ({ icon, label, right, onClick, role, checked, border = true }) => (
+    <button onClick={onClick} role={role} aria-checked={checked} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 6px", minHeight: 44, background: "none", border: "none", borderTop: border ? "1px solid rgba(255,255,255,.08)" : "none", color: "#fff", fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+      <NavIcon name={icon} size={16} color={HONEY2} sw={2} /><span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>{right}
+    </button>
+  );
+  const rainMsg = (() => { if (!rain6 || !rain6.length) return null; const f = rain6.findIndex(r => (r.mm || 0) >= 0.2 || (r.pop != null && r.pop >= 60)); return f < 0 ? "niente pioggia" : f === 0 ? "pioggia adesso" : `pioggia tra ~${f} h`; })();
+  const pos = anchor === "rail" ? { right: 66, bottom: 150 } : { right: 14, top: 104 };
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 58, background: "rgba(0,0,0,.28)" }} />
+      <div ref={dlg} className="fade-up" style={{ position: "absolute", ...pos, zIndex: 59, width: 256, background: "rgba(10,16,40,.92)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", border: "1px solid rgba(255,255,255,.14)", borderRadius: 20, padding: "12px 12px 4px", color: "#fff", boxShadow: "0 20px 50px rgba(0,0,0,.5)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 800, color: TXT2, letterSpacing: ".5px", textTransform: "uppercase" }}>Raggio<span style={{ color: "#fff", textTransform: "none", letterSpacing: 0 }}>{km} km{count != null ? ` · ${count} ${countLabel || "cieli"}` : ""}</span></div>
+        <div role="group" aria-label="Raggio in chilometri" style={{ display: "flex", gap: 5, margin: "8px 0 10px" }}>
+          {KM_STEPS.map(v => { const on = km === v && !worldOn; return <button key={v} onClick={() => { setKm(v); if (worldOn && onToggleWorld) onToggleWorld(); }} aria-pressed={on} style={{ flex: 1, height: 38, borderRadius: 11, border: on ? "none" : "1px solid rgba(255,255,255,.1)", background: on ? HONEY : "rgba(255,255,255,.08)", color: on ? INK : "#fff", fontFamily: "'Inter',sans-serif", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>{v}</button>; })}
+        </div>
+        {onToggleWorld && <Opt icon="globe" label="Tutto il mondo" role="switch" checked={!!worldOn} onClick={onToggleWorld} right={<Sw on={!!worldOn} />} />}
+        {onToggleFollowed && <Opt icon="bee" label="Solo api che seguo" role="switch" checked={!!followedOn} onClick={onToggleFollowed} right={<Sw on={!!followedOn} />} />}
+        {onOpenCast && rainMsg && <Opt icon="rain" label="Prossime 6 h" onClick={() => { onClose(); onOpenCast(); }} right={<span style={{ marginLeft: "auto", fontSize: 11, color: TXT2, fontWeight: 600, whiteSpace: "nowrap" }}>{rainMsg} ›</span>} />}
+        {onOpenPlaceChat && <Opt icon="comment" label={`Chat di ${placeChat || "qui"}`} onClick={() => { onClose(); onOpenPlaceChat(); }} right={<span style={{ marginLeft: "auto", fontSize: 11, color: TXT2, fontWeight: 600 }}>›</span>} />}
+        {onOpenRadar && <Opt icon="radar" label="Apri il Radar" onClick={() => { onClose(); onOpenRadar(); }} right={<span style={{ marginLeft: "auto", fontSize: 11, color: TXT2, fontWeight: 600 }}>›</span>} />}
+      </div>
+    </>
+  );
+}
 // 14.34: il Raggio è uno solo per tutta l'app (Feed, Radar, BeeWorld, Eventi): tre pillole, niente cursore
 const KM_STEPS = [10, 25, 50, 100];   // 14.35: fino a 100 km
 const snapKm = v => KM_STEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a, KM_STEPS[0]);
@@ -1383,8 +1422,8 @@ function HiveReading({ post, modelCond }) {   // 14.28
     </div>
   );
 }
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond }) {
-  // 14.35: card a schermo quasi pieno (4:5) — chi/dove/quando in alto, colonna delle azioni a destra, didascalia e contatori in basso
+function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km }) {
+  // 14.39: un cielo per schermata (tavola del 15 ottobre) — colonna delle azioni a destra, didascalia in basso a sinistra
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
@@ -1394,69 +1433,64 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
     return () => io.disconnect();
   }, []);
   const like = e => { e.stopPropagation(); if (post.mine) return; setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
-  const condLabel = (post.cond || "").replace(/^[^ ]+ /, "");
+  const condLabel = skyLabel(post.cond);
+  const r = ratePost(post, modelCond);
   const canShare = typeof navigator !== "undefined" && !!navigator.share;
   const share = async e => { e.stopPropagation(); try { await navigator.share({ title: "Beeweat", text: `${post.user} ha scattato il cielo di ${post.city || "qui"}: ${condLabel}${post.temp != null && Number.isFinite(post.temp) ? ` · ${Math.round(post.temp)}°` : ""} · Beeweat` }); } catch (_) {} };
   const glass = { width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.18)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
-  const Rail = ({ label, children, onClick, title, aria, pressed, style }) => (
-    <button onClick={onClick} title={title} aria-label={aria || title} aria-pressed={pressed} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, cursor: onClick ? "pointer" : "default", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
-      <span style={{ ...glass, ...(style || {}) }}>{children}</span>{label != null && <span>{label}</span>}
+  const Rail = ({ label, sub, children, onClick, title, aria, pressed, style }) => (
+    <button onClick={onClick} title={title} aria-label={aria || title} aria-pressed={pressed} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, cursor: onClick ? "pointer" : "default", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "'Inter',sans-serif", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
+      <span style={{ ...glass, ...(style || {}) }}>{children}</span>{label != null && <span>{label}</span>}{sub && <span style={{ fontSize: 10, color: HONEY2, marginTop: -2 }}>{sub}</span>}
     </button>
   );
   const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" };
   return (
-    <div ref={cardRef} id={"post-" + post.id} className="fade-up" style={{ background: CARD, borderRadius: 26, overflow: "hidden", marginBottom: 14, boxShadow: focused ? `0 0 0 3px ${HONEY}, 0 14px 34px ${HONEY}33` : post.awarded ? `0 0 0 2px ${HONEY}, 0 10px 30px ${HONEY}33` : "0 14px 36px rgba(0,0,0,.4)", transition: "box-shadow .3s" }}>
-      {post.awarded && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", background: HONEY, color: INK, fontWeight: 800, fontSize: 12.5, letterSpacing: ".04em" }}>
-          <NavIcon name="trophy" size={18} color={INK} sw={2} />
-          <span style={{ flex: 1, minWidth: 0 }}>FOTO PREMIATA — la migliore è di <b>{post.user}</b>{post.awardMsg ? <span style={{ fontWeight: 500 }}> · «{post.awardMsg}»</span> : null}</span>
+    <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
+      <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
+      {/* in alto: premio, stato, temperatura */}
+      <div style={{ position: "absolute", top: 12, left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+        {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
+        {reported && <span style={chip}><NavIcon name="flag" size={12} color="#fff" sw={2.2} />In revisione</span>}
+        {post.pending && <span style={{ ...chip, background: HONEY, color: INK }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa"}</span>}
+        {post.sending && <span style={{ ...chip, background: HONEY, color: INK }}>invio…</span>}
+      </div>
+      <div style={{ position: "absolute", top: 10, right: 14, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
+        {post.temp != null && Number.isFinite(post.temp) && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{Math.round(post.temp)}°</div>}
+        <span style={chip}><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.dir ? ` · ${post.dir.label}` : ""}</span>
+      </div>
+      {/* COLONNA DELLE AZIONI */}
+      <div style={{ position: "absolute", right: 10, bottom: 18, display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+        <button onClick={() => onOpenUser && !post.mine && onOpenUser(post)} aria-label={post.mine ? "Il tuo cielo" : `Profilo di ${post.user}`} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", padding: 2.5, background: `linear-gradient(135deg, ${HONEY}, #FF7A59)`, border: "none", cursor: onOpenUser && !post.mine ? "pointer" : "default", marginBottom: 6 }}>
+          <span style={{ display: "block", width: "100%", height: "100%", borderRadius: "50%", border: `2.5px solid ${NIGHT}`, overflow: "hidden", background: NIGHT3 }}><UserAvatar src={post.ava} size={42} ring={false} /></span>
+          {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow(post.user); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguita" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -9, transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={11} color={INK} sw={3} /></span>}
+        </button>
+        <Rail onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : post.starred ? "Togli la stella" : "Metti una stella"} pressed={post.mine ? undefined : !!post.starred} label={post.stars} style={post.mine ? {} : { background: post.starred ? HONEY : "rgba(255,255,255,.16)", border: post.starred ? "none" : "1px solid rgba(255,255,255,.18)", boxShadow: post.starred ? `0 8px 22px ${HONEY}66` : "none" }}>
+          <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={post.starred ? "starFill" : "star"} size={22} color={post.starred ? INK : "#fff"} sw={2} /></span>
+        </Rail>
+        <Rail onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria={`Apri i commenti (${post.comments})`} label={post.comments}><NavIcon name="comment" size={20} color="#fff" sw={2} /></Rail>
+        {!post.mine && post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <Rail title={`A ${post.dist} km da te`} label={`${post.dist} km`}><NavIcon name="pin" size={20} color="#fff" sw={2} /></Rail>}
+        {canShare && <Rail onClick={share} title="Condividi"><NavIcon name="share" size={20} color="#fff" sw={2} /></Rail>}
+        {onReport && !post.mine && <Rail onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" aria={reported ? "Segnalato, in revisione" : "Segnala questo cielo"} style={{ width: 36, height: 36 }}><NavIcon name="flag" size={15} color={reported ? "#FF9A9A" : "#fff"} sw={2} /></Rail>}
+        {onEdit && canDelete && <Rail onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria="Modifica questo cielo" style={{ width: 36, height: 36 }}><NavIcon name="edit" size={15} color="#fff" sw={2} /></Rail>}
+        {onOpenRaggio && <Rail onClick={e => { e.stopPropagation(); onOpenRaggio(); }} title="Raggio e filtri" aria={`Raggio ${km} km: apri le opzioni`} pressed={!!raggioOpen} label="Radar" sub={`${km} km`} style={{ background: raggioOpen ? HONEY : "rgba(36,87,214,.55)", border: raggioOpen ? "none" : "1px solid rgba(143,193,236,.5)" }}><NavIcon name="radar" size={22} color={raggioOpen ? INK : "#fff"} sw={2} /></Rail>}
+      </div>
+      {/* DIDASCALIA */}
+      <div style={{ position: "absolute", left: 14, right: 84, bottom: 18, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 800, fontSize: 16, cursor: onOpenUser && !post.mine ? "pointer" : "default" }}>{post.user}</span>
+          {post.stars_rank > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: HONEY2, background: "rgba(245,184,46,.16)", padding: "2px 7px", borderRadius: 999 }}>{beeRank(post.stars_rank * STAR_STEP)}</span>}
         </div>
-      )}
-      <div style={{ position: "relative", width: "100%", aspectRatio: "4 / 5", overflow: "hidden", background: NIGHT3 }}>
-        <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
-        {/* veli: in alto per il nome, in basso per didascalia e azioni */}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.42) 0%, rgba(0,0,0,0) 26%, rgba(0,0,0,0) 48%, rgba(5,10,30,.86) 100%)" }} />
-        {/* CHI · DOVE · QUANDO */}
-        <div style={{ position: "absolute", top: 12, left: 12, right: 12, display: "flex", alignItems: "center", gap: 10 }}>
-          <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ cursor: onOpenUser && !post.mine ? "pointer" : "default", flexShrink: 0, borderRadius: "50%", boxShadow: "0 0 0 2px rgba(255,255,255,.8)" }}><UserAvatar src={post.ava} size={38} ring={false} stars={post.stars_rank || 0} /></div>
-          <div style={{ flex: 1, minWidth: 0, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
-            <div onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.15, cursor: onOpenUser && !post.mine ? "pointer" : "default", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{post.user}</div>
-            <div style={{ fontSize: 11.5, fontWeight: 500, color: "rgba(255,255,255,.8)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{post.city}{post.precision === "city" && <span title="posizione approssimativa (solo città)"> ≈</span>}{post.time ? ` · ${post.time}` : ""}</div>
-          </div>
-          {onFollow && !post.mine && <button onClick={e => { e.stopPropagation(); onFollow(post.user); }} aria-pressed={!!isFollowing} style={{ height: 30, padding: "0 11px", borderRadius: 999, border: isFollowing ? "1px solid rgba(255,255,255,.25)" : "none", background: isFollowing ? "rgba(0,0,0,.35)" : HONEY, color: isFollowing ? "#fff" : INK, fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 12, cursor: "pointer", flexShrink: 0, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>{isFollowing ? "Seguita" : "Segui"}</button>}
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2 }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}</div>
+        {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
+        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {post.aiClass && <span style={chip}><NavIcon name="eye" size={12} color="#fff" sw={2.2} />Occhi dell'alveare ✓</span>}
+          {r && <span style={chip} title={`Foto: ${r.photo ? skyLabel(r.photo.cls) : "—"} · Testo: ${r.text ? skyLabel(r.text.cls) : "—"} · Scelta: ${r.choice ? skyLabel(r.choice.cls) : "—"}`}><NavIcon name="bee" size={12} color={HONEY2} sw={2} />{skyLabel(r.cls)} · {Math.round(r.agree * 100)}% {r.reliability}</span>}
         </div>
-        {/* stato: occhi dell'alveare · in revisione · zaino */}
-        <div style={{ position: "absolute", top: 60, left: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
-          {post.aiClass && <span style={chip}><NavIcon name="search" size={12} color="#fff" sw={2.2} />Occhi dell'alveare ✓</span>}
-          {reported && <span style={chip}><NavIcon name="flag" size={12} color="#fff" sw={2.2} />In revisione</span>}
-          {post.pending && <span style={{ ...chip, background: HONEY, color: INK }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa"}</span>}
-          {post.sending && <span style={{ ...chip, background: HONEY, color: INK }}>invio…</span>}
-        </div>
-        {/* temperatura e condizione */}
-        <div style={{ position: "absolute", top: 60, right: 12, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
-          {post.temp != null && Number.isFinite(post.temp) && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 40, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{Math.round(post.temp)}°</div>}
-          <span style={chip}>{condLabel}{post.dir ? ` · ${post.dir.label}` : ""}</span>
-        </div>
-        {/* COLONNA DELLE AZIONI */}
-        <div style={{ position: "absolute", right: 10, bottom: 16, display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-          <Rail onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : post.starred ? "Togli la stella" : "Metti una stella"} pressed={post.mine ? undefined : !!post.starred} label={post.stars} style={post.mine ? {} : { background: post.starred ? HONEY : "rgba(255,255,255,.16)", border: post.starred ? "none" : "1px solid rgba(255,255,255,.18)", boxShadow: post.starred ? `0 8px 22px ${HONEY}66` : "none" }}>
-            <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name={post.starred ? "starFill" : "star"} size={22} color={post.starred ? INK : "#fff"} sw={2} /></span>
-          </Rail>
-          <Rail onClick={onChat ? e => { e.stopPropagation(); onChat(post); } : undefined} title="Apri i commenti" aria={`Apri i commenti (${post.comments})`} label={post.comments}><NavIcon name="comment" size={20} color="#fff" sw={2} /></Rail>
-          {!post.mine && post.dist != null && Number.isFinite(post.dist) && post.dist > 0 && <Rail title={`A ${post.dist} km da te`} label={`${post.dist} km`}><NavIcon name="pin" size={20} color="#fff" sw={2} /></Rail>}
-          {canShare && <Rail onClick={share} title="Condividi"><NavIcon name="share" size={20} color="#fff" sw={2} /></Rail>}
-          {onReport && !post.mine && <Rail onClick={e => { e.stopPropagation(); onReport(post); }} title="Segnala" aria={reported ? "Segnalato, in revisione" : "Segnala questo cielo"} style={{ width: 38, height: 38 }}><NavIcon name="flag" size={16} color={reported ? "#FF9A9A" : "#fff"} sw={2} /></Rail>}
-          {onEdit && canDelete && <Rail onClick={e => { e.stopPropagation(); onEdit(post); }} title="Modifica post" aria="Modifica questo cielo" style={{ width: 38, height: 38 }}><NavIcon name="edit" size={16} color="#fff" sw={2} /></Rail>}
-        </div>
-        {/* DIDASCALIA e contatori */}
-        <div style={{ position: "absolute", left: 14, right: 76, bottom: 16, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
-          {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
-          <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "rgba(255,255,255,.75)" }}>
-            <NavIcon name="starFill" size={12} />{post.stars} {post.stars === 1 ? "stella" : "stelle"}<span>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.75)" sw={2} />{post.views}
-          </div>
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: "rgba(255,255,255,.75)" }}>
+          <NavIcon name="starFill" size={12} />{post.stars} {post.stars === 1 ? "stella" : "stelle"}<span>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.75)" sw={2} />{post.views} occhi
         </div>
       </div>
-      {ratePost(post, modelCond) && <div style={{ padding: "9px 14px 11px" }}><HiveReading post={post} modelCond={modelCond} /></div>}
     </div>
   );
 }
@@ -1556,41 +1590,55 @@ function RainStrip({ rain6, onOpen }) {
     </button>
   );
 }
-function FeedSkeleton() {   // 14.18: due card "in arrivo" al posto dell'icona lampeggiante
-  return <div aria-live="polite" aria-busy="true" role="status">
+function FeedSkeleton() {   // 14.39: una pagina "in arrivo"
+  return <div aria-live="polite" aria-busy="true" role="status" style={{ height: "100%", position: "relative" }}>
     <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Lettura del cielo in corso</span>
-    {[0, 1].map(i => (
-      <div key={i} style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, overflow: "hidden", marginBottom: 14 }}>
-        <div className="bw-skel" style={{ width: "100%", aspectRatio: "4 / 5" }} />
-      </div>
-    ))}
+    <div className="bw-skel" style={{ position: "absolute", inset: 0 }} />
+    <div style={{ position: "absolute", left: 14, bottom: 30, right: 90 }}><div className="bw-skel" style={{ height: 16, width: "40%", borderRadius: 8, background: "rgba(255,255,255,.12)" }} /><div className="bw-skel" style={{ height: 12, width: "70%", borderRadius: 6, marginTop: 10, background: "rgba(255,255,255,.1)" }} /></div>
   </div>;
 }
-function FeedScreen({ posts, km, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenPost }) {
-  const [slow, setSlow] = useState(false);   // 14.18: lo skeleton compare solo se l'attesa supera 150 ms (niente sfarfallio)
+function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, onOpenPlaceChat }) {
+  const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
-  const visible = worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded);   // faro e premiata entrano anche fuori raggio
-  return (
-    <div className="scr" style={{ flex: 1, overflowY: "auto", padding: "12px 14px 16px", background: BODY }}>
-      <NearBees posts={visible} onOpenUser={onOpenUser} onShoot={onShoot} onOpenPost={onOpenPost} />{/* 14.35 */}
-      <RainStrip rain6={rain6} onOpen={onOpenCast} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: 1 }}><span style={{ fontFamily: "'Inter',sans-serif", fontSize: 18, fontWeight: 700, color: TXT }}>{worldOn ? "Cieli dal mondo" : "Cieli vicini"}</span><span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{worldOn ? `${worldCount ?? visible.length} in tutto il mondo` : `${visible.length} entro ${km} km`}</span></span>
-        {onToggleWorld && <WorldBtn on={worldOn} onClick={onToggleWorld} h={28} />}
+  const [rg, setRg] = useState(false);
+  const visible = (worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || (following || []).includes(p.user));   // faro e premiata entrano anche fuori raggio
+  const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
+  const pills = (
+    <div style={{ position: "absolute", top: 10, left: 14, zIndex: 5, display: "flex", gap: 6, pointerEvents: "none" }}>
+      {onlineCount != null && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 700 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api in volo</span>}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.35)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 11, fontWeight: 700 }}><NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
+    </div>
+  );
+  if (visible.length === 0) {
+    return (
+      <div style={{ flex: 1, position: "relative", background: BODY, overflow: "hidden" }}>
+        {pills}
+        {loading ? (slow ? <FeedSkeleton /> : null) : (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ width: "100%", background: CARD, border: `1px solid ${LINE}`, borderRadius: 24, textAlign: "center", padding: "32px 20px 26px", color: TXT2 }}>
+              <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 18, color: TXT, marginBottom: 4 }}>{followedOn ? "Nessun cielo dalle api che segui" : worldOn ? "Nessun cielo nel mondo, per ora" : `Nessun cielo entro ${km} km`}</div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 16 }}>{followedOn ? "Togli il filtro o segui qualche ape in più." : worldOn ? "Appena un'ape pubblica, compare qui." : "Allarga il raggio per vedere i cieli delle api più lontane, oppure pubblica tu il primo."}</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {followedOn && onToggleFollowed && <button onClick={onToggleFollowed} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Tutte le api</button>}
+                {!followedOn && !worldOn && onWiden && km < 100 && <button onClick={() => onWiden(KM_STEPS.find(v => v > km) || 100)} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Allarga a {KM_STEPS.find(v => v > km) || 100} km</button>}
+                {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HONEY, color: INK, fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={{ position: "absolute", right: 10, bottom: 18, zIndex: 5 }}><RaggioPill km={worldOn ? "∞" : km} open={rg} onClick={() => setRg(v => !v)} dark /></div>
+        {menu}
       </div>
-      {visible.length === 0
-        ? (loading
-            ? (slow ? <FeedSkeleton /> : null)
-            : <div style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, textAlign: "center", padding: "36px 20px 28px", color: TXT2 }}>{/* 14.18: stato vuoto con un'azione */}
-                <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><NavIcon name="locate" size={44} color={TXT2} sw={1.6} /></div>
-                <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 4 }}>{worldOn ? "Nessun cielo nel mondo, per ora" : `Nessun cielo entro ${km} km`}</div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 16 }}>{worldOn ? "Appena un'ape pubblica, compare qui." : "Allarga il raggio per vedere i cieli delle api più lontane, oppure pubblica tu il primo."}</div>
-                <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                  {!worldOn && onWiden && km < 100 && <button onClick={() => onWiden(KM_STEPS.find(v => v > km) || 100)} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Allarga a {KM_STEPS.find(v => v > km) || 100} km</button>}
-                  {onShoot && <button onClick={onShoot} style={{ height: 46, padding: "0 18px", borderRadius: 22, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Scatta un cielo</button>}
-                </div>
-              </div>)
-        : visible.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} modelCond={modelCond} />)}
+    );
+  }
+  return (
+    <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
+      {pills}
+      <div className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
+        {visible.map(p => <div key={p.id} style={{ height: "100%" }}><PostCard post={p} km={km} onOpenRaggio={() => setRg(v => !v)} raggioOpen={rg} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} modelCond={modelCond} /></div>)}
+      </div>
+      {menu}
     </div>
   );
 }
@@ -1864,6 +1912,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
 // ─── VICINI (mappa radar) ───────────────────────────────────────────────────
 function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow, onOpenPost, wx, onOpenCast }) {   // 14.38: wx e BeeCast per il pannello sotto il disco
+  const [rg, setRg] = useState(false);   // 14.39: menu del Raggio
   const [sel, setSel] = useState(null);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 320, h: 320 });
   const svgRef = useRef(null);
@@ -1957,11 +2006,12 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
       {/* testata del radar: ultime 6 ore · conteggio · raggio */}
       <div style={{ margin: "0 -16px 14px", padding: "4px 16px 12px", background: NIGHT, color: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>{/* 14.38 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>Ultime 6 ore · entro {kmLabel}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, height: 32, padding: "0 12px", borderRadius: 16, background: MIST, border: `1px solid ${LINE}`, fontSize: 12.5, fontWeight: 700 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 4, background: allWeather.length + allEvents.length ? "#4ADE80" : TXT2, boxShadow: allWeather.length + allEvents.length ? "0 0 0 3px rgba(74,222,128,.25)" : "none" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, color: TXT }}>
+            <span style={{ width: 7, height: 7, borderRadius: 4, background: allWeather.length + allEvents.length ? "#4ADE80" : TXT2, boxShadow: allWeather.length + allEvents.length ? "0 0 0 3px rgba(74,222,128,.25)" : "none" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span><span style={{ color: TXT2, fontWeight: 600 }}>· ultime 6 ore</span>
           </div>
+          <RaggioPill km={km} open={rg} onClick={() => setRg(v => !v)} />{/* 14.39 */}
         </div>
+        {rg && <RaggioMenu km={km} setKm={setKm} count={allWeather.length} onOpenCast={onOpenCast} rain6={wx?.rain6} onClose={() => setRg(false)} />}
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: NIGHT2, border: `1px solid ${LINE}` }}>
           {[["meteo", `Cieli · ${allWeather.length}`, "cloud"], ["eventi", `Allerte · ${allEvents.length}`, "warn"]].map(([id, label, ic]) => (
             <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? INK : TXT2} sw={2} />{label}</button>
@@ -2073,7 +2123,8 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
 }
 
 // ─── EVENTI ─────────────────────────────────────────────────────────────────
-function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me, view, onView }) {
+function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me, view, onView }) {
+  const [rg, setRg] = useState(false);   // 14.39
   const sevColor = { Alta: "#FF8A8A", Media: "#FFC46B", Bassa: "#7CE0A9" };   // 14.38: toni leggibili sul notte
   const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
@@ -2086,14 +2137,15 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
       <div style={{ margin: "-14px -14px 12px", padding: "0 16px 12px", background: NIGHT }}><div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: NIGHT2, border: `1px solid ${LINE}` }}>{/* 14.38 */}
-        {[["meteo", "Eventi meteo", "rain"], ["social", "Eventi social", "bee"]].map(([id, label, ic]) => (
+        {[["meteo", "Meteo", "rain"], ["social", "Social", "bee"]].map(([id, label, ic]) => (
           <button key={id} onClick={() => setView(id)} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? INK : TXT2} sw={2} />{label}</button>
         ))}
       </div></div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {view === "social" ? "social" : "meteo"} {inf ? "in tutto il mondo" : "nella zona"}</span>
-        <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, position: "relative" }}>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {view === "social" ? "social" : "meteo"} {inf ? "in tutto il mondo" : `entro ${km} km`}</span>
+        {setKm ? <RaggioPill km={inf ? "∞" : km} open={rg} onClick={() => setRg(v => !v)} /> : <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />}{/* 14.39 */}
       </div>
+      {rg && <RaggioMenu km={km} setKm={setKm} count={visible.length} countLabel="eventi" worldOn={inf} onToggleWorld={() => setInf(v => !v)} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />}
       {view === "social" && <SocialMap events={visible} me={me} onPick={onOpen} />}
       {visible.length === 0 && (   /* 14.33: stato vuoto con un'azione */
         <div style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 22, padding: "30px 20px 24px", textAlign: "center", color: TXT2, marginBottom: 12 }}>
@@ -2133,10 +2185,11 @@ function EventiScreen({ events, km, onOpen, userName, myUid, isAdmin, onEditEnds
 }
 
 // ─── CONTATTI ──────────────────────────────────────────────────────────────
-function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup, following, onFollowUser, placeFavs, onTogglePlaceFav, onlineCount }) {
+function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOpenGroup, onOpenPlace, onOpenPlaceEvents, people, favs, toggleFav, nearPlaces, onOpenUser, onOpenSelf, worldOn, onToggleWorld, worldPlaces, contactDist, isAdminG, onEditGroup, following, onFollowUser, placeFavs, onTogglePlaceFav, onlineCount }) {
   const [favQ, setFavQ] = useState("");
   const [q, setQ] = useState("");
   const [sub, setSub] = useState("contatti"); // "contatti" | "preferiti"
+  const [rg, setRg] = useState(false);   // 14.39: menu del Raggio
   const ql = q.trim().toLowerCase();
   const inf = !!worldOn;
   const inRange = c => c.me || inf || (contactDist && contactDist[c.id] !== undefined && contactDist[c.id] <= km);
@@ -2179,9 +2232,10 @@ function ContattiScreen({ contacts, groups, km, onChat, onOpenGroup, onOpenPlace
           <NavIcon name="search" size={18} color={TXT2} sw={2.4} />
           <input value={q} onChange={e => setQ(e.target.value)} type="search" aria-label="Cerca api, luoghi e città" placeholder={inf ? "Cerca in tutto il mondo…" : "Cerca api, luoghi, città"} style={{ flex: 1, minWidth: 0, minHeight: 44, border: "none", outline: "none", background: "none", fontSize: 14, color: "#fff", fontFamily: "'Inter',sans-serif" }} />
           {q && <button onClick={() => setQ("")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2.2} /></button>}
-          <WorldBtn on={inf} onClick={onToggleWorld} h={30} />
+          {setKm ? <RaggioPill km={inf ? "∞" : km} open={rg} onClick={() => setRg(v => !v)} /> : <WorldBtn on={inf} onClick={onToggleWorld} h={30} />}{/* 14.39 */}
         </div>}
       </div>
+      {rg && <RaggioMenu km={km} setKm={setKm} count={list.filter(c => !c.me).length} countLabel="api" worldOn={inf} onToggleWorld={onToggleWorld} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />}
       <div style={{ display: "none" }}>
         {[].map(([id, label]) => (
           <button key={id} onClick={() => setSub(id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0 8px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: sub === id ? TXT : TXT2, borderBottom: `3px solid ${sub === id ? ACCENT : "transparent"}` }}>{label}</button>
@@ -4676,6 +4730,7 @@ function AppInner() {
   }, [sb, user]);
   // "Mondo" nel Feed: gli ultimi cieli del pianeta
   const [feedWorld, setFeedWorld] = useState(false);
+  const [feedFollowed, setFeedFollowed] = useState(false);   // 14.39: "Solo api che seguo"
   const [focusPostId, setFocusPostId] = useState(null);   // la card da mettere in luce arrivando da un avviso
   const [focusPost, setFocusPost] = useState(null);        // il post del faro: vive qui, i ricarichi non lo toccano
   const goToPost = p => {                                   // 14.8: dal Radar al Feed, dritti sulla card del cielo
@@ -5445,12 +5500,16 @@ function AppInner() {
     />);
   }
 
-  const showWeather = tab === "feed";
-  const showRadar = tab === "feed" || tab === "vicini" || tab === "contatti" || tab === "beecast" || tab === "eventi";
-  const feedTitle = (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <NavIcon name="pin" size={18} color="#fff" sw={2} />
-      {locName || "…"}
+  const showWeather = false;   // 14.39: nel Feed il meteo vive sulle card e nel menu del Raggio
+  const showRadar = false;     // 14.39: la barra del Raggio in basso lascia il posto al menu
+  const feedTitle = (   // 14.39: Seguiti | Vicini | Mondo
+    <span role="tablist" style={{ display: "inline-flex", alignItems: "center", gap: 16, fontSize: 15, fontWeight: 600 }}>
+      {[["seguiti", "Seguiti", feedFollowed && !feedWorld], ["vicini", "Vicini", !feedFollowed && !feedWorld], ["mondo", "Mondo", feedWorld]].map(([id, label, on]) => (
+        <button key={id} role="tab" aria-selected={on} onClick={() => { if (id === "mondo") { setFeedWorld(true); setFeedFollowed(false); } else { setFeedWorld(false); setFeedFollowed(id === "seguiti"); } }} style={{ position: "relative", background: "none", border: "none", padding: "6px 0", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: on ? 800 : 600, color: on ? "#fff" : "rgba(255,255,255,.6)" }}>
+          {label}{on && <span style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: -2, width: 22, height: 3, borderRadius: 2, background: HONEY }} />}
+          {id === "mondo" && !feedWorld && worldCount > 0 && <span style={{ position: "absolute", right: -8, top: 4, width: 6, height: 6, borderRadius: "50%", background: "#FF5A5F" }} />}
+        </button>
+      ))}
     </span>
   );
   const titles = { vicini: "Radar", beecast: "BeeCast", feed: feedTitle, eventi: "Eventi", contatti: "BeeWorld" };
@@ -5504,11 +5563,11 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => setFeedWorld(v => !v)} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} />}
+        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
-        {tab === "eventi" && <EventiScreen events={events} km={km} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
-        {tab === "contatti" && <ContattiScreen onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
+        {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
+        {tab === "contatti" && <ContattiScreen setKm={setKm} onOpenRadar={() => setTab("vicini")} onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
             const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
             if (name === null) return;
