@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.35";
+const APP_VERSION = "14.36";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -112,6 +112,12 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     bag: <><path d="M6 9a6 6 0 0 1 12 0v11a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zM9 9V6a3 3 0 0 1 6 0v3M8 14h8" {...p} /></>,
     warn: <><path d="M12 3l10 18H2zM12 10v5M12 18v.5" {...p} /></>,
     hexplus: <><polygon points={hexPts(12, 12, 10)} fill={HONEY} stroke="none" /><path d="M8.5 12h7M12 8.5v7" stroke={INK} strokeWidth={2.6} strokeLinecap="round" fill="none" /></>,
+    sun: <><circle cx="12" cy="12" r="4" {...p} /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" {...p} /></>,
+    snow: <><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18" {...p} /></>,
+    fog: <><path d="M4 9h16M3 13h18M5 17h14" {...p} /></>,
+    thermo: <><path d="M14 14.8V4a2 2 0 10-4 0v10.8a4.5 4.5 0 104 0z" {...p} /><line x1="12" y1="9" x2="12" y2="15" {...p} /></>,
+    download: <><path d="M12 3v12M7 10l5 5 5-5M4 21h16" {...p} /></>,
+    undo: <><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" {...p} /></>,
     gear: <><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
@@ -1477,6 +1483,10 @@ const SKY_KEYS = [
   ["⛅ Poco nuvoloso", /\b(nuvol|nube|nubi|velat|cumul|cirr|qualche nuv)/i],
 ];
 const skyEmoji = c => (c || "").split(" ")[0];
+// 14.36: icona a tratto per ogni condizione (l'emoji resta nei dati, non nell'interfaccia)
+const SKY_ICON = { "☀️": "sun", "⛅": "cloud", "☁️": "cloud", "🌧️": "rain", "⛈️": "storm", "❄️": "snow", "🌫️": "fog", "🌬️": "wind", "🌈": "sunset", "🌦️": "rain", "🌨️": "snow" };
+const skyIcon = c => SKY_ICON[skyEmoji(c)] || "cloud";
+const skyLabel = c => (c || "").replace(/^[^ ]+ /, "");
 const readCaption = text => {
   const t = (text || "").trim(); if (!t) return null;
   for (const [cls, rx] of SKY_KEYS) if (rx.test(t)) return { cls, conf: 0.6 };
@@ -2670,46 +2680,35 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     setPosting(true);
     setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: verdictReady ? (ai?.cls || null) : null, aiScore: verdictReady ? (ai?.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !verdictReady }); }, 300);
   };
+  // 14.36: chip di stato sul tema notte (un'icona a tratto, niente emoji)
+  const Chip = ({ icon, tone, onClick, children }) => {
+    const T = { info: [MIST, TXT, HONEY + "44"], warn: ["rgba(245,184,46,.14)", HONEY2, HONEY + "66"], bad: ["rgba(240,86,91,.14)", "#FFB4B6", "#F0565B66"], ok: ["rgba(59,167,118,.16)", "#9BE7BF", "#3BA77666"] }[tone || "info"];
+    return <div onClick={onClick} style={{ display: "flex", alignItems: "flex-start", gap: 9, padding: "10px 12px", borderRadius: 14, marginBottom: 10, fontSize: 12.5, lineHeight: 1.45, background: T[0], color: T[1], border: `1px solid ${T[2]}`, cursor: onClick ? "pointer" : "default" }}><span style={{ flexShrink: 0, marginTop: 1 }}><NavIcon name={icon} size={16} color={T[1]} sw={2} /></span><span>{children}</span></div>;
+  };
   const GeoChip = () => geoReal ? null : geoApprox ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: MIST, color: TXT, border: `1px solid ${HONEY}33` }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
-      <span><b>{locName ? locName + " (circa)" : "Zona approssimativa"}</b> — il cielo sarà pubblicato con la sola città.{!geoOff && onAskGeo && <> Vuoi il punto preciso sulla mappa? <b onClick={onAskGeo} style={{ cursor: "pointer", textDecoration: "underline" }}>Attiva la posizione</b>.</>}</span>
-    </div>
+    <Chip icon="pin" tone="info"><b>{locName ? locName + " (circa)" : "Zona approssimativa"}</b> — il cielo sarà pubblicato con la sola città.{!geoOff && onAskGeo && <> Vuoi il punto preciso sulla mappa? <b onClick={onAskGeo} style={{ cursor: "pointer", textDecoration: "underline" }}>Attiva la posizione</b>.</>}</Chip>
   ) : (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#E5484D14", color: "#C43C41", border: "1px solid #E5484D44" }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
-      <span><b>Posizione non rilevata</b> — serve almeno la città, oppure la posizione del telefono.{" "}
-        {/iPhone|iPad/i.test(navigator.userAgent)
-          ? <>Su iPhone: <b>Impostazioni → Privacy → Localizzazione → Siti web Safari → "Mentre usi l'app"</b>, poi <b>Impostazioni → Safari → Posizione → "Chiedi"</b>, quindi ricarica Beeweat e tocca Consenti. Ancora meglio: installa l'app (Condividi ⬆️ → Aggiungi alla schermata Home).</>
-          : <>Consenti la geolocalizzazione al sito (icona 🔒 nella barra → Posizione → Consenti, poi ricarica).</>}
-      </span>
-    </div>
+    <Chip icon="pin" tone="bad"><b>Posizione non rilevata</b> — serve almeno la città, oppure la posizione del telefono.{" "}
+      {/iPhone|iPad/i.test(navigator.userAgent)
+        ? <>Su iPhone: <b>Impostazioni → Privacy → Localizzazione → Siti web Safari → "Mentre usi l'app"</b>, poi <b>Impostazioni → Safari → Posizione → "Chiedi"</b>, quindi ricarica Beeweat e tocca Consenti. Ancora meglio: installa l'app (Condividi → Aggiungi alla schermata Home).</>
+        : <>Consenti la geolocalizzazione al sito (icona del lucchetto nella barra → Posizione → Consenti, poi ricarica).</>}
+    </Chip>
   );
   const OfflineChip = () => ai?.offline ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ACCENT + "22", color: "#8A5A12", border: `1px solid ${ACCENT}66` }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>🎒</span>
-      <span>{ai?.slow ? <><b>L'analisi sta impiegando troppo</b> — pubblica pure: il controllo continua dietro le quinte e la foto parte da sola tra pochi istanti.</> : <><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</>}</span>
-    </div>
+    <Chip icon="bag" tone="warn">{ai?.slow ? <><b>L'analisi sta impiegando troppo</b> — pubblica pure: il controllo continua dietro le quinte e la foto parte da sola tra pochi istanti.</> : <><b>Sei senza rete</b> — pubblica pure: la foto va nello zaino, sarà controllata e spedita da sola al ritorno della linea.</>}</Chip>
   ) : null;
   const AiChip0 = () => ai?.checking && ai?.secondOpinion ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, background: MIST, color: TXT, border: `1px solid ${HONEY}33` }}>
-      <span style={{ fontSize: 15 }}>👁️</span><span>Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</span>
-    </div>
+    <Chip icon="eye" tone="info">Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</Chip>
   ) : null;
   const AiChip = () => !ai ? null : ai.error ? (
-    <div onClick={runAI} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: "#B4690E14", color: "#8A5A12", border: "1px solid #F0B92966", cursor: "pointer" }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
-      <span>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</span>
-    </div>
+    <Chip icon="warn" tone="warn" onClick={runAI}>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</Chip>
   ) : (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.4, background: ai.checking ? MIST : ai.block ? "#E5484D14" : "#3BA77614", color: ai.checking ? TXT : ai.block ? "#C43C41" : "#2C7A57", border: `1px solid ${ai.checking ? HONEY + "33" : ai.block ? "#E5484D44" : "#3BA77644"}` }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>{ai.checking ? "🐝" : ai.block ? "🚫" : "✅"}</span>
-      <span>{ai.checking ? <>Gli occhi dell'alveare stanno guardando la foto… <b>puoi pubblicare subito</b>: il controllo continua da solo dietro le quinte.</> : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${ai.cls}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</span>
-    </div>
+    <Chip icon={ai.checking ? "eye" : ai.block ? "close" : "check"} tone={ai.checking ? "info" : ai.block ? "bad" : "ok"}>{ai.checking ? <>Gli occhi dell'alveare stanno guardando la foto… <b>puoi pubblicare subito</b>: il controllo continua da solo dietro le quinte.</> : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${skyLabel(ai.cls)}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</Chip>
   );
   return (
     <>
-      <Header title="Nuovo cielo" left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title="Nuovo cielo" left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "0 -8px" }}><NavIcon name="back" size={26} color="#fff" /></button>}
+        right={<span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, background: MIST, border: `1px solid ${LINE}`, padding: "6px 10px", borderRadius: 999, color: TXT, whiteSpace: "nowrap" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />In diretta</span>} />
       {geoAsk && <PermissionInvite sheet emoji="📍" title="Dove mettiamo la tua foto?"
         lines={[["1", "Con la posizione del telefono finisce sul punto giusto della mappa."],
                 ["2", "Beeweat vede solo la zona (circa 1 km), mai la tua casa."]]}
@@ -2720,72 +2719,92 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
                 ["⚡", "Solo scatti dal vivo: niente foto dall'archivio, così ogni cielo è autentico e di adesso."],
                 ["🔒", "La fotocamera si accende solo quando la apri tu, mai di nascosto."]]}
         cta="Apri la fotocamera 📸" onAccept={acceptCamInvite} onLater={onBack} />}
-      {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: CARD, opacity: .85, pointerEvents: "none" }} />}
-      <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: "#12203A", color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
-        <span style={{ fontSize: 44 }}>📱</span>
+      {flash && <div style={{ position: "fixed", inset: 0, zIndex: 450, background: "#fff", opacity: .85, pointerEvents: "none" }} />}
+      <div className="bw-rotate-guard" style={{ position: "fixed", inset: 0, zIndex: 500, background: NIGHT, color: "#fff", display: "none", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, textAlign: "center", padding: 30 }}>
+        <NavIcon name="camera" size={44} color={HONEY2} sw={1.6} />
         <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
-        <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza. 🐝</div>
+        <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza.</div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
-        <div style={{ margin: 16, borderRadius: 16, overflow: "hidden", background: "#0B1524", minHeight: format === "std" ? 280 : undefined, position: "relative", boxShadow: `0 4px 18px ${HBLUE}22` }}>
-          {!captured ? <>
-            <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
-            <button onClick={() => shotRef.current?.click()} style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: 380, border: `2px dashed ${HONEY}66`, borderRadius: 16, background: "linear-gradient(160deg,#1C2852,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
-              <div style={{ width: 88, height: 88, borderRadius: "50%", background: ACCENT, color: INK, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 22px rgba(255,198,30,.5)" }}><NavIcon name="camera" size={40} color={TXT} sw={2.2} /></div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19, color: TXT }}>Scatta il cielo</div>
-              <div style={{ fontSize: 12.5, color: TXT2 }}>Si apre la fotocamera del telefono · solo dal vivo, mai dall'archivio</div>
-            </button>
-          </> : <><img src={captured} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", display: "block" }} />{typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}{shotDir && <div style={{ position: "absolute", top: 12, right: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "5px 11px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><WIcon name="compass" size={14} color="#fff" sw={2} />{shotDir.label} · {shotDir.deg}°</span></div>}</>}
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-        </div>
-        <div style={{ padding: "0 16px 20px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: ACCENT + "1A", border: `1px solid ${ACCENT}55`, borderRadius: 12, padding: "9px 12px", marginBottom: 14 }}>
-            <span style={{ fontSize: 16, lineHeight: 1.3 }}>🌤️</span>
-            <span style={{ fontSize: 12, color: "#9A6418", lineHeight: 1.45 }}>Inquadra il <b>cielo o il meteo</b>, non le persone: le foto con persone in primo piano non sono ammesse e verranno scartate.</span>
+      <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+      {!captured ? (
+        /* ── PRIMA DELLO SCATTO: il mirino di Beeweat ── */
+        <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "linear-gradient(180deg,#1E4FA8 0%,#5C9BE3 42%,#F6C98B 86%,#F08A5D 100%)", display: "flex", flexDirection: "column" }}>
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,10,30,.45), rgba(5,10,30,0) 30%, rgba(5,10,30,0) 55%, rgba(5,10,30,.9))" }} />
+          <div style={{ position: "absolute", left: 18, top: 22, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.35)" }}>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 72, fontWeight: 100, letterSpacing: "-4px", lineHeight: 1 }}>{temp !== "" ? `${Math.round(+temp)}°` : "—"}</div>
+            <div style={{ marginTop: 6, fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="pin" size={14} color="#fff" sw={2.2} />{locName || "La tua zona"}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 3 }}>{geoReal ? "≈ zona di 1 km · mai la tua casa" : geoApprox ? "solo la città (≈)" : "posizione: la chiediamo allo scatto"}</div>
           </div>
-          {!captured && streaming && <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
-            {[["std", "Std"], ["wide", "16:9"], ["pano", "Pano"]].map(([id, label]) => (
-              <button key={id} onClick={() => setFormat(id)} aria-pressed={format === id} aria-label={`Formato ${label}`} style={{ minHeight: 44, padding: "5px 16px", borderRadius: 22, border: `1.5px solid ${format === id ? HONEY : LINE}`, background: format === id ? HBLUE : NIGHT3, color: format === id ? "#fff" : TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", letterSpacing: ".02em" }}>{label}</button>
-            ))}
-          </div>}
-          {!captured && streaming && <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, padding: "0 6px" }}>
-            {[1, 2, 3].filter(z => z <= maxZoom).map(z => (
-              <button key={z} onClick={() => applyZoom(z)} aria-pressed={Math.abs(zoom - z) < .25} aria-label={`Zoom ${z}×`} style={{ minWidth: 44, minHeight: 44, padding: "5px 0", borderRadius: 14, border: `1.5px solid ${Math.abs(zoom - z) < .25 ? HONEY : LINE}`, background: Math.abs(zoom - z) < .25 ? HBLUE : NIGHT3, color: Math.abs(zoom - z) < .25 ? "#fff" : TXT, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{z}×</button>
-            ))}
-            <input type="range" min={1} max={maxZoom} step={0.1} value={zoom} aria-label="Zoom" aria-valuetext={`${zoom.toFixed(1)}×`} onChange={e => applyZoom(+e.target.value)} style={{ flex: 1, background: `linear-gradient(to right, ${HBLUE} 0%, ${HBLUE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} ${((zoom - 1) / Math.max(0.1, maxZoom - 1)) * 100}%, ${LINE} 100%)` }} />
-          </div>}
-          {!captured ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 12 }}>
-            <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label={facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"} title="Gira la fotocamera" style={{ width: 46, height: 46, borderRadius: 14, background: CARD, border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="flip" size={20} color={TXT} /></button>
-            {streaming && <button onClick={() => setGrid(g => !g)} title="Griglia" aria-label={grid ? "Nascondi la griglia" : "Mostra la griglia"} aria-pressed={grid} style={{ width: 46, height: 46, borderRadius: 14, background: grid ? HBLUE : NIGHT3, border: `1.5px solid ${grid ? HONEY : LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="grid" size={20} color={grid ? "#fff" : TXT} sw={1.7} /></button>}
-            {streaming && <button onPointerDown={e => { e.preventDefault(); capture(); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); capture(); } }} aria-label="Scatta la foto" title="Scatta" style={{ width: 72, height: 72, borderRadius: "50%", background: `${HBLUE}`, border: "4px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 22px ${HBLUE}55`, touchAction: "none" }}><NavIcon name="capture" size={30} color="#fff" sw={2} /></button>}
-            {streaming && torchAvail && <button onClick={toggleTorch} title="Torcia" aria-label={torchOn ? "Spegni la torcia" : "Accendi la torcia"} aria-pressed={torchOn} style={{ width: 46, height: 46, borderRadius: 14, background: torchOn ? ACCENT : NIGHT3, border: `1.5px solid ${torchOn ? ACCENT : LINE}`, cursor: "pointer", fontSize: 19 }}>🔦</button>}
-          </div> : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>{/* 14.21: etichette visibili */}
-              <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Descrizione <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(facoltativa)</span></span>
-              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
+          <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
+            <div style={{ background: "rgba(10,16,40,.6)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: `1px solid rgba(255,255,255,.12)`, borderRadius: 18, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <span style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="eye" size={20} color={HONEY2} sw={2} /></span>
+              <span style={{ fontSize: 12.5, lineHeight: 1.35, color: "#fff" }}><b style={{ display: "block", fontSize: 13 }}>Solo cielo, mare e natura</b><span style={{ color: "rgba(255,255,255,.72)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span></span>
+            </div>
+            {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Si apre la fotocamera del telefono · mai dall'archivio</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
+              <button onClick={onBack} aria-label="Annulla" title="Annulla" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
+              <button onClick={() => shotRef.current?.click()} aria-label="Scatta il cielo" title="Scatta" style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%,#FFE08A,#F5B82E 60%,#E89A1C)", boxShadow: "0 10px 30px rgba(245,184,46,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={26} color={INK} sw={2.2} /></span>
+              </button>
+              <span style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Lo zaino: le foto in attesa partono da sole"><NavIcon name="bag" size={20} color="#fff" sw={2} /></span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── DOPO LO SCATTO: anteprima e pubblicazione ── */
+        <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+          <div style={{ margin: "12px 14px 0", borderRadius: 24, overflow: "hidden", background: NIGHT3, position: "relative", aspectRatio: "4 / 5", boxShadow: "0 14px 36px rgba(0,0,0,.4)" }}>
+            <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 60%, rgba(5,10,30,.8))" }} />
+            {typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}
+            <div style={{ position: "absolute", top: 14, right: 14, textAlign: "right", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 200, letterSpacing: "-2px", lineHeight: 1 }}>{temp !== "" ? `${Math.round(+temp)}°` : ""}</div>
+              {shotDir && <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, background: "rgba(0,0,0,.35)", padding: "4px 9px", borderRadius: 999 }}><WIcon name="compass" size={12} color="#fff" sw={2.2} />{shotDir.label} · {shotDir.deg}°</div>}
+            </div>
+            <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, background: "rgba(10,16,40,.6)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 16, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, color: "#fff" }}>
+              <span style={{ width: 36, height: 36, borderRadius: 11, background: ai?.block ? "rgba(240,86,91,.25)" : "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={ai?.block ? "close" : ai && !ai.checking && !ai.error && !ai.offline ? "check" : "eye"} size={18} color={ai?.block ? "#FFB4B6" : HONEY2} sw={2.2} /></span>
+              <span style={{ fontSize: 12, lineHeight: 1.35, minWidth: 0 }}>
+                <b style={{ display: "block", fontSize: 12.5 }}>{!ai || ai.checking ? "Occhi dell'alveare al lavoro" : ai.block ? "Questo cielo non passa" : ai.error ? "Occhi AI non disponibili" : ai.offline ? "Senza rete: va nello zaino" : "Sembra proprio un cielo"}</b>
+                <span style={{ color: "rgba(255,255,255,.72)" }}>{!ai || ai.checking ? "Cielo, mare, natura… puoi già pubblicare: il controllo continua da solo." : ai.block ? ai.reason : ai.error ? "Puoi pubblicare lo stesso: il controllo avverrà in coda." : ai.offline ? "Parte da sola al ritorno della linea." : `${ai.cls ? skyLabel(ai.cls) : "Approvata"}${ai.score ? ` · ${Math.round(ai.score * 100)}%` : ""} — puoi pubblicare subito.`}</span>
+              </span>
+              {(!ai || ai.checking) && <span style={{ position: "absolute", left: 12, right: 12, bottom: 0, height: 3, borderRadius: 3, overflow: "hidden", background: "rgba(255,255,255,.12)" }}><span className="bw-skel" style={{ display: "block", height: "100%", width: "68%", background: `linear-gradient(90deg,${HONEY},${HONEY2})` }} /></span>}
+            </div>
+          </div>
+          <div style={{ padding: "14px 14px 20px" }}>
+            {/* umore del cielo: chip orizzontali al posto del menu */}
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 8 }}>Che cielo è</div>
+            <div role="radiogroup" aria-label="Condizione" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -14px 14px", padding: "2px 14px", scrollbarWidth: "none" }}>
+              {CONDITIONS.map(c => { const on = cond === c; return (
+                <button key={c} role="radio" aria-checked={on} onClick={() => setCond(c)} style={{ flex: "0 0 auto", height: 38, padding: "0 13px", borderRadius: 999, border: on ? "none" : `1px solid ${LINE}`, background: on ? HONEY : NIGHT3, color: on ? INK : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}><NavIcon name={skyIcon(c)} size={15} color={on ? INK : TXT2} sw={2} />{skyLabel(c)}</button>
+              ); })}
+            </div>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Descrizione <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(facoltativa)</span></span>
+              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
             </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Condizione</span>
-              <select value={cond} onChange={e => setCond(e.target.value)} style={{ background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "11px 10px", minHeight: 44, fontSize: 14, outline: "none", color: TXT, width: "100%" }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "9px 12px" }}>
-              <span style={{ fontSize: 18 }}>🌡️</span>
-              <span style={{ flex: 1, fontSize: 13.5, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
-              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 16, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 14, padding: "9px 12px", marginBottom: 12 }}>
+              <NavIcon name="thermo" size={18} color={HONEY2} sw={2} />
+              <span style={{ flex: 1, fontSize: 13, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
+              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 17, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif" }} />
               <span style={{ fontSize: 16, fontWeight: 700, color: TXT }}>°</span>
             </div>
             <GeoChip />
-      <OfflineChip />
-      <AiChip0 />
-      <AiChip />
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={retake} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>↩ Rifai</button>
-              <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ flex: 1, padding: 13, minHeight: 46, borderRadius: 12, border: `1.5px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "#3BA77614" : NIGHT3, color: saved ? "#3BA776" : TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{saved ? "✓ Salvata" : "⬇ Salva"}</button>
-              <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 2, padding: 13, minHeight: 46, borderRadius: 12, border: "none", background: !canPublish ? (!(geoReal || geoApprox) ? ACCENT : "#9AA7B8") : `${HBLUE}`, color: !canPublish && !(geoReal || geoApprox) ? TXT : "#fff", fontWeight: 600, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Inter',sans-serif" }}>{posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione 📍" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino 🎒" : "Pubblica ora"}</button>
+            <OfflineChip />
+            <AiChip0 />
+            {ai?.error && <AiChip />}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={retake} aria-label="Rifai la foto" title="Rifai" style={{ width: 50, minHeight: 50, borderRadius: 16, border: `1px solid ${LINE}`, background: NIGHT3, color: TXT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="undo" size={20} color={TXT} sw={2} /></button>
+              <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ width: 50, minHeight: 50, borderRadius: 16, border: `1px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "rgba(59,167,118,.16)" : NIGHT3, color: saved ? "#9BE7BF" : TXT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={saved ? "check" : "download"} size={20} color={saved ? "#9BE7BF" : TXT} sw={2} /></button>
+              <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 1, minHeight: 50, borderRadius: 16, border: "none", background: ai?.block ? NIGHT3 : HONEY, color: ai?.block ? TXT2 : INK, fontWeight: 800, fontSize: 15, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Inter',sans-serif", boxShadow: ai?.block ? "none" : `0 10px 26px ${HONEY}55`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {!(geoReal || geoApprox) && <NavIcon name="pin" size={17} color={INK} sw={2.2} />}{ai?.offline && !ai?.slow && (geoReal || geoApprox) && <NavIcon name="bag" size={17} color={INK} sw={2.2} />}
+                {posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino" : "Pubblica ora"}
+              </button>
             </div>
-          </div>}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
