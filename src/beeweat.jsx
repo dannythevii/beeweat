@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.46";
+const APP_VERSION = "14.47";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2544,7 +2544,7 @@ const fetchTempAt = async (lat, lng, atMs = null) => {
     return typeof t === "number" ? Math.round(t) : null;
   } catch (_) { return null; }
 };
-function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo }) {
+function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
     if (!geo) return;
@@ -2778,6 +2778,9 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     im.src = url;
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setTimeout(() => shotRef.current?.click(), 50); };
+  useEffect(() => { if (pendingShot) { onNativeShot({ target: { files: [pendingShot], value: "" } }); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.47: scatto già fatto dal tocco su «Scatta»
+  const [hint, setHint] = useState(true);   // 14.47: l'avviso resta 20 secondi, poi sparisce
+  useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
     try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (_) {}
     loadAIModels().catch(() => {});   // pre-riscaldamento: gli occhi AI si preparano mentre inquadri
@@ -2866,6 +2869,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       </div>
       <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
+      {hint && <div role="status" onClick={() => setHint(false)} className="fade-up" style={{ position: "absolute", left: 18, right: 18, bottom: "calc(150px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "rgba(10,16,40,.86)", border: `1px solid rgba(255,255,255,.16)`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, color: "#fff", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>{/* 14.47: in basso, 20 secondi */}
+        <span style={{ width: 36, height: 36, borderRadius: 11, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="eye" size={18} color={HONEY2} sw={2} /></span>
+        <span style={{ fontSize: 12.5, lineHeight: 1.35 }}><b style={{ display: "block", fontSize: 13.5 }}>Solo natura, cielo e mare</b><span style={{ color: "rgba(255,255,255,.75)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span></span>
+      </div>}
       {!captured ? (
         /* ── PRIMA DELLO SCATTO: il mirino di Beeweat ── */
         <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "linear-gradient(180deg,#1E4FA8 0%,#5C9BE3 42%,#F6C98B 86%,#F08A5D 100%)", display: "flex", flexDirection: "column" }}>
@@ -2874,11 +2881,6 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 72, fontWeight: 300, letterSpacing: "-4px", lineHeight: 1 }}>{temp !== "" ? `${Math.round(+temp)}°` : "—"}</div>
             <div style={{ marginTop: 6, fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="pin" size={14} color="#fff" sw={2.2} />{locName || "La tua zona"}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 3 }}>{geoReal ? "≈ zona di 1 km · mai la tua casa" : geoApprox ? "solo la città (≈)" : "posizione: la chiediamo allo scatto"}</div>
-          </div>
-          <div style={{ position: "absolute", left: 24, right: 24, top: "50%", transform: "translateY(-50%)", zIndex: 1, background: "rgba(10,16,40,.7)", border: `1px solid rgba(255,255,255,.14)`, borderRadius: 18, padding: "16px 18px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6, margin: "0 auto", maxWidth: 300 }}>{/* 14.45: al centro del mirino */}
-            <span style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="eye" size={20} color={HONEY2} sw={2} /></span>
-            <b style={{ fontSize: 14, color: "#fff" }}>Solo natura, cielo e mare</b>
-            <span style={{ fontSize: 12.5, lineHeight: 1.4, color: "rgba(255,255,255,.75)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span>
           </div>
           <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
             {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
@@ -4137,6 +4139,16 @@ function AppInner() {
   }, []);
 
   const [user, setUser] = useState(null);
+  // 14.47: la fotocamera del telefono si apre nello stesso tocco di «Scatta» (il campo sta nel body, così non si perde cambiando schermata)
+  const shotInputRef = useRef(null);
+  const [pendingShot, setPendingShot] = useState(null);
+  useEffect(() => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
+    inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
+    document.body.appendChild(inp); shotInputRef.current = inp;
+    return () => { inp.remove(); shotInputRef.current = null; };
+  }, []);
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -5490,7 +5502,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
   if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
@@ -5673,7 +5685,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={() => setOverlay("post")} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
+        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
@@ -5691,7 +5703,7 @@ function AppInner() {
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
-      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={() => setOverlay("post")} />
+      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={openCamera} />
 
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
