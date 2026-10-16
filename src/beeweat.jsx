@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.47";
+const APP_VERSION = "14.48";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1629,7 +1629,7 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
-  const visible = useMemo(() => (worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || (following || []).includes(p.user)), [posts, worldOn, km, focusId, followedOn, following]);   // faro e premiata entrano anche fuori raggio
+  const visible = useMemo(() => (worldOn || followedOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || p.followed || (following || []).includes(p.user)), [posts, worldOn, km, focusId, followedOn, following]);   // 14.48: Seguiti senza raggio   // faro e premiata entrano anche fuori raggio
   // 14.44: i callback passano da un ref, così le schede restano memoizzate e ricevono sempre la funzione più recente
   const H = useRef({}); H.current = { onStar, onChat, onOpenUser, onFollow, onReport, onView, onOpenPhoto, onDelete, onEdit };
   const S = useMemo(() => Object.fromEntries(Object.keys(H.current).map(k => [k, (...a) => H.current[k] && H.current[k](...a)])), []);
@@ -4891,6 +4891,20 @@ function AppInner() {
       sb.getWorldCount().then(setWorldCount).catch(() => {});
     } catch (e) { console.warn("feed mondo:", e?.message || e); } })();
   }, [feedWorld, sb, socialTick]);
+  // 14.48: «Seguiti» = tutti i cieli recenti delle api che segui, da qualunque distanza
+  const [followedPosts, setFollowedPosts] = useState([]);
+  useEffect(() => {
+    if (!feedFollowed || !sb?.isConfigured || !followingIds.length) { setFollowedPosts([]); return; }
+    let stop = false;
+    (async () => { try {
+      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const lists = await Promise.all(followingIds.slice(0, 60).map(uid => sb.getPostsByUser(uid, 12).catch(() => [])));
+      if (stop) return;
+      const seen = new Set();
+      setFollowedPosts(lists.flat().filter(r => !seen.has(r.id) && seen.add(r.id)).map(r => ({ ...mapRemoteRow(r, au?.id), followed: true })));
+    } catch (e) { console.warn("feed seguiti:", e?.message || e); } })();
+    return () => { stop = true; };
+  }, [feedFollowed, sb, followingIds.join(","), socialTick]);
   const rankOf = useMemo(() => {
     const m = {};
     (contacts || []).forEach(c => { if (c.id) m[c.id] = beeStars(c.postsCount); if (c.name) m[c.name] = beeStars(c.postsCount); });
@@ -4899,7 +4913,12 @@ function AppInner() {
   const withRank = list => (list || []).map(p => ({ ...p, stars_rank: rankOf[p.uid] ?? rankOf[p.user] ?? 0 }));
   const feedShown = useMemo(() => {
     let base;
-    if (!feedWorld) base = posts.filter(p => !p.archivedAt);
+    if (feedFollowed) {   // 14.48: i miei + quelli delle api seguite, ovunque
+      const ids = new Set(posts.map(p => p.id));
+      base = [...posts.filter(p => !p.archivedAt), ...followedPosts.filter(p => !ids.has(p.id))]
+        .slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    }
+    else if (!feedWorld) base = posts.filter(p => !p.archivedAt);
     else {
       const ids = new Set(posts.map(p => p.id));
       base = [...posts, ...worldFeedPosts.filter(p => !ids.has(p.id))]
@@ -4909,7 +4928,7 @@ function AppInner() {
     if (award?.post && awardShow) base = [{ ...award.post, awarded: true, awardMsg: award.award.message || "" }, ...base.filter(p => p.id !== award.post.id)];   // la premiata in cima, per 20 secondi
     else if (award?.post) base = withAward(base);                                        // poi resta solo il nastro, dove il post compare
     return base;
-  }, [feedWorld, posts, worldFeedPosts, focusPost, award, awardShow]);
+  }, [feedWorld, feedFollowed, followedPosts, posts, worldFeedPosts, focusPost, award, awardShow]);
   useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
