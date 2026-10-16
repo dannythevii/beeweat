@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.44";
+const APP_VERSION = "14.45";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -770,6 +770,7 @@ const G = `
   }
   /* 14.18: anello di messa a fuoco visibile da tastiera (non al tocco) */
   :focus { outline: none; }
+  input, textarea, select { font-size: max(16px, 1em); }   /* 14.45: sotto i 16 px iOS zooma la pagina a ogni tocco nel campo */
   :focus-visible { outline: 3px solid ${ACCENT}; outline-offset: 2px; border-radius: 6px; }
   input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
   input, textarea, select { font-family: 'Inter',sans-serif; }
@@ -860,7 +861,7 @@ function AuthScreen({ onLogin, sb }) {
   const HINTS = { name: "Come vuoi farti chiamare", city: "Es. Capri", email: "nome@esempio.it", password: type => type === "password" ? "Almeno 8 caratteri" : "" };   // 14.22
   const inp = (ph, k, type = "text") => <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
     <span style={{ fontSize: 12, fontWeight: 600, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>{ph}</span>
-    <input type={type} placeholder={k === "password" ? HINTS.password(type) : (HINTS[k] || "")} value={form[k]} autoComplete={k === "email" ? "email" : k === "password" ? (mode === "register" ? "new-password" : "current-password") : k === "name" ? "name" : k === "city" ? "address-level2" : "off"} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "13px 16px", minHeight: 46, color: TXT, fontSize: 14 }} onFocus={e => e.target.style.borderColor = HONEY} onBlur={e => e.target.style.borderColor = LINE} />
+    <input type={type} inputMode={k === "email" ? "email" : undefined} autoCapitalize={k === "email" || k === "password" ? "none" : "words"} autoCorrect="off" spellCheck={false} enterKeyHint={k === "password" ? "go" : "next"} onKeyDown={k === "password" ? (e => { if (e.key === "Enter") handleEmail(); }) : undefined} placeholder={k === "password" ? HINTS.password(type) : (HINTS[k] || "")} value={form[k]} autoComplete={k === "email" ? "email" : k === "password" ? (mode === "register" ? "new-password" : "current-password") : k === "name" ? "name" : k === "city" ? "address-level2" : "off"} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "13px 16px", minHeight: 46, color: TXT, fontSize: 16 }} onFocus={e => e.target.style.borderColor = HONEY} onBlur={e => e.target.style.borderColor = LINE} />
   </label>;
   const handleEmail = async () => {
     if (mode === "register" && !accepted) { setWarn(true); return; }
@@ -933,7 +934,7 @@ function AuthScreen({ onLogin, sb }) {
           <>
             <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 6 }}>Reimposta la password</div>
             <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Inserisci l'email del tuo account: ti invieremo un link sicuro per reimpostare la password.</div>
-            <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 14, marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HONEY} onBlur={e => e.target.style.borderColor = LINE} />
+            <input type="email" placeholder="La tua email" value={recoverEmail} onChange={e => setRecoverEmail(e.target.value)} style={{ width: "100%", background: NIGHT3, border: `1.5px solid ${LINE}`, borderRadius: 12, padding: "12px 16px", color: TXT, fontSize: 16, marginBottom: 14 }} onFocus={e => e.target.style.borderColor = HONEY} onBlur={e => e.target.style.borderColor = LINE} />
             <button onClick={async () => { if (!recoverEmail.trim()) return; try { if (sb?.isConfigured) await sb.resetPassword(recoverEmail.trim()); } catch (_) {} setRecoverSent(true); }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter',sans-serif", opacity: recoverEmail.trim() ? 1 : .6 }}>Invia link di reimpostazione</button>
           </>
         ) : (
@@ -972,7 +973,7 @@ function AuthScreen({ onLogin, sb }) {
           {mode === "login" && <div style={{ textAlign: "right", marginTop: -4 }}><span onClick={() => { setRecoverEmail(form.email); setRecoverSent(false); setView("recover"); }} style={{ fontSize: 12.5, color: TXT, fontWeight: 600, cursor: "pointer" }}>Password dimenticata?</span></div>}
           {authErr && <div style={{ color: RED, fontSize: 12.5, fontWeight: 600 }}>{authErr}</div>}
           {info && <div style={{ color: "#3BA776", fontSize: 12.5, fontWeight: 600 }}>{info}</div>}
-          <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: `${HBLUE}`, color: "#fff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "Entra"}</button>
+          <button onClick={handleEmail} disabled={busy} style={{ width: "100%", marginTop: 4, padding: 14, borderRadius: 12, border: "none", cursor: "pointer", background: HONEY, color: INK, fontWeight: 700, fontSize: 14, fontFamily: "'Inter',sans-serif", letterSpacing: ".08em", opacity: mode === "register" && !accepted ? .6 : 1 }}>{busy ? "Attendere…" : "Entra"}</button>
           {mode === "register" && <div style={{ fontSize: 12, color: TXT2, textAlign: "center", lineHeight: 1.4 }}>Servizio non destinato a minori di 14 anni.</div>}
         </div>
       </div>
@@ -1425,6 +1426,25 @@ function HiveReading({ post, modelCond }) {   // 14.28
     </div>
   );
 }
+// 14.45: la card da condividere — foto 4:5, fascia scura in basso con autore, condizione, commento e beeweat.com
+async function shareCard(post, line) {
+  const im = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = post.img; });
+  const W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const k = Math.max(W / im.naturalWidth, H / im.naturalHeight), dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+  x.drawImage(im, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  const g = x.createLinearGradient(0, H * .55, 0, H); g.addColorStop(0, "rgba(5,10,30,0)"); g.addColorStop(1, "rgba(5,10,30,.92)"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#fff"; x.textBaseline = "alphabetic";
+  const wrap = (t, maxW, font, lh, y, max) => { x.font = font; const words = String(t).split(/\s+/); let l = "", n = 0; for (const w of words) { const tt = l ? l + " " + w : w; if (x.measureText(tt).width > maxW && l) { x.fillText(l, 60, y); y += lh; l = w; if (++n >= max - 1) { l += "…"; break; } } else l = tt; } if (l) { x.fillText(l, 60, y); y += lh; } return y; };
+  let y = H - 290;
+  x.font = "600 40px Inter, system-ui, sans-serif"; x.fillText(line, 60, y); y += 62;
+  if (post.caption) { x.fillStyle = "rgba(255,255,255,.92)"; y = wrap(post.caption, W - 120, "500 44px Inter, system-ui, sans-serif", 56, y, 3); }
+  // esagono miele + beeweat.com
+  const hx = 60 + 26, hy = H - 72; x.fillStyle = HONEY; x.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 90); x[i ? "lineTo" : "moveTo"](hx + 26 * Math.cos(a), hy + 26 * Math.sin(a)); } x.closePath(); x.fill();
+  x.fillStyle = INK; x.font = "700 22px Inter, system-ui, sans-serif"; x.textAlign = "center"; x.fillText("bw", hx, hy + 8); x.textAlign = "left";
+  x.fillStyle = HONEY2; x.font = "700 34px Inter, system-ui, sans-serif"; x.fillText("beeweat.com", 60 + 68, hy + 12);
+  const blob = await new Promise(res => c.toBlob(res, "image/jpeg", .9)); if (!blob) throw new Error("card");
+  return new File([blob], "beeweat-cielo.jpg", { type: "image/jpeg" });
+}
 // 14.44: la scheda si ridisegna solo se cambiano i dati che mostra (i callback arrivano stabili da FeedScreen)
 const POST_KEYS = ["id", "img", "thumb", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
 const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
@@ -1444,7 +1464,16 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
   const condLabel = skyLabel(post.cond);
   const r = ratePost(post, modelCond);
   const canShare = typeof navigator !== "undefined" && !!navigator.share;
-  const share = async e => { e.stopPropagation(); try { await navigator.share({ title: "Beeweat", text: `${post.user} ha scattato il cielo di ${post.city || "qui"}: ${condLabel}${post.temp != null && Number.isFinite(post.temp) ? ` · ${Math.round(post.temp)}°` : ""} · Beeweat` }); } catch (_) {} };
+  const share = async e => {   // 14.45: una card (foto, autore, condizione, commento, beeweat.com) + testo con il link
+    e.stopPropagation();
+    const line = `${post.user} · ${post.city || "qui"} · ${condLabel}${post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}`;
+    const text = `${line}${post.caption ? `\n«${post.caption}»` : ""}\nIl cielo di adesso, visto dalle api di Beeweat → https://beeweat.com`;
+    try {
+      const file = await shareCard(post, line).catch(() => null);
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Beeweat", text }); return; }
+      await navigator.share({ title: "Beeweat", text, url: "https://beeweat.com" });
+    } catch (_) {}
+  };
   const glass = { width: 46, height: 46, borderRadius: "50%", background: "rgba(0,0,0,.45)", border: "1px solid rgba(255,255,255,.3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
   const Rail = ({ label, sub, children, onClick, title, aria, pressed, style }) => (
     <button onClick={onClick} title={title} aria-label={aria || title} aria-pressed={pressed} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, minWidth: 46, minHeight: 46, cursor: onClick ? "pointer" : "default", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
@@ -1468,7 +1497,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
       <div style={{ position: "absolute", right: 10, bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>{/* 14.40: sopra la barra */}
         <button onClick={() => onOpenUser && !post.mine && onOpenUser(post)} aria-label={post.mine ? "Il tuo cielo" : `Profilo di ${post.user}`} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", padding: 2.5, background: `linear-gradient(135deg, ${HONEY}, #FF7A59)`, border: "none", cursor: onOpenUser && !post.mine ? "pointer" : "default", marginBottom: 6 }}>
           <span style={{ display: "block", width: "100%", height: "100%", borderRadius: "50%", border: `2.5px solid ${NIGHT}`, overflow: "hidden", background: NIGHT3 }}><UserAvatar src={post.ava} size={42} ring={false} /></span>
-          {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow(post.user); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguita" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -12, transform: "translateX(-50%)", width: 28, height: 28, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={14} color={INK} sw={3} /></span>}
+          {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow(post.user); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguito" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -12, transform: "translateX(-50%)", width: 28, height: 28, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={14} color={INK} sw={3} /></span>}
         </button>
         <Rail onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : post.starred ? "Togli la stella" : "Metti una stella"} pressed={post.mine ? undefined : !!post.starred} label={post.stars} style={post.mine ? {} : { background: post.starred ? HONEY : "rgba(0,0,0,.35)", border: post.starred ? "none" : "1px solid rgba(255,255,255,.3)", boxShadow: post.starred ? `0 8px 22px ${HONEY}66` : "none" }}>
           <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name="starSolid" size={22} color={post.starred ? INK : "#fff"} /></span>
@@ -1609,6 +1638,11 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const [cur, setCur] = useState(0);   // indice della scheda a schermo: si montano solo questa e le due vicine
   const onReelScroll = () => { if (rafRef.current) return; rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; const el = reelRef.current; if (!el || !el.clientHeight) return; const i = Math.round(el.scrollTop / el.clientHeight); setCur(c => c === i ? c : i); }); };
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+  useEffect(() => {   // 14.45: le foto dei quattro cieli successivi (e dei due precedenti) entrano in cache prima che servano
+    const urls = []; for (let d = 1; d <= 4; d++) { const a = visible[cur + d], b = d <= 2 ? visible[cur - d] : null; if (a?.img) urls.push(a.img); if (b?.img) urls.push(b.img); }
+    const imgs = urls.map(u => { const im = new Image(); im.decoding = "async"; im.src = u; return im; });
+    return () => imgs.forEach(im => { im.src = ""; });
+  }, [cur, visible]);
   const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
   const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 700 };
   const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
@@ -1655,7 +1689,7 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
     <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
       {pills}
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
-        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 1 ? <PostCard post={p} km={km} active={i === cur} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
+        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
       </div>
       {menu}
     </div>
@@ -2314,11 +2348,11 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 8px" }}><div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>Dove brilla l'alveare</div><div style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{inf ? "tutto il mondo" : `entro ${km} km`}</div></div>
           <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 16px 4px", scrollbarWidth: "none" }}>{/* 14.38: luoghi come card */}
             {places.map((p, i) => { const on = (placeFavs || []).includes(p.name); const SK = ["linear-gradient(170deg,#0B1A3F,#2B3F7A 45%,#E88A7A 80%,#F6C98B)", "linear-gradient(180deg,#1C7BD8,#59B6F0 60%,#B8E4FA)", "linear-gradient(180deg,#2E1F5E,#C04A6E 55%,#F2A65A)", "linear-gradient(180deg,#5B6B8C,#9AA7BE 50%,#D9DEE8)", "linear-gradient(180deg,#0E2A5C,#1F4C9E 50%,#8FC1EC)"]; return (
-              <div key={p.id || p.name} style={{ position: "relative", flex: "0 0 124px", height: 128, borderRadius: 18, overflow: "hidden", background: SK[i % SK.length] }}>
+              <div key={p.id || p.name} onClick={() => onOpenPlace(p)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenPlace(p); } }} aria-label={`Apri ${p.name}`} style={{ position: "relative", flex: "0 0 124px", height: 128, borderRadius: 18, overflow: "hidden", background: SK[i % SK.length], cursor: "pointer" }}>{/* 14.45: tutta la card */}
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(5,10,30,.9), rgba(5,10,30,0) 60%)" }} />
-                <button onClick={() => onTogglePlaceFav && onTogglePlaceFav(p.name)} title="Segui questo luogo" aria-pressed={on} style={{ position: "absolute", top: 4, left: 4, width: 44, height: 44, borderRadius: "50%", background: "rgba(0,0,0,.35)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={on ? "starFill" : "star"} size={14} color={on ? HONEY : "#fff"} sw={2} /></button>
+                <button onClick={e => { e.stopPropagation(); onTogglePlaceFav && onTogglePlaceFav(p.name); }} title="Segui questo luogo" aria-pressed={on} style={{ position: "absolute", top: 4, left: 4, width: 44, height: 44, borderRadius: "50%", background: "rgba(0,0,0,.35)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={on ? "starFill" : "star"} size={14} color={on ? HONEY : "#fff"} sw={2} /></button>
                 {p.dist != null && <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.4)", padding: "3px 7px", borderRadius: 999 }}>{fmt(p.dist)}</span>}
-                <button onClick={() => onOpenPlace(p)} style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 44, padding: "0 10px 9px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "#fff", fontFamily: "'Inter',sans-serif" }}>
+                <button onClick={e => { e.stopPropagation(); onOpenPlace(p); }} tabIndex={-1} style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 44, padding: "0 10px 9px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "#fff", fontFamily: "'Inter',sans-serif" }}>
                   <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>{p.events > 0 ? <span onClick={ev => { ev.stopPropagation(); onOpenPlaceEvents(p); }} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><NavIcon name="calendar" size={11} color="rgba(255,255,255,.85)" sw={2.2} />{p.events} {p.events === 1 ? "evento" : "eventi"}</span> : "chat del posto"}</div>
                 </button>
@@ -2349,7 +2383,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 12, color: HONEY2, letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
             </div>
-            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 22, border: on ? `1px solid ${LINE}` : "none", background: on ? "transparent" : HONEY, color: on ? TXT : INK, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguita" : "Segui"}</button>}
+            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 22, border: on ? `1px solid ${LINE}` : "none", background: on ? "transparent" : HONEY, color: on ? TXT : INK, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" aria-label={`Scrivi a ${c.name}`} style={{ width: 44, height: 44, borderRadius: 22, background: MIST, border: `1px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="comment" size={18} color={TXT} sw={2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
@@ -2841,11 +2875,12 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             <div style={{ marginTop: 6, fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="pin" size={14} color="#fff" sw={2.2} />{locName || "La tua zona"}</div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 3 }}>{geoReal ? "≈ zona di 1 km · mai la tua casa" : geoApprox ? "solo la città (≈)" : "posizione: la chiediamo allo scatto"}</div>
           </div>
+          <div style={{ position: "absolute", left: 24, right: 24, top: "50%", transform: "translateY(-50%)", zIndex: 1, background: "rgba(10,16,40,.7)", border: `1px solid rgba(255,255,255,.14)`, borderRadius: 18, padding: "16px 18px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 6, margin: "0 auto", maxWidth: 300 }}>{/* 14.45: al centro del mirino */}
+            <span style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="eye" size={20} color={HONEY2} sw={2} /></span>
+            <b style={{ fontSize: 14, color: "#fff" }}>Solo natura, cielo e mare</b>
+            <span style={{ fontSize: 12.5, lineHeight: 1.4, color: "rgba(255,255,255,.75)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span>
+          </div>
           <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
-            <div style={{ background: "rgba(10,16,40,.6)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: `1px solid rgba(255,255,255,.12)`, borderRadius: 18, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <span style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="eye" size={20} color={HONEY2} sw={2} /></span>
-              <span style={{ fontSize: 12.5, lineHeight: 1.35, color: "#fff" }}><b style={{ display: "block", fontSize: 13 }}>Solo natura, cielo e mare</b><span style={{ color: "rgba(255,255,255,.72)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span></span>
-            </div>
             {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
             <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Si apre la fotocamera del telefono · mai dall'archivio</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
@@ -3000,7 +3035,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
                     <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
                     {c.city && <div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div>}
                   </div>
-                  {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: following?.includes(c.name) ? `1px solid ${LINE}` : "none", background: following?.includes(c.name) ? "transparent" : HONEY, color: following?.includes(c.name) ? TXT : INK }}>{following?.includes(c.name) ? "Seguita" : "Segui"}</button>}
+                  {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: following?.includes(c.name) ? `1px solid ${LINE}` : "none", background: following?.includes(c.name) ? "transparent" : HONEY, color: following?.includes(c.name) ? TXT : INK }}>{following?.includes(c.name) ? "Seguito" : "Segui"}</button>}
                 </div>
               ))}
           </div>
@@ -3095,7 +3130,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         </div>
         <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
           <Btn onClick={() => onChat(profile)} honey><NavIcon name="comment" size={16} color={INK} sw={2.2} />Scrivi</Btn>
-          <Btn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguita</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</Btn>
+          <Btn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</Btn>
         </div>
         {isAdmin && <div style={{ display: "flex", gap: 8, margin: "8px 16px 0" }}>
           <Btn onClick={() => onAdminEdit && onAdminEdit(profile)} outline><NavIcon name="edit" size={15} color="#fff" sw={2} />Correggi</Btn>
@@ -3468,7 +3503,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
             <button onClick={() => shotRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif", whiteSpace: "nowrap" }}>{photo ? "Cambia" : kind === "meteo" ? "Scatta" : "Scegli"}</button>
             {photo && <button onClick={() => { URL.revokeObjectURL(photo.url); setPhoto(null); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2 }}><NavIcon name="close" size={18} color={TXT2} sw={2.2} /></button>}
           </div>
-          <button onClick={submit} disabled={sending} style={{ padding: 13, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: sending ? .7 : 1 }}>{sending ? "Cerco la posizione…" : kind === "meteo" ? "Pubblica evento meteo" : "Pubblica evento social"}</button>
+          <button onClick={submit} disabled={sending} style={{ padding: 13, borderRadius: 12, border: "none", background: HONEY, color: INK, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: sending ? .7 : 1 }}>{sending ? "Cerco la posizione…" : kind === "meteo" ? "Pubblica evento meteo" : "Pubblica evento social"}</button>
         </div>
       </div>
     </div>
@@ -4280,6 +4315,10 @@ function AppInner() {
     }
     try { localStorage.setItem("bw_geo_off", "1"); } catch (_) {}
     setGeoOff(true); setGeoGo(false); setGeoReal(false);
+    // 14.45: il punto GPS si dimentica subito: si torna alla zona della città (dalla rete, o arrotondata a ~5 km)
+    setGeo(cur => cur && cur.__real ? { lat: Math.round(cur.lat * 20) / 20, lng: Math.round(cur.lng * 20) / 20, approx: true } : cur);
+    try { localStorage.removeItem("bw_last_geo"); } catch (_) {}
+    fetchNetGeo().then(g => { if (g) { setGeo({ lat: g.lat, lng: g.lng, approx: true }); setGeoApprox(true); if (g.city) setLocAt({ name: g.city, lat: g.lat, lng: g.lng, approx: true }); } }).catch(() => {});
   };
   // Zona dalla rete: appena l'app parte, se non c'è ancora un fix GPS (una sola volta per sessione)
   useEffect(() => {
@@ -4558,6 +4597,7 @@ function AppInner() {
 
   const routeNotifTap = (kind, from) => {
     if (!user) { pendingNotifRef.current = { kind, from }; return; }
+    if (kind === "thanks") return;                                  // 14.45: il grazie non porta da nessuna parte
     if (kind === "nudge") { setOverlay("post"); return; }        // il verso del poeta apre la fotocamera
     if (kind === "followPost" && from?.uid) { setOverlay({ user: { name: from.name, ava: from.ava, city: from.city, uid: from.uid } }); return; }
     if (kind === "direct" && from) {
@@ -5253,8 +5293,9 @@ function AppInner() {
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
   const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
-    const gp = blurCoords(geo.lat, geo.lng);                                   // sul server va la zona (~1 km), mai il punto esatto
-    const precision = geoReal ? "gps" : "city";                                // con la sola città il cielo è "approssimativo"
+    const precision = geoReal && !geoOff ? "gps" : "city";                     // con la sola città il cielo è "approssimativo"
+    const gp = precision === "gps" ? blurCoords(geo.lat, geo.lng)              // sul server va la zona (~1 km), mai il punto esatto
+      : { lat: Math.round(geo.lat * 20) / 20, lng: Math.round(geo.lng * 20) / 20 };   // 14.45: senza posizione precisa, solo la zona della città (~5 km)
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(pendTs)), ts: new Date(pendTs).toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = () => {
@@ -5296,6 +5337,8 @@ function AppInner() {
       })();
     } else localAdd();
     setOverlay(null); setTab("feed");
+    setNotifToast({ kind: "thanks", text: "Grazie per il tuo cielo! L'alveare lo vede già." });   // 14.45
+    setTimeout(() => setNotifToast(t => t?.kind === "thanks" ? null : t), 4000);
   };
   const sendMsg = (cid, text) => {
     const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
@@ -5603,7 +5646,7 @@ function AppInner() {
       <Header overlay={tab === "feed"} title={titles[tab]} left={<button onClick={() => setOverlay("profile")} aria-label="Apri il tuo profilo" title="Profilo" style={{ padding: 0, width: 44, height: 44, borderRadius: "50%", background: MIST, border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={41} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
+          <span style={{ fontSize: 18, flexShrink: 0, display: "flex" }}>{notifToast.kind === "thanks" ? <span style={{ width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={14} color={INK} sw={3} /></span> : notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
           <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
         </div>
       )}
