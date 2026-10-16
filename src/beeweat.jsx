@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.43";
+const APP_VERSION = "14.44";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1425,31 +1425,36 @@ function HiveReading({ post, modelCond }) {   // 14.28
     </div>
   );
 }
-function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km }) {
+// 14.44: la scheda si ridisegna solo se cambiano i dati che mostra (i callback arrivano stabili da FeedScreen)
+const POST_KEYS = ["id", "img", "thumb", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
+const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
+const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active);
+function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active }) {
   // 14.39: un cielo per schermata (tavola del 15 ottobre) — colonna delle azioni a destra, didascalia in basso a sinistra
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
   useEffect(() => {
     if (!onView || !cardRef.current || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { onView(post.id); io.disconnect(); } }), { threshold: 0.6 });
+    let t = null;   // 14.44: l'occhio si registra quando la scheda è ferma da mezzo secondo, non durante lo scorrimento
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { if (!t) t = setTimeout(() => { onView(post.id); io.disconnect(); }, 500); } else if (t) { clearTimeout(t); t = null; } }), { threshold: 0.6 });
     io.observe(cardRef.current);
-    return () => io.disconnect();
+    return () => { io.disconnect(); if (t) clearTimeout(t); };
   }, []);
   const like = e => { e.stopPropagation(); if (post.mine) return; setAnim(true); setTimeout(() => setAnim(false), 360); onStar(post.id); };
   const condLabel = skyLabel(post.cond);
   const r = ratePost(post, modelCond);
   const canShare = typeof navigator !== "undefined" && !!navigator.share;
   const share = async e => { e.stopPropagation(); try { await navigator.share({ title: "Beeweat", text: `${post.user} ha scattato il cielo di ${post.city || "qui"}: ${condLabel}${post.temp != null && Number.isFinite(post.temp) ? ` · ${Math.round(post.temp)}°` : ""} · Beeweat` }); } catch (_) {} };
-  const glass = { width: 46, height: 46, borderRadius: "50%", background: "rgba(0,0,0,.35)", border: "1px solid rgba(255,255,255,.3)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
+  const glass = { width: 46, height: 46, borderRadius: "50%", background: "rgba(0,0,0,.45)", border: "1px solid rgba(255,255,255,.3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
   const Rail = ({ label, sub, children, onClick, title, aria, pressed, style }) => (
     <button onClick={onClick} title={title} aria-label={aria || title} aria-pressed={pressed} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, minWidth: 46, minHeight: 46, cursor: onClick ? "pointer" : "default", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
       <span style={{ ...glass, ...(style || {}) }}>{children}</span>{label != null && <span>{label}</span>}{sub && <span style={{ fontSize: 12, color: HONEY2, marginTop: -2 }}>{sub}</span>}
     </button>
   );
-  const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.5)", border: "1px solid rgba(255,255,255,.22)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };   // 14.43: bordo e fondo più scuro
+  const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };   // 14.44: niente sfocatura (costa sullo scorrimento)
   return (
-    <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
-      <img src={post.img} alt="" onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
+    <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, contain: "layout paint", boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
+      <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchpriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
@@ -1482,12 +1487,8 @@ function PostCard({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onR
           {post.stars_rank > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: HONEY2, background: "rgba(245,184,46,.16)", padding: "2px 7px", borderRadius: 999 }}>{beeRank(post.stars_rank * STAR_STEP)}</span>}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.8)" }}><NavIcon name="starFill" size={12} />{post.stars}<span style={{ margin: "0 2px" }}>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.8)" sw={2} />{post.views}</span>{/* 14.42: accanto al nome */}
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.dir ? ` · ${post.dir.label}` : ""}</div>
-        {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
-        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "nowrap", overflow: "hidden" }}>{/* 14.42: una riga sola */}
-          {post.aiClass && <span style={{ ...chip, flexShrink: 0 }}><NavIcon name="eye" size={12} color="#fff" sw={2.2} />Occhi dell'alveare ✓</span>}
-          {r && <span style={{ ...chip, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", display: "inline-block", lineHeight: "26px" }} title={`Foto: ${r.photo ? skyLabel(r.photo.cls) : "—"} · Testo: ${r.text ? skyLabel(r.text.cls) : "—"} · Scelta: ${r.choice ? skyLabel(r.choice.cls) : "—"}`}><span style={{ display: "inline-flex", verticalAlign: "top", marginRight: 5, height: 26, alignItems: "center" }}><NavIcon name="bee" size={12} color={HONEY2} sw={2} /></span>{skyLabel(r.cls)} · {Math.round(r.agree * 100)}% {r.reliability}</span>}
-        </div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.aiClass && <span title={r ? `Verificato dagli occhi dell'alveare · ${skyLabel(r.cls)} · ${Math.round(r.agree * 100)}% ${r.reliability}` : "Verificato dagli occhi dell'alveare"} aria-label="Cielo verificato" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: HONEY, marginLeft: 2 }}><NavIcon name="check" size={10} color={INK} sw={3} /></span>}</div>{/* 14.44: una spunta al posto delle due etichette */}
+        {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
       </div>
     </div>
   );
@@ -1599,9 +1600,17 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
-  const visible = (worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || (following || []).includes(p.user));   // faro e premiata entrano anche fuori raggio
+  const visible = useMemo(() => (worldOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || (following || []).includes(p.user)), [posts, worldOn, km, focusId, followedOn, following]);   // faro e premiata entrano anche fuori raggio
+  // 14.44: i callback passano da un ref, così le schede restano memoizzate e ricevono sempre la funzione più recente
+  const H = useRef({}); H.current = { onStar, onChat, onOpenUser, onFollow, onReport, onView, onOpenPhoto, onDelete, onEdit };
+  const S = useMemo(() => Object.fromEntries(Object.keys(H.current).map(k => [k, (...a) => H.current[k] && H.current[k](...a)])), []);
+  const toggleRg = useCallback(() => setRg(v => !v), []);
+  const reelRef = useRef(null); const rafRef = useRef(0);
+  const [cur, setCur] = useState(0);   // indice della scheda a schermo: si montano solo questa e le due vicine
+  const onReelScroll = () => { if (rafRef.current) return; rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; const el = reelRef.current; if (!el || !el.clientHeight) return; const i = Math.round(el.scrollTop / el.clientHeight); setCur(c => c === i ? c : i); }); };
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
   const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
-  const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.5)", border: "1px solid rgba(255,255,255,.22)", backdropFilter: "blur(8px)", color: "#fff", fontSize: 12, fontWeight: 700 };
+  const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 700 };
   const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
     <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, right: 90, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
       {wx && (<>
@@ -1615,8 +1624,7 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
         <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>max {wx.hi} · min {wx.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</div>
       </>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
-        {onlineCount != null && <span style={pill}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api in volo</span>}
-        <span style={pill}><NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
+        <span style={pill}>{/* 14.44: una pillola sola */}{onlineCount != null && <><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api<span style={{ opacity: .6, margin: "0 2px" }}>·</span></>}<NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
       </div>
     </div>
   );
@@ -1646,8 +1654,8 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   return (
     <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
       {pills}
-      <div className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
-        {visible.map(p => <div key={p.id} style={{ height: "100%" }}><PostCard post={p} km={km} onOpenRaggio={() => setRg(v => !v)} raggioOpen={rg} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} onView={onView} onOpenPhoto={onOpenPhoto} canDelete={p.mine || isAdmin} onDelete={onDelete} onEdit={onEdit} focused={p.id === focusId} modelCond={modelCond} /></div>)}
+      <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
+        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 1 ? <PostCard post={p} km={km} active={i === cur} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
       </div>
       {menu}
     </div>
@@ -2935,7 +2943,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>   /* 14.43: anche la grande è quadrata */
-        <img src={p.thumb || p.img} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         {p.awarded && <span style={{ position: "absolute", left: 7, top: 7, width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} /></span>}
         {p.temp != null && Number.isFinite(p.temp) && <span style={{ position: "absolute", right: 7, top: 7, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 6px", borderRadius: 999 }}>{Math.round(p.temp)}°</span>}
         <span style={{ position: "absolute", left: 7, bottom: 7, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: HONEY2, background: "rgba(0,0,0,.42)", padding: "3px 7px", borderRadius: 999 }}><NavIcon name="starFill" size={10} />{p.stars}</span>
@@ -3049,7 +3057,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <div style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: big ? undefined : "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, minHeight: big ? 0 : undefined }}>
-        <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when}`} style={{ position: "absolute", inset: 0, border: "none", padding: 0, background: "none", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></button>
+        <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when}`} style={{ position: "absolute", inset: 0, border: "none", padding: 0, background: "none", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></button>
         {p.awarded && <span style={{ position: "absolute", left: 7, top: 7, width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} /></span>}
         {p.temp != null && Number.isFinite(p.temp) && <span style={{ position: "absolute", right: 7, top: 7, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 6px", borderRadius: 999, pointerEvents: "none" }}>{Math.round(p.temp)}°</span>}
         <button onClick={e => { e.stopPropagation(); onStar && onStar(p.id); }} aria-pressed={!!p.starred} aria-label={p.starred ? "Togli la stella" : "Metti una stella"} style={{ position: "absolute", left: 7, bottom: 7, display: "inline-flex", alignItems: "center", gap: 3, height: 24, padding: "0 8px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 700, color: p.starred ? INK : HONEY2, background: p.starred ? HONEY : "rgba(0,0,0,.42)", cursor: onStar ? "pointer" : "default", fontFamily: "'Inter',sans-serif" }}><NavIcon name={p.starred ? "starFill" : "star"} size={11} color={p.starred ? INK : HONEY2} sw={2.4} />{p.stars}</button>
