@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.45";
+const APP_VERSION = "14.46";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2986,7 +2986,9 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
       </button>
     );
   };
-  const shown = showAll ? mine : mine.slice(0, mine.length > 9 ? 8 : 9);
+  const now = new Date(), thisMonth = mine.filter(p => { const d = new Date(p.ts); return !isNaN(d) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
+  const shown = thisMonth.slice(0, 8);                    // 14.46: il mese in corso; il resto sta dietro la tessera «+N»
+  const rest = Math.max(0, nMine - shown.length);
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
@@ -3042,7 +3044,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         )}
         {/* AZIONI */}
         <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
-          {onArchive && <button onClick={onArchive} aria-label="Apri i reel dei mesi precedenti" style={{ flex: 1, height: 44, borderRadius: 14, border: "none", background: ELEC, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Reel precedenti</button>}
+          {onArchive && <button onClick={onArchive} aria-label="Apri tutti i tuoi cieli, mese per mese" style={{ flex: 1, height: 44, borderRadius: 14, border: "none", background: ELEC, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Tutti i cieli</button>}
           <button onClick={onOpenNotif} style={{ flex: 1, height: 44, borderRadius: 14, border: `1px solid ${LINE}`, background: NIGHT3, color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><NavIcon name="gear" size={16} color={TXT} sw={2} />Impostazioni</button>
         </div>
         {/* RAGGIO */}
@@ -3055,12 +3057,16 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
         <div style={{ padding: "16px 16px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
-            {mine.length > 9 && <button onClick={() => setShowAll(v => !v)} aria-expanded={showAll} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{showAll ? "Mostra meno" : `Tutti (${mine.length})`}</button>}
+            {onArchive && nMine > 0 && <button onClick={onArchive} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Tutti ({nMine})</button>}
           </div>
-          {mine.length === 0
+          {nMine === 0
             ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6, marginBottom: 12 }}>
-                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0} />)}
+                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} />)}
+                {rest > 0 && <button onClick={onArchive} aria-label={`Altri ${rest} cieli: apri tutti i tuoi cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>{/* 14.46: quante ne restano */}
+                  <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
+                </button>}
               </div>}
           {/* IMPOSTAZIONI */}
           <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, overflow: "hidden" }}>
@@ -3756,15 +3762,15 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
     Object.keys(groups).forEach(k => { const [yy] = k.split("-"); (y[yy] = y[yy] || []).push(k); });
     return Object.keys(y).sort((a, b) => b - a).map(yy => [yy, y[yy].sort((a, b) => b.localeCompare(a))]);
   }, [groups]);
-  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Reel precedenti";
+  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Tutti i cieli";
   return (
     <div style={{ position: "absolute", inset: 0, background: NIGHT3, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
-      <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>🗄️ Storico · i cieli dei mesi passati</div>
+      <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>I tuoi cieli, mese per mese</div>
       <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         {loading ? <div style={{ textAlign: "center", color: TXT2, padding: 40 }}>Apro l'archivio dell'alveare…</div>
         : !sel ? (
-          years.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 40, lineHeight: 1.5 }}>Nessun reel archiviato ancora.<br />Il 1° di ogni mese, i cieli più vecchi di due mesi vengono messi qui al sicuro.</div>
+          years.length === 0 ? <div style={{ textAlign: "center", color: TXT2, padding: 40, lineHeight: 1.5 }}>Nessun cielo ancora.<br />Ogni cielo che pubblichi resta qui, mese per mese.</div>
           : years.map(([yy, keys]) => (
             <div key={yy} style={{ marginBottom: 18 }}>
               <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT, margin: "4px 4px 10px" }}>{yy}</div>
@@ -3773,11 +3779,15 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
           ))
         ) : (
           <>
-            <div style={{ fontSize: 12.5, color: TXT2, marginBottom: 10 }}>{groups[sel]?.length || 0} cieli nello storico</div>
-            {(groups[sel] || []).map(p => (
-              <PostCard key={p.id} post={p} onStar={onStar} onChat={onChat} onOpenUser={onOpenUser} onView={onView}
-                onOpenPhoto={() => onOpenPhoto && onOpenPhoto({ img: p.img, caption: `${p.user} · ${p.city}${p.caption ? " — " + p.caption : ""}` })} />
-            ))}
+            <div style={{ fontSize: 12.5, color: TXT2, marginBottom: 10 }}>{groups[sel]?.length || 0} cieli</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>{/* 14.46: miniature */}
+              {(groups[sel] || []).map(p => { const d = new Date(p.ts); const when = isNaN(d) ? "" : `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`; return (
+                <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT2, border: "none", padding: 0, width: "100%", cursor: "pointer" }}>
+                  <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <span style={{ position: "absolute", left: 6, bottom: 6, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.45)", padding: "2px 6px", borderRadius: 999 }}>{isNaN(d) ? "" : d.getDate()}</span>
+                  {p.stars > 0 && <span style={{ position: "absolute", right: 6, top: 6, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: HONEY2, background: "rgba(0,0,0,.45)", padding: "2px 6px", borderRadius: 999 }}><NavIcon name="starFill" size={11} />{p.stars}</span>}
+                </button>); })}
+            </div>
           </>
         )}
       </div>
@@ -4114,11 +4124,20 @@ function AppInner() {
   const [myUid, setMyUid] = useState(null);
   useEffect(() => {
     import("./beeweat-supabase.js")
-      .then(m => { setSb(m); if (m.isConfigured) m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false }); }).catch(() => {}); })
+      .then(async m => {
+        setSb(m); if (!m.isConfigured) return;
+        // 14.46: la sessione è già sul telefono: si entra subito col profilo salvato, il server aggiorna dopo (anche senza rete non si esce)
+        let session = null; try { session = (await m.supabase.auth.getSession()).data?.session || null; } catch (_) {}
+        if (session) { try { const c = JSON.parse(localStorage.getItem("bw_profile") || "null"); if (c?.name) setUser(u => u || { ...c, mine: true }); } catch (_) {} }
+        const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false }); }).catch(() => {});
+        fromServer();
+        m.supabase.auth.onAuthStateChange((ev, ses) => { if ((ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") && ses) fromServer(); if (ev === "SIGNED_OUT") { setUser(null); try { localStorage.removeItem("bw_profile"); } catch (_) {} } });
+      })
       .catch(() => {});                          // modulo assente (anteprima): resta la demo
   }, []);
 
   const [user, setUser] = useState(null);
+  useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
   // ── Tasto/gesto "indietro" del browser: chiude i sottomenu invece di uscire dal sito ──
@@ -4765,9 +4784,9 @@ function AppInner() {
       camDir: r.cam_dir || null,
     };
   };
-  const loadUserPosts = async uid => { try {
+  const loadUserPosts = async (uid, limit) => { try {
     const { data: { user: au } } = await sb.supabase.auth.getUser();
-    const rows = await sb.getPostsByUser(uid);
+    const rows = await sb.getPostsByUser(uid, limit || 30);
     setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
   } catch (e) { console.warn("post utente:", e?.message || e); } };
   const loadCityPosts = async city => { try {
@@ -4783,7 +4802,7 @@ function AppInner() {
         sb.getUserPostCount(overlay.user.uid).then(n => setOverlay(o => o?.user?.uid === overlay.user.uid ? { ...o, user: { ...o.user, postsCount: n } } : o)).catch(() => {});
     }
     else if (overlay?.place?.name) { setExtraPosts([]); loadCityPosts(overlay.place.name); }
-    else if (overlay === "profile" && myUid) { setExtraPosts([]); loadUserPosts(myUid); }   // il MIO profilo: tutti i miei post, da ovunque
+    else if (overlay === "profile" && myUid) { setExtraPosts([]); loadUserPosts(myUid, 500); }   // il MIO profilo: tutti i miei post, da ovunque (14.46: fino a 500)
     else if (!overlay?.user && !overlay?.place && overlay !== "profile") setExtraPosts([]);
   }, [sb, overlay?.user?.uid, overlay?.place?.name, overlay === "profile" ? myUid : null]);
   // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
@@ -4922,9 +4941,10 @@ function AppInner() {
   const [archive, setArchive] = useState({ posts: null, loading: false });   // lo storico dei miei reel
   const openArchive = async () => {
     setArchive({ posts: null, loading: true }); setOverlay("archive");
-    try {
-      const rows = await sb.getArchivedPosts(myUid);
+    try {   // 14.46: tutti i miei cieli — quelli recenti e quelli già in archivio — in un'unica vista mese per mese
+      const [arch, live] = await Promise.all([sb.getArchivedPosts(myUid), sb.getPostsByUser(myUid, 2000)]);
       const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const seen = new Set(); const rows = [...live, ...arch].filter(r => !seen.has(r.id) && seen.add(r.id));
       setArchive({ posts: rows.map(r => mapRemoteRow(r, au?.id)), loading: false });
     } catch (e) { console.warn("storico:", e?.message || e); setArchive({ posts: [], loading: false }); }
   };
@@ -5473,7 +5493,7 @@ function AppInner() {
   if (overlay === "post") return wrap(<CameraView onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
