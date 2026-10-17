@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.48";
+const APP_VERSION = "14.49";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3088,7 +3088,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView, onAllSkies }) {
   // 14.40: come il tuo Profilo — copertina, avatar, grado, statistiche, Scrivi · Segui, griglia dei cieli
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nPosts = profile.postsCount ?? mine.length;
@@ -3158,12 +3158,24 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
           </div>
         )}
         <div style={{ padding: "16px 16px 24px" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 8 }}>I suoi cieli</div>
-          {mine.length === 0
-            ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13 }}>Nessun cielo da mostrare.</div>
-            : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6 }}>
-                {mine.map((p, k) => <Tile key={p.id} p={p} big={k === 0} />)}
-              </div>}
+          {(() => {   // 14.49: come il tuo profilo — il mese in corso e una tessera «+N» per tutti gli altri
+            const now = new Date(), month = mine.filter(p => { const d = new Date(p.ts); return !isNaN(d) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
+            const shown = month.slice(0, 8), rest = Math.max(0, nPosts - shown.length);
+            return <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I suoi cieli · {now.toLocaleDateString("it-IT", { month: "long" })}</div>
+                {onAllSkies && nPosts > 0 && <button onClick={onAllSkies} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Tutti ({nPosts})</button>}
+              </div>
+              {nPosts === 0 && shown.length === 0
+                ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13 }}>Nessun cielo da mostrare.</div>
+                : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6 }}>
+                    {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} />)}
+                    {rest > 0 && onAllSkies && <button onClick={onAllSkies} aria-label={`Altri ${rest} cieli: apri tutti i cieli di ${profile.name}`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>
+                      <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
+                    </button>}
+                  </div>}
+            </>; })()}
         </div>
       </div>
     </>
@@ -3752,7 +3764,7 @@ function MonthBar({ label, count, onClick }) {
     </button>
   );
 }
-function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpenPhoto, onView }) {
+function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpenPhoto, onView, who }) {
   const [sel, setSel] = useState(null);   // "YYYY-MM"
   const groups = useMemo(() => {
     const m = {};
@@ -3764,11 +3776,11 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
     Object.keys(groups).forEach(k => { const [yy] = k.split("-"); (y[yy] = y[yy] || []).push(k); });
     return Object.keys(y).sort((a, b) => b - a).map(yy => [yy, y[yy].sort((a, b) => b.localeCompare(a))]);
   }, [groups]);
-  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : "Tutti i cieli";
+  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : who ? `I cieli di ${who}` : "Tutti i cieli";
   return (
     <div style={{ position: "absolute", inset: 0, background: NIGHT3, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
-      <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>I tuoi cieli, mese per mese</div>
+      <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>{who ? `${who}, mese per mese` : "I tuoi cieli, mese per mese"}</div>
       <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         {loading ? <div style={{ textAlign: "center", color: TXT2, padding: 40 }}>Apro l'archivio dell'alveare…</div>
         : !sel ? (
@@ -4809,7 +4821,7 @@ function AppInner() {
   useEffect(() => {
     if (!sb?.isConfigured) return;
     if (overlay?.user?.uid) {
-      setExtraPosts([]); loadUserPosts(overlay.user.uid);
+      setExtraPosts([]); loadUserPosts(overlay.user.uid, 200);
       if (sb?.isConfigured && sb.getUserPostCount)
         sb.getUserPostCount(overlay.user.uid).then(n => setOverlay(o => o?.user?.uid === overlay.user.uid ? { ...o, user: { ...o.user, postsCount: n } } : o)).catch(() => {});
     }
@@ -4970,14 +4982,14 @@ function AppInner() {
   }, [sb, myUid]);
   const [myPostCount, setMyPostCount] = useState(null);   // i miei post vivi, contati dal database
   const [archive, setArchive] = useState({ posts: null, loading: false });   // lo storico dei miei reel
-  const openArchive = async () => {
-    setArchive({ posts: null, loading: true }); setOverlay("archive");
-    try {   // 14.46: tutti i miei cieli — quelli recenti e quelli già in archivio — in un'unica vista mese per mese
-      const [arch, live] = await Promise.all([sb.getArchivedPosts(myUid), sb.getPostsByUser(myUid, 2000)]);
+  const openArchive = async (uid = myUid, back = "profile", who = null) => {   // 14.49: anche per le altre api
+    setArchive({ posts: null, loading: true, back, who }); setOverlay("archive");
+    try {   // 14.46: tutti i cieli — quelli recenti e quelli già in archivio — in un'unica vista mese per mese
+      const [arch, live] = await Promise.all([sb.getArchivedPosts(uid).catch(() => []), sb.getPostsByUser(uid, 2000)]);
       const { data: { user: au } } = await sb.supabase.auth.getUser();
       const seen = new Set(); const rows = [...live, ...arch].filter(r => !seen.has(r.id) && seen.add(r.id));
-      setArchive({ posts: rows.map(r => mapRemoteRow(r, au?.id)), loading: false });
-    } catch (e) { console.warn("storico:", e?.message || e); setArchive({ posts: [], loading: false }); }
+      setArchive(a => ({ ...a, posts: rows.map(r => mapRemoteRow(r, au?.id)), loading: false }));
+    } catch (e) { console.warn("storico:", e?.message || e); setArchive(a => ({ ...a, posts: [], loading: false })); }
   };
   useEffect(() => {
     if (!sb?.isConfigured || !myUid || !sb.getUserPostCount) return;
@@ -5523,7 +5535,7 @@ function AppInner() {
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
-  if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} onBack={() => setOverlay("profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
+  if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} who={archive.who} onBack={() => setOverlay(archive.back || "profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
   if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
@@ -5600,7 +5612,7 @@ function AppInner() {
   if (overlay === "intro") return wrap(<IntroView onClose={() => setOverlay("notif")} />);
   if (overlay === "support") return wrap(<SupportView admins={admins} onClose={() => setOverlay("notif")} onPick={a => openDirectChat({ id: a.id, name: a.name, ava: a.avatar_url || null, city: a.city || "" })} />);
   if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
-    onOpenPhoto={openPhoto} onStar={onStar} onView={onView}
+    onOpenPhoto={openPhoto} onStar={onStar} onView={onView} onAllSkies={sb?.isConfigured && overlay.user.uid ? () => openArchive(overlay.user.uid, { user: overlay.user, back: overlay.back }, overlay.user.name) : undefined}
     onAdminEdit={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
       const name = window.prompt("Nome dell'ape:", u.name); if (name === null) return;
