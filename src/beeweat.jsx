@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.49";
+const APP_VERSION = "14.51";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -670,14 +670,23 @@ const analyzePhoto = async fullCanvas => {
     && !(isDaytime && outdoorHit)           // scena esterna di giorno → flare solare, non lampade
     && !(isDaytime && mask && mask.blue > 0.15) // cielo azzurro visibile → sole, non faretti
     && !(maskGood && mask.warm > 0.25);      // tramonto/alba: il sole basso abbaglia, non sono lampade
-  const nightBright = (hourNow >= 22 || hourNow <= 4) && mask && mask.meanLum > 140 && mask.dark < 0.5;
+  const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  const sun = (typeof window !== "undefined" && window.__bwSun) || null;
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const sr = toMin(sun?.sunrise), ss = toMin(sun?.sunset);
+  const isDark = (sr != null && ss != null) ? (nowMin > ss + 40 || nowMin < sr - 40) : (hourNow >= 22 || hourNow <= 4);   // 14.51: alba/tramonto veri del posto
+  const nightBright = isDark && mask && mask.meanLum > 140 && mask.dark < 0.5;
+  if (nightBright && !(maskGood && mask.blue > 0.3))
+    return { block: true, reason: "È buio a quest'ora: un cielo così chiaro non torna. Sembra un interno o una luce artificiale. 🌙", cls: "not_sky", score: null };
+  const indoorNoBlue = !!(maskGood && mask.blue < 0.10 && !warmSky && !outdoorHit && confidentNotOutdoor);   // 14.51: soffitti, pareti, tende
   // muro/superficie uniforme: riempie tutto, senza azzurro e senza il gradiente naturale del cielo
   const uniformWall = !!(mask && mask.frac > 0.8 && mask.blue < 0.12 && mask.gradient < 6);
   // col cielo trovato, solo gli oggetti da chiuso vero contraddicono la scena (una sedia di bar no)
   const hardIndoorObj = dets.find(x => HARD_INDOOR_OBJECTS.includes(x.class) && x.score > 0.5);
   // e la scena "non esterna" di MobileNet vale solo se il cielo non domina l'inquadratura
   const skyDominant = maskGood && mask.frac >= 0.2 && mask.blue > 0.15;
-  const conflict = !!(maskGood && (hardIndoorObj || (confidentNotOutdoor && !skyDominant) || artificialLight || nightBright || uniformWall)) || skinSuspect || sexySuspect;
+  const conflict = !!(maskGood && (hardIndoorObj || (confidentNotOutdoor && !skyDominant) || artificialLight || nightBright || uniformWall || indoorNoBlue)) || skinSuspect || sexySuspect;
+  const hardConflict = !!(hardIndoorObj || indoorNoBlue || uniformWall);   // 14.51: qui Bee-Eye deve essere molto sicuro per assolvere
   const conflictWhat = !conflict ? null
     : sexySuspect && !hardIndoorObj ? "molto colore-pelle nell'inquadratura"
     : skinSuspect && !(hardIndoorObj || confidentNotOutdoor) ? "molto colore-pelle nell'inquadratura"
@@ -686,7 +695,7 @@ const analyzePhoto = async fullCanvas => {
     : nightBright ? "cielo troppo luminoso per quest'ora"
     : uniformWall ? "superficie uniforme, non un cielo"
     : preds[0]?.className?.split(",")[0];
-  return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat };
+  return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat, hardConflict };
 };
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
@@ -870,13 +879,14 @@ function AuthScreen({ onLogin, sb }) {
     // Se Supabase è configurato → autenticazione reale; altrimenti demo locale
     if (sb?.isConfigured) {
       setBusy(true);
+      const T = (p, ms = 25000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);   // 14.51
       try {
         if (mode === "register") {
-          await sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || CITY });
+          await T(sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || CITY }));
           // Se la conferma email non è richiesta, si entra subito; altrimenti si mostra l'avviso
           try {
-            await sb.loginEmail({ email: form.email, password: form.password });
-            let prof = null; try { prof = await sb.getCurrentProfile(); } catch (_) {}
+            await T(sb.loginEmail({ email: form.email, password: form.password }));
+            let prof = null; try { prof = await T(sb.getCurrentProfile(), 8000); } catch (_) {}
             onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
             return;
           } catch (_) {
@@ -884,12 +894,13 @@ function AuthScreen({ onLogin, sb }) {
             setMode("login");
           }
         } else {
-          await sb.loginEmail({ email: form.email, password: form.password });
-          let prof = null; try { prof = await sb.getCurrentProfile(); } catch (_) {}
+          await T(sb.loginEmail({ email: form.email, password: form.password }));
+          let prof = null; try { prof = await T(sb.getCurrentProfile(), 8000); } catch (_) {}
           onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
         }
       } catch (e) {
         let m = e?.message || e?.error_description || e?.msg || "";
+        if (m === "timeout") { setAuthErr("Il server non risponde. Controlla la connessione e riprova tra qualche secondo."); setBusy(false); return; }   // 14.51
         if (!m || m === "{}") { try { m = JSON.stringify(e, Object.getOwnPropertyNames(e || {})); } catch (_) { m = String(e); } }
         setAuthErr(m.includes("Invalid login") ? "Email o password errati." : /confirm/i.test(m) ? "Devi prima confermare l'email: controlla la posta." : m.includes("already registered") ? "Email già registrata: prova ad accedere." : /fetch|network/i.test(m) ? "Impossibile raggiungere il server: controlla che il progetto Supabase sia attivo (non in pausa) e l'URL delle chiavi." : "Errore: " + m);
       } finally { setBusy(false); }
@@ -1377,9 +1388,16 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
   );
 }
 
-function PhotoViewer({ src, caption, onClose }) {
+function PhotoViewer({ src: src0, caption: caption0, onClose, items, index = 0 }) {
   const dlg = useDialog(onClose, "Foto a schermo intero");
   const [saved, setSaved] = useState(false);
+  // 14.50: più foto → scorrimento verticale a scatti, una per schermata
+  const list = items && items.length ? items : [{ src: src0, caption: caption0 }];
+  const [cur, setCur] = useState(Math.min(index, list.length - 1));
+  const reelRef = useRef(null); const rafRef = useRef(0);
+  useEffect(() => { const el = reelRef.current; if (el && el.clientHeight) el.scrollTop = el.clientHeight * cur; }, []);
+  const onReelScroll = () => { if (rafRef.current) return; rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; const el = reelRef.current; if (!el || !el.clientHeight) return; const i = Math.round(el.scrollTop / el.clientHeight); setCur(c => c === i ? c : i); }); };
+  const src = list[cur]?.src || src0, caption = list[cur]?.caption ?? caption0;
   const save = async () => {
     try {
       const blob = await (await fetch(src)).blob();
@@ -1401,10 +1419,15 @@ function PhotoViewer({ src, caption, onClose }) {
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 16px" }}>
         <button onClick={onClose} style={{ background: "rgba(255,255,255,.12)", border: "none", width: 44, height: 44, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
       </div>
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minHeight: 0 }}>
-        <img src={src} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />
+      <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        {list.map((it, i) => (
+          <div key={it.id || i} style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", contain: "strict" }}>
+            {Math.abs(i - cur) <= 1 && <img src={it.src} alt="" decoding="async" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />}
+          </div>
+        ))}
       </div>
       <div onClick={e => e.stopPropagation()} style={{ padding: "14px 16px calc(18px + env(safe-area-inset-bottom))" }}>
+        {list.length > 1 && <div style={{ color: TXT2, fontSize: 12, fontWeight: 700, textAlign: "center", marginBottom: 6 }}>{cur + 1} / {list.length}</div>}
         {caption && <div style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
         <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : NIGHT3, color: saved ? "#fff" : TXT, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{saved ? "✓ Fatto" : "Condividi"}</button>
       </div>
@@ -2709,6 +2732,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
         else if (verdict.schermo_o_foto_di_foto)
           setAi({ block: true, reason: "Bee-Eye 👁️: sembra uno schermo o una foto ri-fotografata. Serve il cielo vero. 📵", cls: "screen" });
+        else if (v.hardConflict && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.8))   // 14.51
+          setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" });
         else if (verdict.cielo_visibile || verdict.esterno) {
           const cls = CLOUD_MAP[verdict.condizione] || v.cls || "⛅ Poco nuvoloso";
           setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
@@ -2976,10 +3001,10 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
       )}
     </button>
   );
-  const Tile = ({ p, big }) => {
+  const Tile = ({ p, big, list }) => {
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
-      <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>   /* 14.43: anche la grande è quadrata */
+      <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, list)} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>   /* 14.43: anche la grande è quadrata */
         <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         {p.awarded && <span style={{ position: "absolute", left: 7, top: 7, width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} /></span>}
         {p.temp != null && Number.isFinite(p.temp) && <span style={{ position: "absolute", right: 7, top: 7, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 6px", borderRadius: 999 }}>{Math.round(p.temp)}°</span>}
@@ -3064,7 +3089,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           {nMine === 0
             ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6, marginBottom: 12 }}>
-                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} />)}
+                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
                 {rest > 0 && <button onClick={onArchive} aria-label={`Altri ${rest} cieli: apri tutti i tuoi cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>{/* 14.46: quante ne restano */}
                   <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
@@ -3096,11 +3121,11 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
   const myEvents = (events || []).filter(e => e.user === profile.name);
   const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
   const cover = mine[0]?.img || null;
-  const Tile = ({ p, big }) => {
+  const Tile = ({ p, big, list }) => {
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <div style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: big ? undefined : "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, minHeight: big ? 0 : undefined }}>
-        <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when}`} style={{ position: "absolute", inset: 0, border: "none", padding: 0, background: "none", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></button>
+        <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, list)} aria-label={`Apri il cielo del ${when}`} style={{ position: "absolute", inset: 0, border: "none", padding: 0, background: "none", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></button>
         {p.awarded && <span style={{ position: "absolute", left: 7, top: 7, width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} /></span>}
         {p.temp != null && Number.isFinite(p.temp) && <span style={{ position: "absolute", right: 7, top: 7, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.42)", padding: "3px 6px", borderRadius: 999, pointerEvents: "none" }}>{Math.round(p.temp)}°</span>}
         <button onClick={e => { e.stopPropagation(); onStar && onStar(p.id); }} aria-pressed={!!p.starred} aria-label={p.starred ? "Togli la stella" : "Metti una stella"} style={{ position: "absolute", left: 7, bottom: 7, display: "inline-flex", alignItems: "center", gap: 3, height: 24, padding: "0 8px", borderRadius: 999, border: "none", fontSize: 12, fontWeight: 700, color: p.starred ? INK : HONEY2, background: p.starred ? HONEY : "rgba(0,0,0,.42)", cursor: onStar ? "pointer" : "default", fontFamily: "'Inter',sans-serif" }}><NavIcon name={p.starred ? "starFill" : "star"} size={11} color={p.starred ? INK : HONEY2} sw={2.4} />{p.stars}</button>
@@ -3169,7 +3194,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
               {nPosts === 0 && shown.length === 0
                 ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13 }}>Nessun cielo da mostrare.</div>
                 : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6 }}>
-                    {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} />)}
+                    {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
                     {rest > 0 && onAllSkies && <button onClick={onAllSkies} aria-label={`Altri ${rest} cieli: apri tutti i cieli di ${profile.name}`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>
                       <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
@@ -3796,7 +3821,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
             <div style={{ fontSize: 12.5, color: TXT2, marginBottom: 10 }}>{groups[sel]?.length || 0} cieli</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>{/* 14.46: miniature */}
               {(groups[sel] || []).map(p => { const d = new Date(p.ts); const when = isNaN(d) ? "" : `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`; return (
-                <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` })} aria-label={`Apri il cielo del ${when}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT2, border: "none", padding: 0, width: "100%", cursor: "pointer" }}>
+                <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, groups[sel])} aria-label={`Apri il cielo del ${when}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT2, border: "none", padding: 0, width: "100%", cursor: "pointer" }}>
                   <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   <span style={{ position: "absolute", left: 6, bottom: 6, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.45)", padding: "2px 6px", borderRadius: 999 }}>{isNaN(d) ? "" : d.getDate()}</span>
                   {p.stars > 0 && <span style={{ position: "absolute", right: 6, top: 6, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: HONEY2, background: "rgba(0,0,0,.45)", padding: "2px 6px", borderRadius: 999 }}><NavIcon name="starFill" size={11} />{p.stars}</span>}
@@ -4393,6 +4418,7 @@ function AppInner() {
   }, [geoGo, geoTick]);
   // Meteo reale Open-Meteo per la posizione attuale (senza chiavi; ogni 30 min)
   const [wx, setWx] = useState(null);
+  useEffect(() => { try { window.__bwSun = wx && wx.sunrise && wx.sunset ? { sunrise: wx.sunrise, sunset: wx.sunset } : null; } catch (_) {} }, [wx?.sunrise, wx?.sunset]);   // 14.51: per il controllo "buio ma cielo chiaro"
   const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
   // 14.25: Solano (allerte ufficiali, temporali, modelli) via /api/solano — zona di ~10 km, ogni 30 minuti
   const [solano, setSolano] = useState(undefined);   // undefined = in arrivo · null = non disponibile
@@ -4983,6 +5009,7 @@ function AppInner() {
   const [myPostCount, setMyPostCount] = useState(null);   // i miei post vivi, contati dal database
   const [archive, setArchive] = useState({ posts: null, loading: false });   // lo storico dei miei reel
   const openArchive = async (uid = myUid, back = "profile", who = null) => {   // 14.49: anche per le altre api
+    if (typeof uid !== "string") { uid = myUid; back = "profile"; who = null; }   // 14.50: chiamata da un tocco (arriva l'evento)
     setArchive({ posts: null, loading: true, back, who }); setOverlay("archive");
     try {   // 14.46: tutti i cieli — quelli recenti e quelli già in archivio — in un'unica vista mese per mese
       const [arch, live] = await Promise.all([sb.getArchivedPosts(uid).catch(() => []), sb.getPostsByUser(uid, 2000)]);
@@ -5272,6 +5299,7 @@ function AppInner() {
               if (verdict) {
                 const j = judgeCloud(verdict);
                 if (!j.ok) { rejected.push(j.reason); continue; }
+                if (v.hardConflict && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.8)) { rejected.push("sembra una scena d'interni: inquadra il cielo vero"); continue; }   // 14.51
                 it.aiClass = j.cls || v.cls; it.aiScore = j.score; it.needsCheck = false;
               } else {   // giudice muto: vale l'occhio locale, con la stessa prudenza della fotocamera
                 const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
@@ -5534,7 +5562,12 @@ function AppInner() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
-  const openPhoto = p => setOverlay(o => ({ photo: { src: p.img, caption: p.caption }, back: o }));
+  const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
+  const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
+    const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
+    const index = Math.max(0, items.findIndex(q => q.id === p.id));
+    return { photo: { src: p.img, caption: p.caption, items, index }, back: o };
+  });
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} who={archive.who} onBack={() => setOverlay(archive.back || "profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
   if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={!geoOff && (geoGo || geoOk)} onToggleGeo={setGeoPrecise} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
@@ -5575,7 +5608,7 @@ function AppInner() {
         alert(`📣 Messaggio consegnato a ${n} api dell'alveare ✓`);
       } catch (e) { failAlert("Invio non riuscito", e); }
     }} followingList={contacts.filter(c => followingIds.includes(c.id))} followersList={contacts.filter(c => followerIds.includes(c.id))} onFollow={toggleFollow} following={following} />);
-  if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} onClose={() => setOverlay(overlay.back || null)} />);
+  if (overlay?.photo) return wrap(<PhotoViewer src={overlay.photo.src} caption={overlay.photo.caption} items={overlay.photo.items} index={overlay.photo.index} onClose={() => setOverlay(overlay.back || null)} />);
   if (overlay === "alerts") return wrap(
     <div className="scr" style={{ background: BODY, minHeight: "100%", height: "100%", overflowY: "auto" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 5 }}>
