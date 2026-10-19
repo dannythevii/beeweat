@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.51";
+const APP_VERSION = "14.52";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -4170,7 +4170,8 @@ function AppInner() {
         if (session) { try { const c = JSON.parse(localStorage.getItem("bw_profile") || "null"); if (c?.name) setUser(u => u || { ...c, mine: true }); } catch (_) {} }
         const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false }); }).catch(() => {});
         fromServer();
-        m.supabase.auth.onAuthStateChange((ev, ses) => { if ((ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") && ses) fromServer(); if (ev === "SIGNED_OUT") { setUser(null); try { localStorage.removeItem("bw_profile"); } catch (_) {} } });
+        // 14.52: mai chiamare Supabase dentro questo evento (tiene un lucchetto: la registrazione restava in attesa) → si rimanda di un giro
+        m.supabase.auth.onAuthStateChange((ev, ses) => { if ((ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") && ses) setTimeout(fromServer, 0); if (ev === "SIGNED_OUT") { setUser(null); try { localStorage.removeItem("bw_profile"); } catch (_) {} } });
       })
       .catch(() => {});                          // modulo assente (anteprima): resta la demo
   }, []);
