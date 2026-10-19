@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.54";
+const APP_VERSION = "14.55";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -695,7 +695,9 @@ const analyzePhoto = async fullCanvas => {
     : nightBright ? "cielo troppo luminoso per quest'ora"
     : uniformWall ? "superficie uniforme, non un cielo"
     : preds[0]?.className?.split(",")[0];
-  return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat, hardConflict };
+  // 14.55: un cielo coperto e una parete bianca hanno la stessa cromia: senza azzurro e senza il caldo del tramonto, decide sempre Bee-Eye
+  const needsJudge = !!(maskGood && mask.blue < 0.12 && !warmSky);
+  return { block: false, reason: null, cls, score, suggest: cls, conflict, conflictWhat, hardConflict, needsJudge };
 };
 
 const AVA_W = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&h=120&fit=crop";
@@ -2739,7 +2741,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       const uncertain = onCloudCheck && (
         (v.block && v.cls === "not_sky") ||            // bocciata per "niente cielo": forse l'occhio fine si sbaglia
         (!v.block && (!v.score || v.score < 0.6)) ||   // approvata ma con poca convinzione
-        (!v.block && v.conflict)                       // cielo E interno insieme: serve un giudice che capisca la scena
+        (!v.block && v.conflict) ||                    // cielo E interno insieme: serve un giudice che capisca la scena
+        (!v.block && v.needsJudge)                     // 14.55: grigio senza azzurro (coperto? o parete?)
       );
       if (!uncertain) {
         if (!v.block && v.conflict) {                  // conflitto ma niente giudice: vince la prudenza
@@ -2758,6 +2761,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
         const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls, dubbio: v.conflictWhat || (v.block ? v.reason : null) });
         if (aiSeqRef.current !== my) return;
+        if (!verdict && v.needsJudge && !v.conflict) { setAi({ block: true, reason: "Non riesco a confermare che sia cielo (l'occhio dell'alveare non risponde). Riprova tra un momento, o inquadra più cielo. 🌤️", cls: "not_sky" }); return; }   // 14.55
         if (!verdict) {
           const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
           if (v.conflict && !soft) { setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" }); return; }
@@ -2769,6 +2773,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           setAi({ block: true, reason: "Bee-Eye 👁️: sembra uno schermo o una foto ri-fotografata. Serve il cielo vero. 📵", cls: "screen" });
         else if (v.hardConflict && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.8))   // 14.51
           setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" });
+        else if (v.needsJudge && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.7))   // 14.55: grigio senza azzurro, Bee-Eye non vede cielo con sicurezza
+          setAi({ block: true, reason: "Bee-Eye 👁️: non vedo un cielo vero, sembra una parete o un soffitto. Inquadra il cielo. 🌤️", cls: "not_sky" });
         else if (verdict.cielo_visibile || verdict.esterno) {
           const cls = CLOUD_MAP[verdict.condizione] || v.cls || "⛅ Poco nuvoloso";
           setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
@@ -5345,7 +5351,7 @@ function AppInner() {
           let v = null;
           try { v = await race(analyzePhoto(cnv), 30000); } catch (_) { v = null; }
           if (v) {
-            const uncertain = (v.block && v.cls === "not_sky") || (!v.block && (!v.score || v.score < 0.6)) || (!v.block && v.conflict);
+            const uncertain = (v.block && v.cls === "not_sky") || (!v.block && (!v.score || v.score < 0.6)) || (!v.block && v.conflict) || (!v.block && v.needsJudge);   // 14.55
             if (!uncertain) {
               if (v.block) { rejected.push(v.reason || "non ha superato il controllo"); continue; }
               it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
@@ -5355,8 +5361,10 @@ function AppInner() {
                 const j = judgeCloud(verdict);
                 if (!j.ok) { rejected.push(j.reason); continue; }
                 if (v.hardConflict && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.8)) { rejected.push("sembra una scena d'interni: inquadra il cielo vero"); continue; }   // 14.51
+                if (v.needsJudge && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.7)) { rejected.push("non si vede un cielo vero: sembra una parete o un soffitto"); continue; }   // 14.55
                 it.aiClass = j.cls || v.cls; it.aiScore = j.score; it.needsCheck = false;
               } else {   // giudice muto: vale l'occhio locale, con la stessa prudenza della fotocamera
+                if (v.needsJudge) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }   // 14.55: grigio senza azzurro aspetta Bee-Eye
                 const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
                 if (v.block || (v.conflict && !soft)) { rejected.push(v.reason || "sembra una scena d'interni: inquadra il cielo vero"); continue; }
                 it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
