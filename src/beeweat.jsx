@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.55";
+const APP_VERSION = "14.56";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1650,7 +1650,7 @@ function FeedSkeleton() {   // 14.39: una pagina "in arrivo"
     <div style={{ position: "absolute", left: 14, bottom: 30, right: 90 }}><div className="bw-skel" style={{ height: 16, width: "40%", borderRadius: 8, background: "rgba(255,255,255,.12)" }} /><div className="bw-skel" style={{ height: 12, width: "70%", borderRadius: 6, marginTop: 10, background: "rgba(255,255,255,.1)" }} /></div>
   </div>;
 }
-function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, placeExact, onOpenPlaceChat, wx }) {   // 14.40: wx per il meteo del posto · 14.42: placeExact = nome trovato sul punto GPS
+function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, placeExact, onOpenPlaceChat, wx, homeKey }) {   // 14.40: wx per il meteo del posto · 14.42: placeExact = nome trovato sul punto GPS
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
@@ -1663,6 +1663,7 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   const [cur, setCur] = useState(0);   // indice della scheda a schermo: si montano solo questa e le due vicine
   const onReelScroll = () => { if (rafRef.current) return; rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; const el = reelRef.current; if (!el || !el.clientHeight) return; const i = Math.round(el.scrollTop / el.clientHeight); setCur(c => c === i ? c : i); }); };
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+  useEffect(() => { if (!homeKey) return; const el = reelRef.current; if (el) el.scrollTo({ top: 0, behavior: "instant" }); setCur(0); setRg(false); }, [homeKey]);   // 14.56
   useEffect(() => {   // 14.45: le foto dei quattro cieli successivi (e dei due precedenti) entrano in cache prima che servano
     const urls = []; for (let d = 1; d <= 4; d++) { const a = visible[cur + d], b = d <= 2 ? visible[cur - d] : null; if (a?.img) urls.push(a.img); if (b?.img) urls.push(b.img); }
     const imgs = urls.map(u => { const im = new Image(); im.decoding = "async"; im.src = u; return im; });
@@ -4692,6 +4693,23 @@ function AppInner() {
     finally { setFeedReady(true); feedBusy.current = false; if (feedAgain.current) { feedAgain.current = false; setTimeout(loadFeedRef.current, 400); } }
   }, [sb, user, feedKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadFeedRef = useRef(loadFeed); loadFeedRef.current = loadFeed;
+  // 14.56: rientro nell'app → feed sul cielo più recente (non mentre si scatta: la fotocamera del telefono "nasconde" l'app)
+  const [feedHome, setFeedHome] = useState(0);
+  const stateRef = useRef({ overlay, tab }); stateRef.current = { overlay, tab };
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (!hiddenAt || Date.now() - hiddenAt < 30000) return;
+      const { overlay: ov } = stateRef.current;
+      if (ov === "post" || pendingShot) return;
+      setOverlay(null); setTab("feed"); setFeedWorld(false); setFeedFollowed(false); setFocusPost(null); setFocusPostId(null);
+      setFeedHome(k => k + 1);
+      loadFeedRef.current && loadFeedRef.current();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [pendingShot]);
   // niente attese infinite: dopo il login, al massimo 5s di caricamento
   useEffect(() => {
     if (!user) { setFeedReady(false); return; }
@@ -5812,7 +5830,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
+        {tab === "feed" && <FeedScreen homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
