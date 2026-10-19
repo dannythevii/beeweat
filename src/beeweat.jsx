@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.52";
+const APP_VERSION = "14.54";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1774,7 +1774,7 @@ function SolanoCard({ solano }) {
     </div>
   );
 }
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano, wxDays }) {
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano, wxDays, co2 }) {
   const RAW = sense && sense.raw ? sense.raw : null;   // 14.11
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
   const AL = sense
@@ -1976,6 +1976,41 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           ))}
         </div>
       </div>
+
+      {/* 14.53: anidride carbonica (NOAA, Mauna Loa) */}
+      {co2 !== null && <>
+        <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Anidride carbonica nell'aria</div>
+        <div style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: 14 }}>
+          {!co2 ? <div style={{ fontSize: 13, color: TXT2 }}>Leggo il dato di Mauna Loa…</div> : (() => {
+            const fmt = v => v == null ? "—" : v.toFixed(1).replace(".", ",");
+            const d30 = co2.ago30 ? co2.ppm - co2.ago30.ppm : null, d1y = co2.ago365 != null ? co2.ppm - co2.ago365 : null, d10 = co2.ago10y != null ? co2.ppm - co2.ago10y : null;
+            const sign = v => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1).replace(".", ",");
+            const col = v => v == null ? TXT2 : v > 0 ? "#FFB4B6" : v < 0 ? "#9BE7BF" : TXT2;
+            const when = (() => { const d = new Date(co2.date + "T12:00:00"); return isNaN(d) ? co2.date : d.toLocaleDateString("it-IT", { day: "numeric", month: "long" }); })();
+            const Cmp = ({ label, v, base }) => (
+              <div style={{ flex: 1, minWidth: 0, background: MIST, borderRadius: 14, padding: "8px 6px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15, color: col(v) }}>{sign(v)}</div>
+                <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{label}</div>
+                <div style={{ fontSize: 12, color: TXT2, opacity: .8 }}>{base != null ? `${fmt(base)} ppm` : "—"}</div>
+              </div>
+            );
+            return <>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: HONEY2, letterSpacing: "-.02em" }}>CO₂</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 24, color: TXT, lineHeight: 1 }}>{fmt(co2.ppm)} <span style={{ fontSize: 13, fontWeight: 600, color: TXT2 }}>ppm</span></div>
+                  <div style={{ fontSize: 12.5, color: TXT2, marginTop: 4 }}>Mauna Loa, settimana del {when}{co2.stale ? " · dato in cache" : ""}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                <Cmp label="30 giorni fa" v={d30} base={co2.ago30?.ppm} />
+                <Cmp label="1 anno fa" v={d1y} base={co2.ago365} />
+                <Cmp label="10 anni fa" v={d10} base={co2.ago10y} />
+              </div>
+              <div style={{ fontSize: 12, color: TXT2, marginTop: 8, lineHeight: 1.4 }}>Parti per milione nell'aria pulita del Pacifico, misurate dall'Osservatorio di Mauna Loa (NOAA): il riferimento mondiale dal 1958.{co2.since1800 != null ? ` Rispetto al 1800: +${fmt(co2.since1800)} ppm.` : ""}</div>
+            </>; })()}
+        </div>
+      </>}
 
       {/* come funziona */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Come funziona</div>
@@ -3669,14 +3704,19 @@ function PlaceEventsView({ place, events, onBack, onOpen }) {
 }
 
 
-function EventMapView({ event, onBack }) {
+function EventMapView({ event, onBack, onOpenPhoto }) {
   const sevColor = { Alta: "#E5484D", Media: "#EFA23C", Bassa: "#3BA776" };
   const { lat, lng } = event;
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
   return (
     <>
-      <Header title="Posizione evento" left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title={event.kind === "social" ? "Evento" : "Posizione evento"} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        {event.img && (   /* 14.54: la foto dell'evento, prima mancava qui */
+          <button onClick={() => onOpenPhoto && onOpenPhoto({ img: event.img, caption: `${event.title}${event.place ? " · " + event.place : ""}` })} aria-label="Apri la foto a schermo intero" style={{ display: "block", width: "calc(100% - 28px)", margin: "14px 14px 0", aspectRatio: "4 / 3", borderRadius: 18, overflow: "hidden", border: "none", padding: 0, background: NIGHT3, cursor: "pointer" }}>
+            <img src={event.img} alt="" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </button>
+        )}
         {/* riepilogo evento */}
         <div style={{ background: CARD, margin: 14, borderRadius: 14, padding: 14, display: "flex", gap: 12, alignItems: "center", boxShadow: `0 2px 10px ${HBLUE}0D`, borderLeft: `5px solid ${sevColor[event.sev]}` }}>
           <div style={{ fontSize: 32 }}>{event.type || (event.cat ? event.cat.split(" ")[0] : "📍")}</div>
@@ -4422,6 +4462,20 @@ function AppInner() {
   useEffect(() => { try { window.__bwSun = wx && wx.sunrise && wx.sunset ? { sunrise: wx.sunrise, sunset: wx.sunset } : null; } catch (_) {} }, [wx?.sunrise, wx?.sunset]);   // 14.51: per il controllo "buio ma cielo chiaro"
   const geoKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : null;
   // 14.25: Solano (allerte ufficiali, temporali, modelli) via /api/solano — zona di ~10 km, ogni 30 minuti
+  // 14.53: CO₂ a Mauna Loa (NOAA) via api/co2.js — undefined = in arrivo · null = non disponibile
+  const [co2, setCo2] = useState(undefined);
+  useEffect(() => {
+    let stop = false;
+    const load = async () => { try {
+      const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 9000);
+      const r = await fetch("/api/co2", { signal: ctrl.signal }); clearTimeout(t);
+      const j = r.ok ? await r.json() : null;
+      if (!stop) setCo2(j && j.ppm ? j : null);
+    } catch (_) { if (!stop) setCo2(null); } };
+    load();
+    const iv = setInterval(load, 6 * 3600 * 1000);
+    return () => { stop = true; clearInterval(iv); };
+  }, []);
   const [solano, setSolano] = useState(undefined);   // undefined = in arrivo · null = non disponibile
   const solanoKey = geo ? geo.lat.toFixed(1) + "," + geo.lng.toFixed(1) : null;
   useEffect(() => {
@@ -5664,7 +5718,7 @@ function AppInner() {
       catch (e) { failAlert("Eliminazione non riuscita", e); }
     }} />);
   if (overlay?.chat) { const grp = overlay.groupId ? groups.find(g => g.id === overlay.groupId) : null; return wrap(<ChatView contact={overlay.chat} onDeleteMsg={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (mm => deleteDirectMsg(overlay.chat.id, mm)) : undefined} onClearChat={typeof overlay.chat.id === "string" && overlay.chat.id.includes("-") && !overlay.chat.public && !overlay.chat.id.startsWith("g_") ? (() => clearDirect(overlay.chat.id)) : undefined} msgs={threads[overlay.chat.id] || []} onSend={t => sendMsg(overlay.chat.id, t)} onBack={() => setOverlay(overlay.back || null)} group={grp} contacts={contacts} onUpdateGroup={updateGroup} />); }
-  if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onBack={() => setOverlay(overlay.back || null)} />);
+  if (overlay?.eventMap) return wrap(<EventMapView event={overlay.eventMap} onOpenPhoto={openPhoto} onBack={() => setOverlay(overlay.back || null)} />);
   if (overlay?.placeEvents) return wrap(<PlaceEventsView place={overlay.placeEvents} events={events} onBack={() => setOverlay(overlay.back || null)} onOpen={e => setOverlay({ eventMap: e, back: { placeEvents: overlay.placeEvents, back: overlay.back } })} />);
   if (overlay?.place) return wrap(<PlaceView place={overlay.place} people={contacts.filter(c => !c.me)} isAdmin={isAdmin} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto} onView={onView} events={events} posts={allPosts} onBack={() => setOverlay(null)} onChat={pl => openPlaceChat(pl, { place: overlay.place })} onPostChat={p => openChatFromPost(p, { place: overlay.place })} onEvents={p => setOverlay({ placeEvents: p, back: { place: overlay.place } })} onOpenUser={u => setOverlay({ user: { name: u.name || u.user || "Utente", ava: u.ava, city: overlay.place.name, uid: u.uid || u.id }, back: { place: overlay.place } })} onStar={onStar} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} />);
   if (overlay === "search") {
@@ -5752,7 +5806,7 @@ function AppInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
         {tab === "feed" && <FeedScreen modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
+        {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen setKm={setKm} onOpenRadar={() => setTab("vicini")} onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
