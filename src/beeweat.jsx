@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.56";
+const APP_VERSION = "14.57";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -4583,23 +4583,26 @@ function AppInner() {
     const angDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
     const now = Date.now();
     const recent = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= km);
-    if (recent.length === 0) return null;
+    // 14.57: il maltempo in arrivo si cerca fino a 15 km (o nel Raggio, se più largo), anche se nel Raggio non c'è nessuna foto
+    const ALERT_KM = Math.max(15, km);
+    const wide = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= ALERT_KM);
+    let incoming = null;
+    if (wx?.windDeg != null) {
+      const bad = wide.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
+      const upwind = bad.filter(p => (p.dist ?? 0) >= 1 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);   // 14.57: basta una foto, da 1 km in su
+      if (upwind.length >= 1) {
+        const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
+        const speed = Math.max(8, wx.windKmh || 15);
+        incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.max(5, Math.round((avgDist / speed) * 60)), speed };
+      }
+    }
+    if (recent.length === 0) return incoming ? { count: 0, domCond: "—", share: 0, conf: "bassa", agree: null, incoming } : null;
     const byCond = {};
     recent.forEach(p => { const r = ratePost(p, wx ? wx.condition : null); const c = (r && r.cls) || p.cond || "—"; byCond[c] = (byCond[c] || 0) + (r ? 0.5 + r.agree / 2 : 1); });   // 14.28: pesa la lettura a tre voci
     const [domCond, domN] = Object.entries(byCond).sort((a, b) => b[1] - a[1])[0];
     const share = Math.round((domN / Object.values(byCond).reduce((a, b) => a + b, 0)) * 100);
     const conf = recent.length >= 8 ? "alta" : recent.length >= 3 ? "media" : "bassa";
     const agree = wx ? domCond.includes(wx.condition.split(" ")[0]) : null;
-    let incoming = null;
-    if (wx?.windDeg != null) {
-      const bad = recent.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
-      const upwind = bad.filter(p => (p.dist ?? 0) >= 2 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);
-      if (upwind.length >= 2) {
-        const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
-        const speed = Math.max(8, wx.windKmh || 15);
-        incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.round((avgDist / speed) * 60), speed };
-      }
-    }
     return { count: recent.length, domCond, share, conf, agree, incoming };
   }, [posts, km, wx]);
   const senseCard = beeSense ? {
