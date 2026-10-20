@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.57";
+const APP_VERSION = "14.58";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2556,7 +2556,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         <div ref={ref} />
       </div>
       <div style={{ padding: "10px 14px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))", background: NIGHT, borderTop: `1px solid ${LINE}`, display: "flex", gap: 8, alignItems: "flex-end", flexShrink: 0 }}>{/* 14.37: compositore a pillola */}
-        <textarea rows={1} placeholder={`Scrivi a ${group ? group.name : contact.public ? "tutti" : contact.name.split(" ")[0]}…`} aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 22, padding: "12px 16px", minHeight: 46, fontSize: 16, resize: "none", outline: "none", color: TXT, lineHeight: 1.35 }} />
+        <textarea rows={1} onFocus={() => setTimeout(() => ref.current?.scrollIntoView({ behavior: "auto" }), 350)} placeholder={`Scrivi a ${group ? group.name : contact.public ? "tutti" : contact.name.split(" ")[0]}…`} aria-label="Messaggio" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} style={{ flex: 1, background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 22, padding: "12px 16px", minHeight: 46, fontSize: 16, resize: "none", outline: "none", color: TXT, lineHeight: 1.35 }} />
         <button onClick={send} aria-label="Invia il messaggio" title="Invia" style={{ width: 46, height: 46, borderRadius: "50%", background: text.trim() ? HONEY : NIGHT3, border: text.trim() ? "none" : `1px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background .15s" }}><NavIcon name="send" size={18} color={text.trim() ? INK : TXT2} sw={2} /></button>
       </div>
 
@@ -4170,20 +4170,22 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
 
 // ─── FRAME RESPONSIVO (scala in base a telefono/OS) ──────────────────────────
 function Frame({ children }) {
-  const [vp, setVp] = useState(() => ({
-    w: typeof window !== "undefined" ? window.innerWidth : 390,
-    h: typeof window !== "undefined" ? window.innerHeight : 780,
-  }));
+  // 14.58: misure dall'area VISIBILE (visualViewport): su iPhone, con la tastiera aperta, innerHeight non cambia
+  // e la pagina scorreva via; ora la cornice si accorcia e si sposta con la tastiera, e il campo resta in vista
+  const read = () => { const v = typeof window !== "undefined" ? window.visualViewport : null; return { w: v ? Math.round(v.width) : (typeof window !== "undefined" ? window.innerWidth : 390), h: v ? Math.round(v.height) : (typeof window !== "undefined" ? window.innerHeight : 780), top: v ? Math.round(v.offsetTop) : 0 }; };
+  const [vp, setVp] = useState(read);
   useEffect(() => {
-    const onR = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    let raf = 0;
+    const onR = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; setVp(read()); if (window.scrollY) window.scrollTo(0, 0); }); };
     window.addEventListener("resize", onR);
     window.addEventListener("orientationchange", onR);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", onR);
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", onR); window.visualViewport.addEventListener("scroll", onR); }
     onR();
     return () => {
       window.removeEventListener("resize", onR);
       window.removeEventListener("orientationchange", onR);
-      if (window.visualViewport) window.visualViewport.removeEventListener("resize", onR);
+      if (window.visualViewport) { window.visualViewport.removeEventListener("resize", onR); window.visualViewport.removeEventListener("scroll", onR); }
+      if (raf) cancelAnimationFrame(raf);
     };
   }, []);
   const DESIGN_W = 390;            // larghezza di riferimento (telefono base)
@@ -4195,7 +4197,7 @@ function Frame({ children }) {
   return (
     <>
       <style>{G}</style>
-      <div style={{ position: "fixed", inset: 0, background: isWide ? "#C7D9E8" : BODY, display: "flex", justifyContent: "center", alignItems: "flex-start", overflow: "hidden" }}>
+      <div style={{ position: "fixed", left: 0, right: 0, top: 0, height: vp.h, transform: vp.top ? `translateY(${vp.top}px)` : "none", background: isWide ? "#C7D9E8" : BODY, display: "flex", justifyContent: "center", alignItems: "flex-start", overflow: "hidden" }}>{/* 14.58: alta quanto l'area visibile */}
         <div style={{ position: "relative", width: DESIGN_W, height: frameH, transform: `scale(${scale})`, transformOrigin: "top center", display: "flex", flexDirection: "column", overflow: "hidden", background: BODY, boxShadow: isWide ? "0 0 50px rgba(20,40,65,.28)" : "none" }}>
           {children}
         </div>
