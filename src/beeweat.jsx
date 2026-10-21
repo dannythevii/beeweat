@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.58";
+const APP_VERSION = "14.59";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1851,8 +1851,8 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 52, height: 52, borderRadius: 16, background: HBLUE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{RAW ? (RAW.incoming ? "🌧️" : RAW.domCond.split(" ")[0]) : "🐝"}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? "Maltempo in avvicinamento" : "Lo dice la community") : "BeeCast"}</div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 700, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min` : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>{RAW ? (RAW.incoming ? (RAW.incoming.observed ? "Maltempo nei dintorni" : "Maltempo in avvicinamento") : "Lo dice la community") : "BeeCast"}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 700, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RAW ? (RAW.incoming ? (RAW.incoming.observed ? `${RAW.incoming.cond} a ${RAW.incoming.dist} km` : `da ${RAW.incoming.dir} · ~${RAW.incoming.etaMin} min`) : RAW.domCond.replace(/^[^ ]+ /, "")) : "In ascolto del cielo…"}</div>
             </div>
             <span style={{ fontSize: 12, background: RAW ? (RAW.conf === "alta" ? "#2E9E63" : RAW.conf === "media" ? ACCENT : HBLUE) : HBLUE, borderRadius: 12, padding: "5px 10px", fontWeight: 700, color: RAW && RAW.conf === "media" ? TXT : "#fff", flexShrink: 0, textTransform: "capitalize" }}>{RAW ? RAW.conf : "—"}</span>
           </div>
@@ -1869,7 +1869,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
             ))}
           </div>
           {RAW && RAW.incoming && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
-            {[{ v: RAW.incoming.n, l: "foto maltempo" }, { v: RAW.incoming.dir, l: "sopravento" }, { v: `${RAW.incoming.speed}`, l: "km/h vento" }].map((t, i) => (
+            {(RAW.incoming.observed ? [{ v: RAW.incoming.n, l: "foto maltempo" }, { v: `${RAW.incoming.minsAgo}′`, l: "fa" }, { v: RAW.incoming.city || "—", l: "dove" }] : [{ v: RAW.incoming.n, l: "foto maltempo" }, { v: RAW.incoming.dir, l: "sopravento" }, { v: `${RAW.incoming.speed}`, l: "km/h vento" }]).map((t, i) => (
               <div key={i} style={{ borderRadius: 12, background: "#D9482B", padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 20, fontWeight: 700, lineHeight: 1.1 }}>{t.v}</div>
                 <div style={{ fontSize: 12, color: "#FBD5CC", fontWeight: 600, whiteSpace: "nowrap" }}>{t.l}</div>
@@ -1886,7 +1886,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 58, height: 58, borderRadius: 16, background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{AL.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {sense && sense.alert && <div style={{ fontSize: 12, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>Maltempo in avvicinamento</div>}
+            {sense && sense.alert && <div style={{ fontSize: 12, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>{sense.raw?.incoming?.observed ? "Maltempo nei dintorni" : "Maltempo in avvicinamento"}</div>}
             <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
             <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
@@ -4589,14 +4589,19 @@ function AppInner() {
     const ALERT_KM = Math.max(15, km);
     const wide = posts.filter(p => p.ts && now - new Date(p.ts).getTime() < 3 * 3600000 && (p.dist ?? 999) <= ALERT_KM);
     let incoming = null;
+    const bad = wide.filter(p => /🌧|⛈|🌦|❄|🌨|🌫/.test(p.cond || ""));   // 14.59: anche la nebbia
     if (wx?.windDeg != null) {
-      const bad = wide.filter(p => /🌧|⛈|🌦|❄|🌨/.test(p.cond || ""));
       const upwind = bad.filter(p => (p.dist ?? 0) >= 1 && angDiff(p.bearing ?? 0, wx.windDeg) <= 50);   // 14.57: basta una foto, da 1 km in su
       if (upwind.length >= 1) {
         const avgDist = upwind.reduce((sm, p) => sm + p.dist, 0) / upwind.length;
         const speed = Math.max(8, wx.windKmh || 15);
         incoming = { n: upwind.length, dir: WDIR16(wx.windDeg), etaMin: Math.max(5, Math.round((avgDist / speed) * 60)), speed };
       }
+    }
+    if (!incoming && bad.some(p => !p.mine && (p.dist ?? 0) >= 0.3)) {   // 14.59: maltempo nei dintorni, ma non sopravento (o vento sconosciuto): si segnala comunque
+      const near = bad.filter(p => !p.mine && (p.dist ?? 0) >= 0.3).sort((a, b) => (a.dist ?? 999) - (b.dist ?? 999))[0];
+      const minsAgo = Math.max(0, Math.round((now - new Date(near.ts).getTime()) / 60000));
+      incoming = { n: bad.length, observed: true, cond: skyLabel(near.cond), dist: near.dist, city: near.city || "", minsAgo, dir: null, etaMin: null, speed: null };
     }
     if (recent.length === 0) return incoming ? { count: 0, domCond: "—", share: 0, conf: "bassa", agree: null, incoming } : null;
     const byCond = {};
@@ -4609,19 +4614,25 @@ function AppInner() {
   }, [posts, km, wx]);
   const senseCard = beeSense ? {
     text: beeSense.incoming
-      ? `Maltempo osservato in avvicinamento da ${beeSense.incoming.dir} (~${beeSense.incoming.etaMin} min)`
+      ? (beeSense.incoming.observed
+        ? `${beeSense.incoming.cond} osservata a ${beeSense.incoming.dist} km${beeSense.incoming.city ? ` (${beeSense.incoming.city})` : ""}, ${beeSense.incoming.minsAgo} min fa`
+        : `Maltempo osservato in avvicinamento da ${beeSense.incoming.dir} (~${beeSense.incoming.etaMin} min)`)
       : `${beeSense.domCond} — lo dice la community (${beeSense.share}%)`,
     conf: "Affidabilità " + beeSense.conf,
     photos: beeSense.count,
     raw: { ...beeSense, model: wx ? wx.condition : null },   // 14.11: lo schema a numeri
     why: `${beeSense.count} foto della community nelle ultime 3 ore entro ${km} km. Condizione prevalente: ${beeSense.domCond} (${beeSense.share}%). `
       + (wx ? (beeSense.agree ? `Il modello (${wx.condition}) è confermato dalle osservazioni reali.` : `Il modello indica ${wx.condition}: le osservazioni raccontano altro e lo correggono.`) : "")
-      + (beeSense.incoming ? ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.` : ""),
-    alert: beeSense.incoming ? {
+      + (beeSense.incoming ? (beeSense.incoming.observed ? ` ${beeSense.incoming.n} foto di maltempo entro ${Math.max(15, km)} km, ma non dal lato del vento.` : ` ${beeSense.incoming.n} foto di maltempo sopravento (${beeSense.incoming.dir}), vento ~${beeSense.incoming.speed} km/h.`) : ""),
+    alert: beeSense.incoming ? (beeSense.incoming.observed ? {   // 14.59
+      icon: "🌧️", title: `${beeSense.incoming.cond} a ${beeSense.incoming.dist} km`,
+      dir: `${beeSense.incoming.city ? beeSense.incoming.city + " · " : ""}${beeSense.incoming.minsAgo} min fa · il vento non la porta verso di te`, photos: beeSense.incoming.n,
+      speed: null, conf: beeSense.conf
+    } : {
       icon: "🌧️", title: `Maltempo in arrivo tra ~${beeSense.incoming.etaMin} min`,
       dir: "da " + beeSense.incoming.dir, photos: beeSense.incoming.n,
       speed: beeSense.incoming.speed, conf: beeSense.conf
-    } : null
+    }) : null
   } : null;
   // Località attuale dal GPS (geocodifica inversa, servizio gratuito senza chiave)
   // Il nome resta agganciato al punto in cui è stato trovato: spostati di oltre 2,5 km, non vale più
