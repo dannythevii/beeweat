@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.66";
+const APP_VERSION = "14.67";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -778,6 +778,7 @@ const G = `
   .fade-up { animation: fadeUp .3s ease-out both; }
   /* 14.39: feed a pagine intere */
   .bw-reel { scroll-snap-type: y mandatory; overscroll-behavior-y: contain; scrollbar-width: none; }
+  .bw-press { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
   .bw-reel::-webkit-scrollbar { display: none; }
   .bw-reel > * { scroll-snap-align: start; scroll-snap-stop: always; }
   .star-pop { animation: pop .3s ease-out both; }
@@ -1114,7 +1115,20 @@ function RadarBar({ km, setKm }) {
 }
 
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
-function BottomNav({ tab, setTab, onPlus, overlay }) {   // 14.40: nel Feed la barra galleggia sulla foto
+// 14.67: tocco = onTap, pressione lunga (450 ms) = onLong. Il pointerup conta come gesto dell'utente (fotocamera e file input ok)
+const LP = { t: null, long: false, id: null, until: 0 };
+// il «click» che segue il pointerup arriva quando la schermata è già cambiata e finirebbe sul pulsante che ora sta sotto il dito: lo si ignora
+if (typeof document !== "undefined") document.addEventListener("click", e => { if (Date.now() < LP.until) { e.stopPropagation(); e.preventDefault(); } }, true);
+const pressHandlers = (onTap, onLong, ms = 450) => ({
+  onPointerDown: e => { if (e.button != null && e.button !== 0) return; LP.long = false; LP.id = e.pointerId; clearTimeout(LP.t); LP.t = setTimeout(() => { LP.long = true; try { navigator.vibrate && navigator.vibrate(12); } catch (_) {} }, ms); },
+  onPointerUp: e => { clearTimeout(LP.t); if (LP.id !== e.pointerId) return; LP.id = null; const l = LP.long; LP.long = false; if (l) { onLong ? onLong() : onTap && onTap(); } else onTap && onTap(); LP.until = Date.now() + 600; },
+  onPointerCancel: () => { clearTimeout(LP.t); LP.long = false; LP.id = null; },
+  onPointerLeave: () => { clearTimeout(LP.t); LP.long = false; LP.id = null; },
+  onContextMenu: e => e.preventDefault(),
+  onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap && onTap(); } },
+  className: "bw-press",
+});
+function BottomNav({ tab, setTab, onPlus, onLongPlus, overlay }) {   // 14.40: nel Feed la barra galleggia sulla foto
   // 14.1: cinque voci fisse. Al centro il bottone miele è il Feed; dentro il Feed diventa la fotocamera.
   const tabs = [   // 14.34: icone a tratto unico della nuova grafica
     { id: "vicini", icon: "radar", label: "Radar" },
@@ -1135,7 +1149,7 @@ function BottomNav({ tab, setTab, onPlus, overlay }) {   // 14.40: nel Feed la b
   return (
     <div style={{ display: "flex", alignItems: "center", background: overlay ? "linear-gradient(to top, rgba(5,10,30,.96) 0%, rgba(5,10,30,.82) 60%, rgba(5,10,30,0) 100%)" : NAV, minHeight: 66, padding: overlay ? "18px 6px 6px" : "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0, borderTop: overlay ? "none" : `1px solid ${LINE}`, ...(overlay ? { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20 } : {}) }}>
       {tabs.slice(0, 2).map(Tab)}
-      <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+      <button {...pressHandlers(() => (onFeed && onPlus ? onPlus() : setTab("feed")), onFeed && onPlus ? onLongPlus : null)} title={onFeed && onPlus ? "Nuovo cielo · tieni premuto per un video di 5 s" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo (tieni premuto per un video di 5 secondi)" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
         <span style={{ width: 64, height: 64, marginTop: -34, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 10px 22px rgba(245,184,46,.45))" }}>{/* 14.34: esagono miele */}
           <svg width="64" height="64" viewBox="0 0 64 64" style={{ display: "block" }}>
             <polygon points="32,6 55,19 55,45 32,58 9,45 9,19" fill={HONEY} />
@@ -2618,7 +2632,7 @@ const fetchTempAt = async (lat, lng, atMs = null) => {
 };
 const VIDEO_CLIP_S = 5;   // 14.65: in tutta l'app un cielo in video dura 5 secondi
 const clip5 = e => { const el = e.currentTarget; if (el && el.currentTime >= VIDEO_CLIP_S) { try { el.currentTime = 0; } catch (_) {} } };
-function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond }) {
+function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond, startVideo, onStartVideoConsumed }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
     if (!geo) return;
@@ -2635,10 +2649,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const [recLeft, setRecLeft] = useState(5);
   const recMime = () => ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m));
   const stopLive = () => { clearInterval(recTimerRef.current); try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch (_) {} streamRef.current = null; recRef.current = null; setRecState("idle"); };
-  const openVideoLive = async () => {
-    if (!recMime() || !navigator.mediaDevices?.getUserMedia) { vidRef.current?.click(); return; }   // telefono senza registratore in pagina: fotocamera del telefono + taglio
+  const openVideoLive = async (pre = null) => {
+    if (!recMime() || !navigator.mediaDevices?.getUserMedia) { if (pre) pre.then(st => st.getTracks().forEach(t => t.stop())).catch(() => {}); vidRef.current?.click(); return; }   // telefono senza registratore in pagina: fotocamera del telefono + taglio
     try {
-      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      const st = await (pre || navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }));
       try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
       streamRef.current = st; setErr(null); setRecState("live"); setRecLeft(5);
       setTimeout(() => { const v = liveRef.current; if (v) { v.srcObject = st; v.play && v.play().catch(() => {}); } }, 0);
@@ -2675,6 +2689,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   };
   const stopRecEarly = () => { const rec = recRef.current; if (rec && rec.state === "recording" && recLeft <= 4) { clearInterval(recTimerRef.current); try { rec.stop(); } catch (_) {} } };
   useEffect(() => () => { clearInterval(recTimerRef.current); try { if (recRef.current?.state === "recording") recRef.current.stop(); } catch (_) {} }, []);
+  useEffect(() => { if (startVideo) { onStartVideoConsumed && onStartVideoConsumed(); openVideoLive(startVideo.p || null); } }, []);   // 14.67: arrivati con la pressione lunga
   const vidRef = useRef(null);
   const VIDEO_MAX_S = 5;
   // taglia i primi 5 secondi ridisegnando i fotogrammi su un canvas (niente audio: è il cielo)
@@ -3095,7 +3110,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           </div>
           <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
             {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
-            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Foto: fotocamera del telefono · Video: 5 secondi, qui · mai dall'archivio</div>
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Tocca: foto · Tieni premuto «Scatta»: video di 5 s · mai dall'archivio</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
               <button onClick={onBack} aria-label="Annulla" title="Annulla" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
               <button onClick={() => shotRef.current?.click()} aria-label="Scatta il cielo" title="Scatta" style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -4382,7 +4397,14 @@ function AppInner() {
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const openCamera = () => { setOverlay("post"); };   // 14.66: prima si sceglie foto o video
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };   // 14.67: tocco = foto, subito
+  const [startVideo, setStartVideo] = useState(null);   // 14.67: promessa del flusso video, chiesta dentro il gesto (iPhone)
+  const openVideo = () => {
+    let p = null;
+    try { if (navigator.mediaDevices?.getUserMedia) p = navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); } catch (_) { p = null; }
+    if (p) p.catch(() => {});
+    setStartVideo({ p }); setOverlay("post");
+  };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -5806,7 +5828,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView startVideo={startVideo} onStartVideoConsumed={() => setStartVideo(null)} modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, video: q.video || null, caption: tileCap(q) })) : [{ id: p.id, src: p.img, video: p.video || null, caption: p.caption }];
@@ -6012,7 +6034,7 @@ function AppInner() {
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
-      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={openCamera} />
+      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={openCamera} onLongPlus={openVideo} />
 
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
