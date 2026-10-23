@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.59";
+const APP_VERSION = "14.61";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -93,6 +93,15 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     groups: <><circle cx="8" cy="8" r="3.3" {...p} /><path d="M2.5 20c0-3.3 2.6-5.6 5.5-5.6 1.5 0 2.9.6 3.9 1.6" {...p} /><line x1="18" y1="5" x2="18" y2="11" {...p} /><line x1="15" y1="8" x2="21" y2="8" {...p} /></>,
     bell: <><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" {...p} /><path d="M13.7 21a2 2 0 01-3.4 0" {...p} /></>,
     chevron: <><path d="M9 6l6 6-6 6" {...p} /></>,
+    party: <><path d="M4 20l5-14 9 9z" {...p} /><path d="M14 4l1 2M19 5l-2 2M20 11h-2M9 6l4 1" {...p} /></>,   // 14.61: categorie social
+    disco: <><circle cx="12" cy="13" r="7" {...p} /><path d="M12 6V3M5 13h14M12 6v14M7.5 8.5c3 2 6 2 9 0M7.5 17.5c3-2 6-2 9 0" {...p} /></>,
+    ribbon: <><circle cx="12" cy="9" r="5" {...p} /><path d="M9 13l-2 8 5-3 5 3-2-8" {...p} /></>,
+    music: <><path d="M9 18V6l10-2v12" {...p} /><circle cx="6.5" cy="18" r="2.5" {...p} /><circle cx="16.5" cy="16" r="2.5" {...p} /></>,
+    cocktail: <><path d="M4 4h16l-8 9z" {...p} /><path d="M12 13v7M8 20h8M8 8h8" {...p} /></>,
+    theater: <><path d="M3 5c3 1.5 6 1.5 9 0v7a4.5 4.5 0 01-9 0z" {...p} /><path d="M12 9c3 1.5 6 1.5 9 0v7a4.5 4.5 0 01-9 0z" {...p} /><path d="M5.5 8.5h1M9 8.5h1M14.5 12.5h1M18 12.5h1" {...p} /></>,
+    tent: <><path d="M3 20h18L12 4z" {...p} /><path d="M12 20v-6M8 20l4-6 4 6" {...p} /></>,
+    ball: <><circle cx="12" cy="12" r="9" {...p} /><path d="M12 3v18M3 12h18M6 6c3 3 9 3 12 0M6 18c3-3 9-3 12 0" {...p} /></>,
+    food: <><path d="M5 3v7a2.5 2.5 0 005 0V3M7.5 3v18" {...p} /><path d="M17.5 3c-2.5 1-3.5 4-3.5 7v3h3.5v8" {...p} /></>,
     flag: <><line x1="5" y1="21" x2="5" y2="4" {...p} /><path d="M5 4.5h12l-2.3 3.5L17 11.5H5z" {...p} /></>,
     beecast: <><path d="M12 3.2l6.2 3.6v7.2L12 17.6l-6.2-3.6V6.8z" {...p} /><line x1="12" y1="17.6" x2="12" y2="21" {...p} /><line x1="5.8" y1="6.8" x2="3" y2="5.2" {...p} /><line x1="18.2" y1="6.8" x2="21" y2="5.2" {...p} /></>,
     clock: <><circle cx="12" cy="12" r="9" {...p} /><polyline points="12,7 12,12 16,14" {...p} /></>,
@@ -1575,7 +1584,7 @@ const SKY_ICON = { "☀️": "sun", "⛅": "cloud", "☁️": "cloud", "🌧️"
 const skyIcon = c => SKY_ICON[skyEmoji(c)] || "cloud";
 const skyLabel = c => (c || "").replace(/^[^ ]+ /, "");
 // 14.38: icona a tratto per la categoria di un evento (dall'emoji salvata nel dato)
-const EV_ICON = { "⛈️": "storm", "⛈": "storm", "🌧️": "rain", "🌧": "rain", "🌊": "waves", "💨": "wind", "🌬️": "wind", "🌬": "wind", "❄️": "snow", "🌫️": "fog", "⚠️": "warn", "🔥": "warn", "🚨": "warn", "🎉": "calendar", "🎵": "calendar", "🍷": "calendar", "🏃": "calendar", "📍": "pin" };
+const EV_ICON = { "⛈️": "storm", "⛈": "storm", "🌧️": "rain", "🌧": "rain", "🌊": "waves", "💨": "wind", "🌬️": "wind", "🌬": "wind", "❄️": "snow", "🌫️": "fog", "⚠️": "warn", "🔥": "warn", "🚨": "warn", "🎉": "party", "🪩": "disco", "🎀": "ribbon", "🎶": "music", "🎵": "music", "🍸": "cocktail", "🍷": "cocktail", "🎭": "theater", "🎪": "tent", "🏟️": "ball", "🏟": "ball", "⚽": "ball", "🏃": "ball", "🍽️": "food", "🍽": "food", "📍": "pin" };
 const evIcon = e => EV_ICON[(e?.type || (e?.cat || "").split(" ")[0] || "").trim()] || ((e?.kind || "meteo") === "social" ? "calendar" : "warn");
 const readCaption = text => {
   const t = (text || "").trim(); if (!t) return null;
@@ -2185,9 +2194,9 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
             const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
             return (
               <g key={"ev" + e.id} onClick={() => onEvent && onEvent(e)} style={{ cursor: "pointer" }}>{/* 14.38: allerta in blu elettrico */}
-                <circle cx={x} cy={y} r="22" fill={ELEC} opacity=".25" />
-                <circle cx={x} cy={y} r="15" fill={ELEC} stroke="#fff" strokeWidth="2" />
-                <path d={`M${x} ${y - 7}l6.5 12h-13z`} fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" style={{ pointerEvents: "none" }} /><circle cx={x} cy={y + 2.5} r=".9" fill="#fff" style={{ pointerEvents: "none" }} /><line x1={x} y1={y - 2.5} x2={x} y2={y + .5} stroke="#fff" strokeWidth="1.6" strokeLinecap="round" style={{ pointerEvents: "none" }} />
+                <circle cx={x} cy={y} r="22" fill={(e.kind || "meteo") === "social" ? HONEY : ELEC} opacity=".25" />
+                <circle cx={x} cy={y} r="15" fill={(e.kind || "meteo") === "social" ? HONEY : ELEC} stroke="#fff" strokeWidth="2" />
+                <svg x={x - 9} y={y - 9} width="18" height="18" style={{ pointerEvents: "none" }}>{/* 14.60: l'icona del tipo di evento */}<NavIcon name={evIcon(e)} size={18} color={(e.kind || "meteo") === "social" ? INK : "#fff"} sw={2.2} /></svg>
               </g>
             );
           })}
@@ -3361,7 +3370,7 @@ function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
               <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{new Date(e.startsAt).getDate()}</div>
               <div style={{ fontSize: 12, fontWeight: 600 }}>{new Date(e.startsAt).toLocaleDateString("it-IT", { month: "short" }).replace(".", "").toUpperCase()}</div>
             </div>
-          : <div style={{ width: 58, minHeight: 76, borderRadius: 16, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{/* 14.38 */}<NavIcon name="calendar" size={26} color={HONEY2} sw={1.8} />{false && (e.cat || "🎉").split(" ")[0]}</div>}
+          : <div style={{ width: 58, minHeight: 76, borderRadius: 16, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{/* 14.38 */}<NavIcon name={evIcon(e)} size={26} color={HONEY2} sw={1.8} /></div>}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
           {e.cat && <div style={{ fontSize: 12, fontWeight: 700, color: TXT, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat}</div>}
           <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
