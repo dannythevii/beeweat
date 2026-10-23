@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.61";
+const APP_VERSION = "14.62";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2614,7 +2614,7 @@ const fetchTempAt = async (lat, lng, atMs = null) => {
     return typeof t === "number" ? Math.round(t) : null;
   } catch (_) { return null; }
 };
-function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed }) {
+function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
     if (!geo) return;
@@ -2624,7 +2624,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   }, [geo?.lat, geo?.lng]);
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
-  const [caption, setCaption] = useState(""), [cond, setCond] = useState(CONDITIONS[0]);
+  const [caption, setCaption] = useState(""), [cond, setCond] = useState(() => (modelCond && CONDITIONS.includes(modelCond)) ? modelCond : CONDITIONS[0]);   // 14.62: parte dal modello
   const [err, setErr] = useState(null), [facing, setFacing] = useState("environment"), [posting, setPosting] = useState(false);
   // ── fotocamera pro: zoom (hardware o digitale), torcia, griglia ──
   const [zoom, setZoom] = useState(1);
@@ -2734,15 +2734,17 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
     if (ar) { if (sw / sh > ar) sw = sh * ar; else sh = sw / ar; }
     c.width = Math.round(sw); c.height = Math.round(sh);
-    c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setTimeout(runAI, 60); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
+    c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
   const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Molto nuvoloso": "☁️ Molto nuvoloso", "Coperto": "☁️ Molto nuvoloso", "Nuvoloso": "☁️ Molto nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   const cloudCheck = onCloudCheck ? ((img, hints) => withTimeout(onCloudCheck(img, hints), 9000).catch(() => null)) : null;   // Bee-Eye risponde entro 9 s o passa la mano
-  const runAI = () => {
+  const famOf = x => (x || "").trim().split(" ")[0];   // 14.62: la "famiglia" di una condizione è la sua icona
+  const runAI = (ctx = {}) => {
     const c = canvasRef.current; if (!c) return;
     const my = ++aiSeqRef.current;                     // ogni analisi ha il suo numero
+    const hintsCtx = { modello: ctx.model || null, descrizione: (ctx.caption || "").slice(0, 300) || null, scelta: ctx.cond || null, descrizioneLetta: (() => { try { const t = readCaption(ctx.caption || ""); return t ? t.cls : null; } catch (_) { return null; } })() };
     if (!navigator.onLine) { setAi({ offline: true }); return; }   // senza rete: si pubblica nello zaino, controllo al rientro
     setAi({ checking: true });
     withTimeout(analyzePhoto(c), 12000).then(async v => {
@@ -2752,7 +2754,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         (v.block && v.cls === "not_sky") ||            // bocciata per "niente cielo": forse l'occhio fine si sbaglia
         (!v.block && (!v.score || v.score < 0.6)) ||   // approvata ma con poca convinzione
         (!v.block && v.conflict) ||                    // cielo E interno insieme: serve un giudice che capisca la scena
-        (!v.block && v.needsJudge)                     // 14.55: grigio senza azzurro (coperto? o parete?)
+        (!v.block && v.needsJudge) ||                  // 14.55: grigio senza azzurro (coperto? o parete?)
+        (!v.block && ctx.cond && v.cls && famOf(v.cls) !== famOf(ctx.cond))   // 14.62: la scelta dell'ape non torna con la foto: giudica Bee-Eye
       );
       if (!uncertain) {
         if (!v.block && v.conflict) {                  // conflitto ma niente giudice: vince la prudenza
@@ -2769,7 +2772,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         const k = Math.min(1, 384 / c.width);
         t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
         t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
-        const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls, dubbio: v.conflictWhat || (v.block ? v.reason : null) });
+        const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { aiClass: v.cls, dubbio: v.conflictWhat || (v.block ? v.reason : null), ...hintsCtx });
         if (aiSeqRef.current !== my) return;
         if (!verdict && v.needsJudge && !v.conflict) { setAi({ block: true, reason: "Non riesco a confermare che sia cielo (l'occhio dell'alveare non risponde). Riprova tra un momento, o inquadra più cielo. 🌤️", cls: "not_sky" }); return; }   // 14.55
         if (!verdict) {
@@ -2811,7 +2814,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           const k = Math.min(1, 384 / c.width);
           t.width = Math.round(c.width * k); t.height = Math.round(c.height * k);
           t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
-          const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), {});
+          const verdict = await cloudCheck(t.toDataURL("image/jpeg", 0.8), { ...hintsCtx });
           if (aiSeqRef.current !== my) return;
           if (verdict) {
             if (verdict.persone_in_primo_piano)
@@ -2847,13 +2850,12 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         setCaptured(c.toDataURL("image/jpeg", .85));
         setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
         try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
-        setTimeout(runAI, 60);
       } finally { URL.revokeObjectURL(url); }
     };
     im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
     im.src = url;
   };
-  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setTimeout(() => shotRef.current?.click(), 50); };
+  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); setTimeout(() => shotRef.current?.click(), 50); };
   useEffect(() => { if (pendingShot) { onNativeShot({ target: { files: [pendingShot], value: "" } }); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.47: scatto già fatto dal tocco su «Scatta»
   const [hint, setHint] = useState(true);   // 14.47: l'avviso resta 20 secondi, poi sparisce
   useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
@@ -2892,12 +2894,24 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     if (okBefore) { onAskGeo && onAskGeo(); return; }   // sì già dato in passato: GPS allo scatto, senza invito (il telefono conferma da sé)
     if (!asked) setGeoAsk(true);
   }, [captured, geoReal, geoOff]);
+  // 14.62: «Pubblica» → 1 modello · 2 descrizione · 3 scelta · 4 foto (+ Bee-Eye se serve) → poi il post parte
+  const [armed, setArmed] = useState(false);
+  const [step, setStep] = useState(0);
   const publish = () => {
     if (!canPublish) return;
-    aiSeqRef.current++;                                   // un verdetto in arrivo dopo la partenza non serve più
-    setPosting(true);
-    setTimeout(() => { const tn = temp === "" ? null : Number(temp); onPost({ img: captured, caption, cond, dir: shotDir, aiClass: verdictReady ? (ai?.cls || null) : null, aiScore: verdictReady ? (ai?.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !verdictReady }); }, 300);
+    setPosting(true); setArmed(true); setStep(1);
+    setTimeout(() => setStep(2), 250); setTimeout(() => setStep(3), 500);
+    setTimeout(() => { setStep(4); runAI({ model: modelCond, caption, cond }); }, 750);
   };
+  useEffect(() => { if (ai?.block && !armed) setAi(null); }, [cond, caption]);   // 14.62: ritenta dopo una modifica
+  useEffect(() => {
+    if (!armed || !ai || ai.checking) return;
+    setArmed(false); setStep(0);
+    if (ai.block) { setPosting(false); return; }          // bocciato: resta qui, con il motivo
+    const ok = !ai.error && !ai.offline;
+    const tn = temp === "" ? null : Number(temp);
+    onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ok ? (ai.cls || null) : null, aiScore: ok ? (ai.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !ok });
+  }, [ai, armed]);
   // 14.36: chip di stato sul tema notte (un'icona a tratto, niente emoji)
   const Chip = ({ icon, tone, onClick, children }) => {
     const T = { info: [MIST, TXT, HONEY + "44"], warn: ["rgba(245,184,46,.14)", HONEY2, HONEY + "66"], bad: ["rgba(240,86,91,.14)", "#FFB4B6", "#F0565B66"], ok: ["rgba(59,167,118,.16)", "#9BE7BF", "#3BA77666"] }[tone || "info"];
@@ -2984,10 +2998,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, background: "rgba(10,16,40,.6)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,.12)", borderRadius: 16, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, color: "#fff" }}>
               <span style={{ width: 36, height: 36, borderRadius: 11, background: ai?.block ? "rgba(240,86,91,.25)" : "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={ai?.block ? "close" : ai && !ai.checking && !ai.error && !ai.offline ? "check" : "eye"} size={18} color={ai?.block ? "#FFB4B6" : HONEY2} sw={2.2} /></span>
               <span style={{ fontSize: 12, lineHeight: 1.35, minWidth: 0 }}>
-                <b style={{ display: "block", fontSize: 12.5 }}>{!ai || ai.checking ? "Occhi dell'alveare al lavoro" : ai.block ? "Questo cielo non passa" : ai.error ? "Occhi AI non disponibili" : ai.offline ? "Senza rete: va nello zaino" : "Sembra proprio un cielo"}</b>
-                <span style={{ color: "rgba(255,255,255,.72)" }}>{!ai || ai.checking ? "Cielo, mare, natura… puoi già pubblicare: il controllo continua da solo." : ai.block ? ai.reason : ai.error ? "Puoi pubblicare lo stesso: il controllo avverrà in coda." : ai.offline ? "Parte da sola al ritorno della linea." : `${ai.cls ? skyLabel(ai.cls) : "Approvata"}${ai.score ? ` · ${Math.round(ai.score * 100)}%` : ""} — puoi pubblicare subito.`}</span>
+                <b style={{ display: "block", fontSize: 12.5 }}>{armed ? `Controllo ${step}/4 · ${["", "modello del posto", "la tua descrizione", "la condizione scelta", "la foto (occhi dell'alveare)"][step]}` : !ai ? "Occhi dell'alveare: pronti" : ai.checking ? "Occhi dell'alveare al lavoro" : ai.block ? "Questo cielo non passa" : ai.error ? "Occhi AI non disponibili" : ai.offline ? "Senza rete: va nello zaino" : "Sembra proprio un cielo"}</b>
+                <span style={{ color: "rgba(255,255,255,.72)" }}>{armed ? "Un attimo: il cielo parte appena il controllo è finito." : !ai ? "Scegli la condizione, scrivi se vuoi, poi Pubblica: controllo modello, descrizione, scelta e foto, e il cielo parte." : ai.checking ? "Cielo, mare, natura… il controllo continua da solo." : ai.block ? ai.reason : ai.error ? "Puoi pubblicare lo stesso: il controllo avverrà in coda." : ai.offline ? "Parte da sola al ritorno della linea." : `${ai.cls ? skyLabel(ai.cls) : "Approvata"}${ai.score ? ` · ${Math.round(ai.score * 100)}%` : ""} — puoi pubblicare subito.`}</span>
               </span>
-              {(!ai || ai.checking) && <span style={{ position: "absolute", left: 12, right: 12, bottom: 0, height: 3, borderRadius: 3, overflow: "hidden", background: "rgba(255,255,255,.12)" }}><span className="bw-skel" style={{ display: "block", height: "100%", width: "68%", background: `linear-gradient(90deg,${HONEY},${HONEY2})` }} /></span>}
+              {(armed || ai?.checking) && <span style={{ position: "absolute", left: 12, right: 12, bottom: 0, height: 3, borderRadius: 3, overflow: "hidden", background: "rgba(255,255,255,.12)" }}><span className="bw-skel" style={{ display: "block", height: "100%", width: "68%", background: `linear-gradient(90deg,${HONEY},${HONEY2})` }} /></span>}
             </div>
           </div>
           <div style={{ padding: "14px 14px 20px" }}>
@@ -3017,7 +3031,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
               <button onClick={savePhoto} title="Salva nel telefono" aria-label={saved ? "Foto salvata nel telefono" : "Salva la foto nel telefono"} style={{ width: 50, minHeight: 50, borderRadius: 16, border: `1px solid ${saved ? "#3BA776" : LINE}`, background: saved ? "rgba(59,167,118,.16)" : NIGHT3, color: saved ? "#9BE7BF" : TXT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={saved ? "check" : "download"} size={20} color={saved ? "#9BE7BF" : TXT} sw={2} /></button>
               <button onClick={() => { if (!(geoReal || geoApprox)) { setGeoAsk(true); return; } publish(); }} disabled={posting || !!ai?.block} aria-disabled={!canPublish} style={{ flex: 1, minHeight: 50, borderRadius: 16, border: "none", background: ai?.block ? NIGHT3 : HONEY, color: ai?.block ? TXT2 : INK, fontWeight: 700, fontSize: 15, cursor: (posting || ai?.block) ? "not-allowed" : "pointer", opacity: posting ? .6 : 1, fontFamily: "'Inter',sans-serif", boxShadow: ai?.block ? "none" : `0 10px 26px ${HONEY}55`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 {!(geoReal || geoApprox) && <NavIcon name="pin" size={17} color={INK} sw={2.2} />}{ai?.offline && !ai?.slow && (geoReal || geoApprox) && <NavIcon name="bag" size={17} color={INK} sw={2.2} />}
-                {posting ? "Pubblicazione…" : !(geoReal || geoApprox) ? "Serve la posizione" : ai?.block ? "Non pubblicabile" : ai?.offline && !ai?.slow ? "Metti nello zaino" : "Pubblica ora"}
+                {posting ? (armed ? `Controllo ${step}/4…` : "Pubblicazione…") : !(geoReal || geoApprox) ? "Serve la posizione" : ai?.block ? "Non pubblicabile" : "Pubblica ora"}
               </button>
             </div>
           </div>
@@ -5667,7 +5681,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
