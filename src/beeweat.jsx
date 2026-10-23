@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.67";
+const APP_VERSION = "14.62";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -778,7 +778,6 @@ const G = `
   .fade-up { animation: fadeUp .3s ease-out both; }
   /* 14.39: feed a pagine intere */
   .bw-reel { scroll-snap-type: y mandatory; overscroll-behavior-y: contain; scrollbar-width: none; }
-  .bw-press { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
   .bw-reel::-webkit-scrollbar { display: none; }
   .bw-reel > * { scroll-snap-align: start; scroll-snap-stop: always; }
   .star-pop { animation: pop .3s ease-out both; }
@@ -1115,20 +1114,7 @@ function RadarBar({ km, setKm }) {
 }
 
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
-// 14.67: tocco = onTap, pressione lunga (450 ms) = onLong. Il pointerup conta come gesto dell'utente (fotocamera e file input ok)
-const LP = { t: null, long: false, id: null, until: 0 };
-// il «click» che segue il pointerup arriva quando la schermata è già cambiata e finirebbe sul pulsante che ora sta sotto il dito: lo si ignora
-if (typeof document !== "undefined") document.addEventListener("click", e => { if (Date.now() < LP.until) { e.stopPropagation(); e.preventDefault(); } }, true);
-const pressHandlers = (onTap, onLong, ms = 450) => ({
-  onPointerDown: e => { if (e.button != null && e.button !== 0) return; LP.long = false; LP.id = e.pointerId; clearTimeout(LP.t); LP.t = setTimeout(() => { LP.long = true; try { navigator.vibrate && navigator.vibrate(12); } catch (_) {} }, ms); },
-  onPointerUp: e => { clearTimeout(LP.t); if (LP.id !== e.pointerId) return; LP.id = null; const l = LP.long; LP.long = false; if (l) { onLong ? onLong() : onTap && onTap(); } else onTap && onTap(); LP.until = Date.now() + 600; },
-  onPointerCancel: () => { clearTimeout(LP.t); LP.long = false; LP.id = null; },
-  onPointerLeave: () => { clearTimeout(LP.t); LP.long = false; LP.id = null; },
-  onContextMenu: e => e.preventDefault(),
-  onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap && onTap(); } },
-  className: "bw-press",
-});
-function BottomNav({ tab, setTab, onPlus, onLongPlus, overlay }) {   // 14.40: nel Feed la barra galleggia sulla foto
+function BottomNav({ tab, setTab, onPlus, overlay }) {   // 14.40: nel Feed la barra galleggia sulla foto
   // 14.1: cinque voci fisse. Al centro il bottone miele è il Feed; dentro il Feed diventa la fotocamera.
   const tabs = [   // 14.34: icone a tratto unico della nuova grafica
     { id: "vicini", icon: "radar", label: "Radar" },
@@ -1149,7 +1135,7 @@ function BottomNav({ tab, setTab, onPlus, onLongPlus, overlay }) {   // 14.40: n
   return (
     <div style={{ display: "flex", alignItems: "center", background: overlay ? "linear-gradient(to top, rgba(5,10,30,.96) 0%, rgba(5,10,30,.82) 60%, rgba(5,10,30,0) 100%)" : NAV, minHeight: 66, padding: overlay ? "18px 6px 6px" : "8px 6px 6px", paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))", flexShrink: 0, borderTop: overlay ? "none" : `1px solid ${LINE}`, ...(overlay ? { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20 } : {}) }}>
       {tabs.slice(0, 2).map(Tab)}
-      <button {...pressHandlers(() => (onFeed && onPlus ? onPlus() : setTab("feed")), onFeed && onPlus ? onLongPlus : null)} title={onFeed && onPlus ? "Nuovo cielo · tieni premuto per un video di 5 s" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo (tieni premuto per un video di 5 secondi)" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
+      <button onClick={() => (onFeed && onPlus ? onPlus() : setTab("feed"))} title={onFeed && onPlus ? "Nuovo cielo" : "Feed"} aria-label={onFeed && onPlus ? "Scatta un nuovo cielo" : "Apri il feed"} style={{ flex: 1, minWidth: 0, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
         <span style={{ width: 64, height: 64, marginTop: -34, display: "flex", alignItems: "center", justifyContent: "center", filter: "drop-shadow(0 10px 22px rgba(245,184,46,.45))" }}>{/* 14.34: esagono miele */}
           <svg width="64" height="64" viewBox="0 0 64 64" style={{ display: "block" }}>
             <polygon points="32,6 55,19 55,45 32,58 9,45 9,19" fill={HONEY} />
@@ -1447,7 +1433,7 @@ function PhotoViewer({ src: src0, caption: caption0, onClose, items, index = 0 }
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {list.map((it, i) => (
           <div key={it.id || i} style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", contain: "strict" }}>
-            {Math.abs(i - cur) <= 1 && (it.video ? <video src={it.video} poster={it.src} muted loop autoPlay playsInline onTimeUpdate={clip5} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} /> : <img src={it.src} alt="" decoding="async" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />)}
+            {Math.abs(i - cur) <= 1 && <img src={it.src} alt="" decoding="async" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />}
           </div>
         ))}
       </div>
@@ -1494,7 +1480,7 @@ async function shareCard(post, line) {
   return new File([blob], "beeweat-cielo.jpg", { type: "image/jpeg" });
 }
 // 14.44: la scheda si ridisegna solo se cambiano i dati che mostra (i callback arrivano stabili da FeedScreen)
-const POST_KEYS = ["id", "img", "thumb", "video", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
+const POST_KEYS = ["id", "img", "thumb", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
 const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
 const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active);
 function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active }) {
@@ -1531,9 +1517,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
   const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };   // 14.44: niente sfocatura (costa sullo scorrimento)
   return (
     <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, contain: "layout paint", boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
-      {post.video && <video ref={el => { if (!el) return; if (active) { el.play && el.play().catch(() => {}); } else el.pause && el.pause(); }} src={post.video} poster={post.img} muted loop playsInline onTimeUpdate={clip5} preload={active ? "auto" : "metadata"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", background: NIGHT3 }} />}{/* 14.63 */}
-      {!post.video && <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchpriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />}
-      {post.video && <span aria-label="Video" style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", right: 14, zIndex: 3, display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 700 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#F0565B" }} />5 s</span>}
+      <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchpriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
@@ -2630,9 +2614,7 @@ const fetchTempAt = async (lat, lng, atMs = null) => {
     return typeof t === "number" ? Math.round(t) : null;
   } catch (_) { return null; }
 };
-const VIDEO_CLIP_S = 5;   // 14.65: in tutta l'app un cielo in video dura 5 secondi
-const clip5 = e => { const el = e.currentTarget; if (el && el.currentTime >= VIDEO_CLIP_S) { try { el.currentTime = 0; } catch (_) {} } };
-function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond, startVideo, onStartVideoConsumed }) {
+function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
     if (!geo) return;
@@ -2642,102 +2624,6 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   }, [geo?.lat, geo?.lng]);
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
-  const [videoFile, setVideoFile] = useState(null), [videoUrl, setVideoUrl] = useState(null), [videoBusy, setVideoBusy] = useState(false);   // 14.63
-  // 14.66: video registrato qui, in pagina: 5 secondi decisi prima, stop automatico
-  const liveRef = useRef(null), recRef = useRef(null), recTimerRef = useRef(null);
-  const [recState, setRecState] = useState("idle");   // idle | live | rec
-  const [recLeft, setRecLeft] = useState(5);
-  const recMime = () => ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m));
-  const stopLive = () => { clearInterval(recTimerRef.current); try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch (_) {} streamRef.current = null; recRef.current = null; setRecState("idle"); };
-  const openVideoLive = async (pre = null) => {
-    if (!recMime() || !navigator.mediaDevices?.getUserMedia) { if (pre) pre.then(st => st.getTracks().forEach(t => t.stop())).catch(() => {}); vidRef.current?.click(); return; }   // telefono senza registratore in pagina: fotocamera del telefono + taglio
-    try {
-      const st = await (pre || navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }));
-      try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
-      streamRef.current = st; setErr(null); setRecState("live"); setRecLeft(5);
-      setTimeout(() => { const v = liveRef.current; if (v) { v.srcObject = st; v.play && v.play().catch(() => {}); } }, 0);
-    } catch (e) {
-      const name = e?.name || "";
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") setErr({ kind: "denied", msg: "Permesso fotocamera negato. Su iPhone: Impostazioni → Safari → Fotocamera → Consenti. Oppure registra con la fotocamera del telefono." });
-      else setErr({ kind: "err", msg: "Fotocamera non avviabile: " + (e?.message || name || "errore") });
-      vidRef.current?.click();
-    }
-  };
-  const frameCover = () => { try { const v = liveRef.current, c = canvasRef.current; if (!v || !c || !v.videoWidth) return null; const k = Math.min(1, 2000 / Math.max(v.videoWidth, v.videoHeight)); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k); c.getContext("2d").drawImage(v, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", .85); } catch (_) { return null; } };
-  const startRec = () => {
-    const st = streamRef.current; if (!st || recState !== "live") return;
-    const mime = recMime(); let rec; const chunks = [];
-    try { rec = new MediaRecorder(st, { mimeType: mime, videoBitsPerSecond: 2500000 }); } catch (_) { try { rec = new MediaRecorder(st); } catch (e) { stopLive(); vidRef.current?.click(); return; } }
-    let cover = frameCover();
-    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.onerror = () => { stopLive(); alert("Registrazione non riuscita. Riprova."); };
-    rec.onstop = () => {
-      if (!cover) cover = frameCover();
-      const type = (rec.mimeType || mime || "video/mp4").split(";")[0]; const ext = type.includes("mp4") ? "mp4" : "webm";
-      const file = new File([new Blob(chunks, { type })], `beeweat_${Date.now()}.${ext}`, { type });
-      stopLive();
-      if (!cover || file.size < 5000) { alert("Registrazione non riuscita. Riprova."); return; }
-      setCaptured(cover); setVideoFile(file); setVideoUrl(URL.createObjectURL(file)); setAi(null);
-      setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
-    };
-    recRef.current = rec; rec.start(250); setRecState("rec"); setRecLeft(5);
-    const t0 = Date.now();
-    recTimerRef.current = setInterval(() => {
-      const left = Math.max(0, 5 - (Date.now() - t0) / 1000); setRecLeft(left);
-      if (left <= 0) { clearInterval(recTimerRef.current); try { if (rec.state === "recording") rec.stop(); } catch (_) {} }
-    }, 100);
-  };
-  const stopRecEarly = () => { const rec = recRef.current; if (rec && rec.state === "recording" && recLeft <= 4) { clearInterval(recTimerRef.current); try { rec.stop(); } catch (_) {} } };
-  useEffect(() => () => { clearInterval(recTimerRef.current); try { if (recRef.current?.state === "recording") recRef.current.stop(); } catch (_) {} }, []);
-  useEffect(() => { if (startVideo) { onStartVideoConsumed && onStartVideoConsumed(); openVideoLive(startVideo.p || null); } }, []);   // 14.67: arrivati con la pressione lunga
-  const vidRef = useRef(null);
-  const VIDEO_MAX_S = 5;
-  // taglia i primi 5 secondi ridisegnando i fotogrammi su un canvas (niente audio: è il cielo)
-  const trimVideo = (v, seconds) => new Promise((res, rej) => {
-    const wd = setTimeout(() => rej(new Error("trim-timeout")), 15000);   // 14.65: mai appeso
-    const res2 = f => { clearTimeout(wd); res(f); }, rej2 = e => { clearTimeout(wd); rej(e); };
-    try {
-      const c = document.createElement("canvas"); const k = Math.min(1, 720 / Math.max(v.videoWidth, v.videoHeight));
-      c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k); const x = c.getContext("2d");
-      const mime = ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
-      if (!mime || !c.captureStream) { rej2(new Error("trim")); return; }
-      const stream = c.captureStream(24); const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 }); const chunks = [];
-      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-      rec.onstop = () => { const b = new Blob(chunks, { type: mime.split(";")[0] }); if (b.size < 20000) { rej2(new Error("trim-empty")); return; } res2(new File([b], `beeweat_${Date.now()}.${mime.includes("mp4") ? "mp4" : "webm"}`, { type: mime.split(";")[0] })); };
-      rec.onerror = () => rej2(new Error("trim-rec"));
-      let raf = 0; const draw = () => { x.drawImage(v, 0, 0, c.width, c.height); if (v.currentTime < seconds && !v.ended) raf = requestAnimationFrame(draw); else { cancelAnimationFrame(raf); v.pause(); setTimeout(() => rec.stop(), 120); } };
-      v.currentTime = 0; v.muted = true; v.play().then(() => { rec.start(200); draw(); }).catch(rej2);
-    } catch (e) { rej2(e); }
-  });
-  const VIDEO_MAX_RAW_S = 20, VIDEO_MAX_MB = 60;
-  const onNativeVideo = e => {
-    const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
-    setVideoBusy(true);
-    const url = URL.createObjectURL(f); const v = document.createElement("video"); v.src = url; v.muted = true; v.playsInline = true; v.preload = "auto";
-    v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); v.style.cssText = "position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-10px;top:-10px"; document.body.appendChild(v);   // 14.65
-    let done = false;
-    const fail = msg => { if (done) return; done = true; setVideoBusy(false); try { v.remove(); } catch (_) {} URL.revokeObjectURL(url); alert(msg || "Video non leggibile. Riprova."); };
-    const metaWd = setTimeout(() => fail("Il video non si apre su questo telefono. Riprova, o scatta una foto."), 12000);   // 14.65: mai appeso
-    v.onerror = () => fail();
-    v.onloadedmetadata = async () => {
-      clearTimeout(metaWd);
-      if (f.size > VIDEO_MAX_MB * 1024 * 1024 || (isFinite(v.duration) && v.duration > VIDEO_MAX_RAW_S)) { fail(`Video troppo lungo o pesante: ne bastano ${VIDEO_MAX_S} secondi (massimo ${VIDEO_MAX_RAW_S}). Registrane uno più corto.`); return; }
-      try {
-        const poster = () => new Promise((r, rj) => { const pw = setTimeout(() => rj(new Error("poster")), 8000); const onS = () => { v.removeEventListener("seeked", onS); const c = canvasRef.current; const k = Math.min(1, 2000 / Math.max(v.videoWidth, v.videoHeight)); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k); c.getContext("2d").drawImage(v, 0, 0, c.width, c.height); clearTimeout(pw); r(c.toDataURL("image/jpeg", .85)); }; v.addEventListener("seeked", onS); v.currentTime = Math.min(0.15, Math.max(0, (v.duration || 1) / 10)); });
-        const cover = await poster();
-        let file = f;
-        if (!isFinite(v.duration) || v.duration > VIDEO_MAX_S + 0.4) {
-          try { file = await trimVideo(v, VIDEO_MAX_S); }
-          catch (_) { file = f; }   // 14.65: niente taglio su questo telefono: parte intero, l'app ne mostra i primi 5 s
-        }
-        if (done) return;
-        setCaptured(cover); setVideoFile(file); setVideoUrl(URL.createObjectURL(file)); setAi(null);
-        setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
-        try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
-      } catch (_) { fail(); return; }
-      finally { done = true; setVideoBusy(false); try { v.pause(); v.remove(); } catch (_) {} URL.revokeObjectURL(url); }
-    };
-  };
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(() => (modelCond && CONDITIONS.includes(modelCond)) ? modelCond : CONDITIONS[0]);   // 14.62: parte dal modello
   const [err, setErr] = useState(null), [facing, setFacing] = useState("environment"), [posting, setPosting] = useState(false);
   // ── fotocamera pro: zoom (hardware o digitale), torcia, griglia ──
@@ -2969,8 +2855,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
     im.src = url;
   };
-  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); setVideoFile(null); setVideoUrl(null); setTimeout(() => shotRef.current?.click(), 50); };
-  useEffect(() => { if (pendingShot) { const ev = { target: { files: [pendingShot], value: "" } }; if (/^video\//.test(pendingShot.type || "") || /\.(mp4|mov|webm|3gp|m4v)$/i.test(pendingShot.name || "")) onNativeVideo(ev); else onNativeShot(ev); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.64   // 14.47: scatto già fatto dal tocco su «Scatta»
+  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); setTimeout(() => shotRef.current?.click(), 50); };
+  useEffect(() => { if (pendingShot) { onNativeShot({ target: { files: [pendingShot], value: "" } }); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.47: scatto già fatto dal tocco su «Scatta»
   const [hint, setHint] = useState(true);   // 14.47: l'avviso resta 20 secondi, poi sparisce
   useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
@@ -3024,7 +2910,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     if (ai.block) { setPosting(false); return; }          // bocciato: resta qui, con il motivo
     const ok = !ai.error && !ai.offline;
     const tn = temp === "" ? null : Number(temp);
-    onPost({ img: captured, video: videoFile || null, caption, cond, dir: shotDir, aiClass: ok ? (ai.cls || null) : null, aiScore: ok ? (ai.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !ok });
+    onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ok ? (ai.cls || null) : null, aiScore: ok ? (ai.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !ok });
   }, [ai, armed]);
   // 14.36: chip di stato sul tema notte (un'icona a tratto, niente emoji)
   const Chip = ({ icon, tone, onClick, children }) => {
@@ -3072,34 +2958,12 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza.</div>
       </div>
       <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
-      <input ref={vidRef} type="file" accept="video/*" capture="environment" onChange={onNativeVideo} style={{ display: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
       {hint && <div role="status" onClick={() => setHint(false)} className="fade-up" style={{ position: "absolute", left: 18, right: 18, bottom: "calc(150px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "rgba(10,16,40,.86)", border: `1px solid rgba(255,255,255,.16)`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, color: "#fff", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>{/* 14.47: in basso, 20 secondi */}
         <span style={{ width: 36, height: 36, borderRadius: 11, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="eye" size={18} color={HONEY2} sw={2} /></span>
         <span style={{ fontSize: 12.5, lineHeight: 1.35 }}><b style={{ display: "block", fontSize: 13.5 }}>Solo natura, cielo e mare</b><span style={{ color: "rgba(255,255,255,.75)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span></span>
       </div>}
-      {!captured && recState !== "idle" ? (
-        /* ── 14.66: VIDEO IN PAGINA, 5 SECONDI ── */
-        <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "#000", display: "flex", flexDirection: "column" }}>
-          <video ref={liveRef} muted playsInline autoPlay style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,10,30,.45), rgba(5,10,30,0) 30%, rgba(5,10,30,0) 55%, rgba(5,10,30,.9))", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", left: 0, right: 0, top: 22, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: recState === "rec" ? "rgba(240,86,91,.92)" : "rgba(0,0,0,.45)", color: "#fff", borderRadius: 20, padding: "7px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14 }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: recState === "rec" ? "#fff" : "#F0565B" }} />{recState === "rec" ? `${Math.ceil(recLeft)} s` : "Video · 5 secondi"}
-            </span>
-          </div>
-          <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
-            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.8)", marginBottom: 12 }}>{recState === "rec" ? "Si ferma da solo a 5 secondi" : "Inquadra il cielo e tocca il pulsante rosso"}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
-              <button onClick={stopLive} aria-label="Annulla" title="Annulla" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="close" size={20} color="#fff" sw={2.2} /></button>
-              <button onClick={recState === "rec" ? stopRecEarly : startRec} aria-label={recState === "rec" ? "Ferma" : "Registra 5 secondi"} style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: `conic-gradient(#F0565B ${recState === "rec" ? (5 - recLeft) / 5 * 360 : 0}deg, transparent 0)`, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ width: recState === "rec" ? 34 : 64, height: recState === "rec" ? 34 : 64, borderRadius: recState === "rec" ? 8 : "50%", background: "#F0565B", boxShadow: "0 10px 30px rgba(240,86,91,.5)", transition: "all .2s" }} />
-              </button>
-              <span style={{ width: 48, height: 48 }} />
-            </div>
-          </div>
-        </div>
-      ) : !captured ? (
+      {!captured ? (
         /* ── PRIMA DELLO SCATTO: il mirino di Beeweat ── */
         <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "linear-gradient(180deg,#1E4FA8 0%,#5C9BE3 42%,#F6C98B 86%,#F08A5D 100%)", display: "flex", flexDirection: "column" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,10,30,.45), rgba(5,10,30,0) 30%, rgba(5,10,30,0) 55%, rgba(5,10,30,.9))" }} />
@@ -3110,7 +2974,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           </div>
           <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
             {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
-            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Tocca: foto · Tieni premuto «Scatta»: video di 5 s · mai dall'archivio</div>
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Si apre la fotocamera del telefono · mai dall'archivio</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
               <button onClick={onBack} aria-label="Annulla" title="Annulla" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
               <button onClick={() => shotRef.current?.click()} aria-label="Scatta il cielo" title="Scatta" style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -3118,16 +2982,13 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
               </button>
               <span style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Lo zaino: le foto in attesa partono da sole"><NavIcon name="bag" size={20} color="#fff" sw={2} /></span>
             </div>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>{/* 14.63 */}
-              <button onClick={openVideoLive} disabled={videoBusy} aria-label="Registra un video di 5 secondi" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: "1px solid rgba(255,255,255,.22)", background: "rgba(0,0,0,.35)", color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#F0565B" }} />{videoBusy ? "Preparo il video…" : "Video · 5 secondi"}</button>
-            </div>
           </div>
         </div>
       ) : (
         /* ── DOPO LO SCATTO: anteprima e pubblicazione ── */
         <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
           <div style={{ margin: "12px 14px 0", borderRadius: 24, overflow: "hidden", background: NIGHT3, position: "relative", aspectRatio: "4 / 5", boxShadow: "0 14px 36px rgba(0,0,0,.4)" }}>
-            {videoUrl ? <video src={videoUrl} poster={captured} muted loop autoPlay playsInline onTimeUpdate={clip5} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+            <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 60%, rgba(5,10,30,.8))" }} />
             {typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}
             <div style={{ position: "absolute", top: 14, right: 14, textAlign: "right", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
@@ -4392,19 +4253,12 @@ function AppInner() {
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
-    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";   // 14.64: foto o video
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };   // 14.67: tocco = foto, subito
-  const [startVideo, setStartVideo] = useState(null);   // 14.67: promessa del flusso video, chiesta dentro il gesto (iPhone)
-  const openVideo = () => {
-    let p = null;
-    try { if (navigator.mediaDevices?.getUserMedia) p = navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); } catch (_) { p = null; }
-    if (p) p.catch(() => {});
-    setStartVideo({ p }); setOverlay("post");
-  };
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -5087,7 +4941,7 @@ function AppInner() {
     const pr = r.profiles || {};
     const dist = geo && r.lat != null ? haversine(geo, { lat: r.lat, lng: r.lng }) : 999;
     return {
-      id: r.id, uid: r.user_id, user: pr.name || "Utente", ava: pr.avatar_url || null, video: r.video_url || null,   // 14.63
+      id: r.id, uid: r.user_id, user: pr.name || "Utente", ava: pr.avatar_url || null,
       mine: !!auId && r.user_id === auId,
       time: fmtPostTime(r.created_at), ts: r.created_at,
       city: titleCase(r.city || pr.city || ""),
@@ -5649,8 +5503,7 @@ function AppInner() {
     };
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
-  const onPost = ({ img, video = null, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
-    if (video && !navigator.onLine) { alert("Per pubblicare un video serve la rete: lo zaino tiene solo le foto. Riprova quando torna la connessione."); return; }   // 14.63
+  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
     const precision = geoReal && !geoOff ? "gps" : "city";                     // con la sola città il cielo è "approssimativo"
     const gp = precision === "gps" ? blurCoords(geo.lat, geo.lng)              // sul server va la zona (~1 km), mai il punto esatto
       : { lat: Math.round(geo.lat * 20) / 20, lng: Math.round(geo.lng * 20) / 20 };   // 14.45: senza posizione precisa, solo la zona della città (~5 km)
@@ -5665,17 +5518,17 @@ function AppInner() {
       else alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
     };
     if (sb?.isConfigured) {
-      if (!video && (!navigator.onLine || deferred)) { toOutbox(); }   // senza rete, o senza verdetto: in coda con controllo prima della partenza
+      if (!navigator.onLine || deferred) { toOutbox(); }   // senza rete, o senza verdetto: in coda con controllo prima della partenza
       else (async () => {
         // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
-        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, video: video ? URL.createObjectURL(video) : null, caption, mine: true, sending: true }, ...ps]);
+        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
         const clearTemp = () => setPosts(ps => ps.filter(p => p.id !== "tx_" + pendTs));
         try {
           const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
             img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
             cityForPost(geo.lat, geo.lng),
           ]);
-          await sb.createPost({ file, videoFile: video, caption, condition: cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
+          await sb.createPost({ file, caption, condition: cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
           // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
           if (/temporale|tempesta/i.test(cond || "")) {
             try {
@@ -5828,10 +5681,10 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView startVideo={startVideo} onStartVideoConsumed={() => setStartVideo(null)} modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
-    const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, video: q.video || null, caption: tileCap(q) })) : [{ id: p.id, src: p.img, video: p.video || null, caption: p.caption }];
+    const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
     const index = Math.max(0, items.findIndex(q => q.id === p.id));
     return { photo: { src: p.img, caption: p.caption, items, index }, back: o };
   });
@@ -6034,7 +5887,7 @@ function AppInner() {
       </div>
 
       {showRadar && <RadarBar km={km} setKm={setKm} />}
-      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={openCamera} onLongPlus={openVideo} />
+      <BottomNav overlay={tab === "feed"} tab={tab} setTab={setTab} onPlus={openCamera} />
 
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
