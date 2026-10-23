@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.63";
+const APP_VERSION = "14.64";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2897,7 +2897,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     im.src = url;
   };
   const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); setVideoFile(null); setVideoUrl(null); setTimeout(() => shotRef.current?.click(), 50); };
-  useEffect(() => { if (pendingShot) { onNativeShot({ target: { files: [pendingShot], value: "" } }); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.47: scatto già fatto dal tocco su «Scatta»
+  useEffect(() => { if (pendingShot) { const ev = { target: { files: [pendingShot], value: "" } }; if (/^video\//.test(pendingShot.type || "") || /\.(mp4|mov|webm|3gp|m4v)$/i.test(pendingShot.name || "")) onNativeVideo(ev); else onNativeShot(ev); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.64   // 14.47: scatto già fatto dal tocco su «Scatta»
   const [hint, setHint] = useState(true);   // 14.47: l'avviso resta 20 secondi, poi sparisce
   useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
@@ -2998,7 +2998,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18 }}>Ruota il telefono in verticale</div>
         <div style={{ fontSize: 13.5, opacity: .85, lineHeight: 1.5 }}>Le foto di Beeweat si scattano in verticale: il cielo ha bisogno d'altezza.</div>
       </div>
-      <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
+      <input ref={shotRef} type="file" accept="image/*,video/*" capture="environment" onChange={e => { const f = e.target.files && e.target.files[0]; if (f && (/^video\//.test(f.type || "") || /\.(mp4|mov|webm|3gp|m4v)$/i.test(f.name || ""))) onNativeVideo(e); else onNativeShot(e); }} style={{ display: "none" }} />
       <input ref={vidRef} type="file" accept="video/*" capture="environment" onChange={onNativeVideo} style={{ display: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
       {hint && <div role="status" onClick={() => setHint(false)} className="fade-up" style={{ position: "absolute", left: 18, right: 18, bottom: "calc(150px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "rgba(10,16,40,.86)", border: `1px solid rgba(255,255,255,.16)`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, color: "#fff", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>{/* 14.47: in basso, 20 secondi */}
@@ -3025,7 +3025,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
               <span style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Lo zaino: le foto in attesa partono da sole"><NavIcon name="bag" size={20} color="#fff" sw={2} /></span>
             </div>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>{/* 14.63 */}
-              <button onClick={() => vidRef.current?.click()} disabled={videoBusy} aria-label="Registra un video di 5 secondi" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: "1px solid rgba(255,255,255,.22)", background: "rgba(0,0,0,.35)", color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#F0565B" }} />{videoBusy ? "Preparo il video…" : "Video · 5 s"}</button>
+              <button onClick={() => vidRef.current?.click()} disabled={videoBusy} aria-label="Registra un video di 5 secondi" style={{ height: 44, padding: "0 16px", borderRadius: 22, border: "1px solid rgba(255,255,255,.22)", background: "rgba(0,0,0,.35)", color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#F0565B" }} />{videoBusy ? "Preparo il video…" : "Solo video · 5 s"}</button>
             </div>
           </div>
         </div>
@@ -4298,7 +4298,7 @@ function AppInner() {
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
-    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*,video/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";   // 14.64: foto o video
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
