@@ -608,6 +608,25 @@ export async function getCurrentProfile() {
 // ============================================================================
 // FOTO (Storage)  — carica nel bucket "posts" e restituisce l'URL pubblico
 // ============================================================================
+// 14.63: video (mp4/webm) nello stesso bucket
+export async function uploadVideo(file) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const ext = (file.type || "").includes("webm") ? "webm" : (file.type || "").includes("quicktime") ? "mov" : "mp4";
+  const path = `${user.id}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("posts").upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+  if (error) throw error;
+  return supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
+}
+// 14.63: la RPC feed_nearby può non restituire video_url: si completa con una lettura a parte
+async function attachVideos(rows) {
+  if (!rows || !rows.length || ("video_url" in rows[0])) return rows || [];
+  try {
+    const { data } = await supabase.from("posts").select("id,video_url").in("id", rows.map(r => r.id)).not("video_url", "is", null);
+    const map = Object.fromEntries((data || []).map(r => [r.id, r.video_url]));
+    return rows.map(r => ({ ...r, video_url: map[r.id] || null }));
+  } catch (_) { return rows; }
+}
 export async function uploadPhoto(file) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
@@ -626,17 +645,22 @@ export async function uploadPhoto(file) {
 // ============================================================================
 
 // Crea un post: prima carica la foto, poi salva il record
-export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
+export async function createPost({ file, videoFile, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
+  const video_url = videoFile ? await uploadVideo(videoFile) : null;   // 14.63
   const row = {
-    user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
+    user_id: user.id, image_url, caption, condition, lat, lng, is_live: true, ...(video_url ? { video_url } : {}),
     cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null, temp: (temp === null || temp === undefined || temp === "") ? null : Number(temp),
     precision: precision ?? null,                       // "gps" | "city" (beeweat-privacy-posizione.sql)
   };
   if (createdAt) row.created_at = createdAt;            // 14.29: zaino → ora dello scatto, non della spedizione
   let { data, error } = await supabase.from("posts").insert(row).select().single();
+  if (error && /video_url/i.test(error.message || "")) {   // 14.63: colonna non ancora creata (manca l'SQL): si pubblica la sola copertina
+    delete row.video_url;
+    ({ data, error } = await supabase.from("posts").insert(row).select().single());
+  }
   if (error && /precision/i.test(error.message || "")) {   // colonna non ancora creata: si pubblica lo stesso, senza il dato
     delete row.precision;
     ({ data, error } = await supabase.from("posts").insert(row).select().single());
@@ -655,7 +679,7 @@ export async function getFeedNearby({ lat, lng, radiusKm = 10 }) {
     p_lat: lat, p_lng: lng, p_radius_km: radiusKm,
   });
   if (error) throw error;
-  return data;
+  return attachVideos(data);   // 14.63
 }
 
 // I miei post
