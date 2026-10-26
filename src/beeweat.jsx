@@ -2,7 +2,17 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.62";
+const APP_VERSION = "14.63";
+
+// ── 14.63: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
+const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
+const inSiteFrame = () => { try { return window.self !== window.top; } catch (_) { return true; } };
+const tellSite = msg => {                                   // dall'app al globo; fuori dalla cornice non parte nulla
+  if (!inSiteFrame()) return;
+  SITE_ORIGINS.forEach(o => { try { window.parent.postMessage({ source: "beeweat-app", ...msg }, o); } catch (_) {} });
+};
+const SITE_VIEW_TO_TAB = { feed: "feed", radar: "vicini", beecast: "beecast", eventi: "eventi", beeworld: "contatti" };
+const TAB_TO_SITE_VIEW = { feed: "feed", vicini: "radar", beecast: "beecast", eventi: "eventi", contatti: "beeworld" };
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -4422,6 +4432,23 @@ function AppInner() {
   });
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
+  // ── 14.63: il globo del sito parla con l'app ───────────────────────────────────────────────
+  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay };
+  useEffect(() => {
+    if (!inSiteFrame()) return;
+    const onMsg = ev => {
+      if (!SITE_ORIGINS.includes(ev.origin) || !ev.data || ev.data.source !== "beeweat-site") return;
+      const d = ev.data, r = siteRef.current;
+      if (d.type === "view" && SITE_VIEW_TO_TAB[d.view]) { r.setOverlay(null); r.setTab(SITE_VIEW_TO_TAB[d.view]); }
+      if (d.type === "open-place" && d.place) r.openPlaceChat({ name: String(d.place), lat: +d.lat, lng: +d.lng }, null);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+  useEffect(() => { tellSite({ type: "view", view: TAB_TO_SITE_VIEW[tab] || "feed" }); }, [tab]);
+  useEffect(() => { tellSite({ type: "radius", km }); }, [km]);
+  useEffect(() => { if (geo && typeof geo.lat === "number") tellSite({ type: "location", lat: geo.lat, lng: geo.lng, city: locAt?.name || user?.city || null, km }); }, [geo?.lat, geo?.lng, locAt?.name]);
+  useEffect(() => { tellSite({ type: "refresh" }); }, [posts.length, events.length]);   // nuovo cielo o evento: il globo ricarica
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(() => { try { return localStorage.getItem("bw_geo_off") === "1"; } catch (_) { return false; } });   // l'ape ha scelto: solo città, niente GPS
