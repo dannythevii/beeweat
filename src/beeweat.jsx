@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.64";
+const APP_VERSION = "14.65";
 
 // ── 14.63: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
 const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
@@ -4438,7 +4438,7 @@ function AppInner() {
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
   // ── 14.63: il globo del sito parla con l'app ───────────────────────────────────────────────
-  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay };
+  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay, setGeo, setLocAt };
   useEffect(() => {
     if (!inSiteFrame()) return;
     const onMsg = ev => {
@@ -4446,8 +4446,16 @@ function AppInner() {
       const d = ev.data, r = siteRef.current;
       if (d.type === "view" && SITE_VIEW_TO_TAB[d.view]) { r.setOverlay(null); r.setTab(SITE_VIEW_TO_TAB[d.view]); }
       if (d.type === "open-place" && d.place) r.openPlaceChat({ name: String(d.place), lat: +d.lat, lng: +d.lng }, null);
+      if (d.type === "location" && Number.isFinite(+d.lat) && Number.isFinite(+d.lng)) {   // 14.65: la posizione del sito vale come un fix GPS
+        const g = { lat: +d.lat, lng: +d.lng, __real: true };
+        r.setGeo(cur => (cur && cur.__real && Math.abs(cur.lat - g.lat) < 0.0005 && Math.abs(cur.lng - g.lng) < 0.0005) ? cur : g);
+        r.setGeoReal(true);
+        if (d.city) r.setLocAt({ name: String(d.city), lat: g.lat, lng: g.lng });
+        try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
+      }
     };
     window.addEventListener("message", onMsg);
+    tellSite({ type: "need-location" });                                            // 14.65: appena parte chiede la posizione al sito
     return () => window.removeEventListener("message", onMsg);
   }, []);
   useEffect(() => { tellSite({ type: "view", view: TAB_TO_SITE_VIEW[tab] || "feed" }); }, [tab]);
@@ -4455,6 +4463,7 @@ function AppInner() {
   useEffect(() => { if (geo && typeof geo.lat === "number") tellSite({ type: "location", lat: geo.lat, lng: geo.lng, city: locAt?.name || user?.city || null, km }); }, [geo?.lat, geo?.lng, locAt?.name]);
   useEffect(() => { tellSite({ type: "refresh" }); }, [posts.length, events.length]);   // nuovo cielo o evento: il globo ricarica
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
+  siteRef.current.setGeoReal = setGeoReal;         // 14.65: per la posizione che arriva dal sito
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(() => { try { return localStorage.getItem("bw_geo_off") === "1"; } catch (_) { return false; } });   // l'ape ha scelto: solo città, niente GPS
   useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
