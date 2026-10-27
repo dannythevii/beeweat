@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.63";
+const APP_VERSION = "14.64";
 
 // ── 14.63: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
 const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
@@ -4263,12 +4263,17 @@ function AppInner() {
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
+    if (inSiteFrame()) return;                                                 // 14.64: dentro il sito nessun accesso a fotocamera o galleria
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
+  const [siteCamNotice, setSiteCamNotice] = useState(false);   // 14.64: avviso "scatta dal telefono" dentro il sito
+  const openCamera = () => {
+    if (inSiteFrame()) { setSiteCamNotice(true); setTimeout(() => setSiteCamNotice(false), 4200); return; }   // 14.64: niente fotocamera né galleria dal sito
+    try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post");
+  };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -5708,7 +5713,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post" && !inSiteFrame()) return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
@@ -5867,6 +5872,7 @@ function AppInner() {
 
   function wrap(content) {
     return <Frame>{content}
+      {siteCamNotice && <div role="status" style={{ position: "absolute", left: 16, right: 16, bottom: 96, zIndex: 210, background: HONEY, color: INK, borderRadius: 16, padding: "12px 14px", fontSize: 14, fontWeight: 700, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "'Inter',sans-serif" }}>I cieli si scattano dall'app sul telefono: qui su beeweat.com puoi guardare, dare stelle e chattare.</div>}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#0B1430,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
         <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
