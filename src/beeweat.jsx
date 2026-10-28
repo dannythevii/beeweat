@@ -2,17 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.65";
-
-// ── 14.63: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
-const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
-const inSiteFrame = () => { try { return window.self !== window.top; } catch (_) { return true; } };
-const tellSite = msg => {                                   // dall'app al globo; fuori dalla cornice non parte nulla
-  if (!inSiteFrame()) return;
-  SITE_ORIGINS.forEach(o => { try { window.parent.postMessage({ source: "beeweat-app", ...msg }, o); } catch (_) {} });
-};
-const SITE_VIEW_TO_TAB = { feed: "feed", radar: "vicini", beecast: "beecast", eventi: "eventi", beeworld: "contatti" };
-const TAB_TO_SITE_VIEW = { feed: "feed", vicini: "radar", beecast: "beecast", eventi: "eventi", contatti: "beeworld" };
+const APP_VERSION = "14.63";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1690,17 +1680,22 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   }, [cur, visible]);
   const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
   const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 700 };
+  // 14.63: il meteo in alto è quello del post a schermo (temperatura e condizione misurate allo scatto); il modello del tuo punto resta per max/min e vento
+  const curPost = visible[cur] || visible[0] || null;
+  const curTemp = curPost && curPost.temp != null && Number.isFinite(curPost.temp) ? `${Math.round(curPost.temp)}°` : null;
   const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
     <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, right: 90, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
-      {wx && (<>
+      {(wx || curTemp) && (<>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{/* 14.42: condizione e vento accanto alla temperatura */}
-          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 300, letterSpacing: "-2px", lineHeight: 1 }}>{wx.temp}</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 300, letterSpacing: "-2px", lineHeight: 1 }}>{curTemp || (wx ? wx.temp : "—")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700 }}><NavIcon name={skyIcon(wx.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(wx.condition)}</div>
-            {wx.windKmh != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.85)" }}><NavIcon name="wind" size={13} color="#fff" sw={2.2} />{wx.windKmh} km/h{wx.wind ? ` ${wx.wind}` : ""}</div>}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700 }}><NavIcon name={skyIcon(curPost?.cond || wx?.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(curPost?.cond || wx?.condition)}</div>
+            {wx && wx.windKmh != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.85)" }}><NavIcon name="wind" size={13} color="#fff" sw={2.2} />{wx.windKmh} km/h{wx.wind ? ` ${wx.wind}` : ""}</div>}
           </div>
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>max {wx.hi} · min {wx.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          {curTemp ? <><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{curPost.city || "qui"}{curPost.precision === "city" ? " ≈" : ""}<span>·</span>allo scatto{curPost.time && curPost.time !== "adesso" ? ` · ${curPost.time} fa` : ""}</> : <>max {wx?.hi} · min {wx?.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</>}
+        </div>
       </>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
         <span style={pill}>{/* 14.44: una pillola sola */}{onlineCount != null && <><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api<span style={{ opacity: .6, margin: "0 2px" }}>·</span></>}<NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
@@ -4263,17 +4258,12 @@ function AppInner() {
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
-    if (inSiteFrame()) return;                                                 // 14.64: dentro il sito nessun accesso a fotocamera o galleria
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const [siteCamNotice, setSiteCamNotice] = useState(false);   // 14.64: avviso "scatta dal telefono" dentro il sito
-  const openCamera = () => {
-    if (inSiteFrame()) { setSiteCamNotice(true); setTimeout(() => setSiteCamNotice(false), 4200); return; }   // 14.64: niente fotocamera né galleria dal sito
-    try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post");
-  };
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -4437,33 +4427,7 @@ function AppInner() {
   });
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
-  // ── 14.63: il globo del sito parla con l'app ───────────────────────────────────────────────
-  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay, setGeo, setLocAt };
-  useEffect(() => {
-    if (!inSiteFrame()) return;
-    const onMsg = ev => {
-      if (!SITE_ORIGINS.includes(ev.origin) || !ev.data || ev.data.source !== "beeweat-site") return;
-      const d = ev.data, r = siteRef.current;
-      if (d.type === "view" && SITE_VIEW_TO_TAB[d.view]) { r.setOverlay(null); r.setTab(SITE_VIEW_TO_TAB[d.view]); }
-      if (d.type === "open-place" && d.place) r.openPlaceChat({ name: String(d.place), lat: +d.lat, lng: +d.lng }, null);
-      if (d.type === "location" && Number.isFinite(+d.lat) && Number.isFinite(+d.lng)) {   // 14.65: la posizione del sito vale come un fix GPS
-        const g = { lat: +d.lat, lng: +d.lng, __real: true };
-        r.setGeo(cur => (cur && cur.__real && Math.abs(cur.lat - g.lat) < 0.0005 && Math.abs(cur.lng - g.lng) < 0.0005) ? cur : g);
-        r.setGeoReal(true);
-        if (d.city) r.setLocAt({ name: String(d.city), lat: g.lat, lng: g.lng });
-        try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
-      }
-    };
-    window.addEventListener("message", onMsg);
-    tellSite({ type: "need-location" });                                            // 14.65: appena parte chiede la posizione al sito
-    return () => window.removeEventListener("message", onMsg);
-  }, []);
-  useEffect(() => { tellSite({ type: "view", view: TAB_TO_SITE_VIEW[tab] || "feed" }); }, [tab]);
-  useEffect(() => { tellSite({ type: "radius", km }); }, [km]);
-  useEffect(() => { if (geo && typeof geo.lat === "number") tellSite({ type: "location", lat: geo.lat, lng: geo.lng, city: locAt?.name || user?.city || null, km }); }, [geo?.lat, geo?.lng, locAt?.name]);
-  useEffect(() => { tellSite({ type: "refresh" }); }, [posts.length, events.length]);   // nuovo cielo o evento: il globo ricarica
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
-  siteRef.current.setGeoReal = setGeoReal;         // 14.65: per la posizione che arriva dal sito
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(() => { try { return localStorage.getItem("bw_geo_off") === "1"; } catch (_) { return false; } });   // l'ape ha scelto: solo città, niente GPS
   useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
@@ -5722,7 +5686,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post" && !inSiteFrame()) return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
@@ -5881,7 +5845,6 @@ function AppInner() {
 
   function wrap(content) {
     return <Frame>{content}
-      {siteCamNotice && <div role="status" style={{ position: "absolute", left: 16, right: 16, bottom: 96, zIndex: 210, background: HONEY, color: INK, borderRadius: 16, padding: "12px 14px", fontSize: 14, fontWeight: 700, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "'Inter',sans-serif" }}>I cieli si scattano dall'app sul telefono: qui su beeweat.com puoi guardare, dare stelle e chattare.</div>}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#0B1430,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
         <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
