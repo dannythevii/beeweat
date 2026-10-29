@@ -2,17 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.66";
-
-// ── 14.63: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
-const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
-const inSiteFrame = () => { try { return window.self !== window.top; } catch (_) { return true; } };
-const tellSite = msg => {                                   // dall'app al globo; fuori dalla cornice non parte nulla
-  if (!inSiteFrame()) return;
-  SITE_ORIGINS.forEach(o => { try { window.parent.postMessage({ source: "beeweat-app", ...msg }, o); } catch (_) {} });
-};
-const SITE_VIEW_TO_TAB = { feed: "feed", radar: "vicini", beecast: "beecast", eventi: "eventi", beeworld: "contatti" };
-const TAB_TO_SITE_VIEW = { feed: "feed", vicini: "radar", beecast: "beecast", eventi: "eventi", contatti: "beeworld" };
+const APP_VERSION = "14.64";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -121,7 +111,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     calendar: <><rect x="3" y="5" width="18" height="16" rx="3" {...p} /><path d="M3 10h18M8 3v4M16 3v4" {...p} /></>,
     globe: <><circle cx="12" cy="12" r="9" {...p} /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" {...p} /></>,
     bee: <><ellipse cx="12" cy="14" rx="4.5" ry="6" {...p} /><path d="M9 12h6M8.5 16h7M12 8V5M10 5l2-2 2 2" {...p} /><path d="M7.5 11c-4-2-5-6-2-6s4 3 2 6zM16.5 11c4-2 5-6 2-6s-4 3-2 6z" {...p} /></>,
-    share: <><circle cx="18" cy="5" r="2.6" {...p} /><circle cx="6" cy="12" r="2.6" {...p} /><circle cx="18" cy="19" r="2.6" {...p} /><path d="M8.3 10.7l7.4-4.3M8.3 13.3l7.4 4.3" {...p} /></>,   /* 14.66: punti collegati */
+    share: <><path d="M7 17L17 7M9 7h8v8" {...p} /></>,
     trophy: <><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v3M8 20h8M9 17h6" {...p} /></>,
     crown: <><path d="M3 18h18M3 18L2 8l5 4 5-7 5 7 5-4-1 10" {...p} /></>,
     sunset: <><path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 4v3M5 8l2 2M19 8l-2 2M2 21h20" {...p} /></>,
@@ -1202,7 +1192,7 @@ function useDialog(onClose, label, active = true) {
 }
 
 // ─── SEGNALAZIONE CONTENUTO ───────────────────────────────────────────────────
-const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo"];   // 14.66: via "Altro"
+const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo", "Altro"];
 function ReportModal({ post, onSubmit, onClose }) {
   const dlg = useDialog(onClose, "Segnala contenuto");
   const [reason, setReason] = useState(null);
@@ -1493,7 +1483,7 @@ async function shareCard(post, line) {
 const POST_KEYS = ["id", "img", "thumb", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
 const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
 const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active);
-function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active }) {
+function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active, onRetry }) {
   // 14.39: un cielo per schermata (tavola del 15 ottobre) — colonna delle azioni a destra, didascalia in basso a sinistra
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
@@ -1533,7 +1523,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
         {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
         {reported && <span style={chip}><NavIcon name="flag" size={12} color="#fff" sw={2.2} />In revisione</span>}
-        {post.pending && <span style={{ ...chip, background: HONEY, color: INK }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa"}</span>}
+        {post.pending && <span onClick={() => onRetry && onRetry()} style={{ ...chip, background: HONEY, color: INK, pointerEvents: "auto", cursor: "pointer" }}><NavIcon name={post.checking ? "search" : "bag"} size={12} color={INK} sw={2.2} />{post.checking ? "controllo" : "in attesa · tocca per riprovare"}</span>}
         {post.sending && <span style={{ ...chip, background: HONEY, color: INK }}>invio…</span>}
       </div>
 
@@ -1669,13 +1659,13 @@ function FeedSkeleton() {   // 14.39: una pagina "in arrivo"
     <div style={{ position: "absolute", left: 14, bottom: 30, right: 90 }}><div className="bw-skel" style={{ height: 16, width: "40%", borderRadius: 8, background: "rgba(255,255,255,.12)" }} /><div className="bw-skel" style={{ height: 12, width: "70%", borderRadius: 6, marginTop: 10, background: "rgba(255,255,255,.1)" }} /></div>
   </div>;
 }
-function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, placeExact, onOpenPlaceChat, wx, homeKey }) {   // 14.40: wx per il meteo del posto · 14.42: placeExact = nome trovato sul punto GPS
+function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, following, onFollow, onReport, reported, onView, onOpenPhoto, isAdmin, onDelete, onEdit, loading, worldOn, onToggleWorld, worldCount, focusId, onWiden, onShoot, modelCond, rain6, onOpenCast, onOpenRadar, followedOn, onToggleFollowed, onlineCount, placeName, placeExact, onOpenPlaceChat, wx, homeKey }) {   // 14.40: wx per il meteo del posto · 14.42: placeExact = nome trovato sul punto GPS
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
   const visible = useMemo(() => (worldOn || followedOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || p.followed || (following || []).includes(p.user)), [posts, worldOn, km, focusId, followedOn, following]);   // 14.48: Seguiti senza raggio   // faro e premiata entrano anche fuori raggio
   // 14.44: i callback passano da un ref, così le schede restano memoizzate e ricevono sempre la funzione più recente
-  const H = useRef({}); H.current = { onStar, onChat, onOpenUser, onFollow, onReport, onView, onOpenPhoto, onDelete, onEdit };
+  const H = useRef({}); H.current = { onStar, onChat, onOpenUser, onFollow, onReport, onView, onOpenPhoto, onDelete, onEdit, onRetry };
   const S = useMemo(() => Object.fromEntries(Object.keys(H.current).map(k => [k, (...a) => H.current[k] && H.current[k](...a)])), []);
   const toggleRg = useCallback(() => setRg(v => !v), []);
   const reelRef = useRef(null); const rafRef = useRef(0);
@@ -1690,17 +1680,22 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
   }, [cur, visible]);
   const menu = rg && <RaggioMenu anchor="rail" km={km} setKm={setKm} count={visible.length} worldOn={worldOn} onToggleWorld={onToggleWorld} followedOn={followedOn} onToggleFollowed={onToggleFollowed} rain6={rain6} onOpenCast={onOpenCast} placeChat={placeName} onOpenPlaceChat={onOpenPlaceChat} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />;
   const pill = { display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 700 };
+  // 14.63: il meteo in alto è quello del post a schermo (temperatura e condizione misurate allo scatto); il modello del tuo punto resta per max/min e vento
+  const curPost = visible[cur] || visible[0] || null;
+  const curTemp = curPost && curPost.temp != null && Number.isFinite(curPost.temp) ? `${Math.round(curPost.temp)}°` : null;
   const pills = (   /* 14.41: meteo del posto e pillole, tutto a sinistra */
     <div style={{ position: "absolute", top: "calc(64px + env(safe-area-inset-top, 0px))", left: 14, right: 90, zIndex: 5, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.45)", pointerEvents: "none" }}>
-      {wx && (<>
+      {(wx || curTemp) && (<>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{/* 14.42: condizione e vento accanto alla temperatura */}
-          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 300, letterSpacing: "-2px", lineHeight: 1 }}>{wx.temp}</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 300, letterSpacing: "-2px", lineHeight: 1 }}>{curTemp || (wx ? wx.temp : "—")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700 }}><NavIcon name={skyIcon(wx.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(wx.condition)}</div>
-            {wx.windKmh != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.85)" }}><NavIcon name="wind" size={13} color="#fff" sw={2.2} />{wx.windKmh} km/h{wx.wind ? ` ${wx.wind}` : ""}</div>}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700 }}><NavIcon name={skyIcon(curPost?.cond || wx?.condition)} size={14} color="#fff" sw={2.2} />{skyLabel(curPost?.cond || wx?.condition)}</div>
+            {wx && wx.windKmh != null && <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.85)" }}><NavIcon name="wind" size={13} color="#fff" sw={2.2} />{wx.windKmh} km/h{wx.wind ? ` ${wx.wind}` : ""}</div>}
           </div>
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>max {wx.hi} · min {wx.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          {curTemp ? <><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{curPost.city || "qui"}{curPost.precision === "city" ? " ≈" : ""}<span>·</span>allo scatto{curPost.time && curPost.time !== "adesso" ? ` · ${curPost.time} fa` : ""}</> : <>max {wx?.hi} · min {wx?.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</>}
+        </div>
       </>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
         <span style={pill}>{/* 14.44: una pillola sola */}{onlineCount != null && <><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />{onlineCount} api<span style={{ opacity: .6, margin: "0 2px" }}>·</span></>}<NavIcon name="pin" size={11} color="#fff" sw={2.4} />{worldOn ? "tutto il mondo" : `entro ${km} km`}</span>
@@ -1734,7 +1729,7 @@ function FeedScreen({ posts, km, setKm, onStar, onChat, onOpenUser, following, o
     <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
       {pills}
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
-        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
+        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onRetry={S.onRetry} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
       </div>
       {menu}
     </div>
@@ -1932,14 +1927,14 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       {/* 14.26: prossimi 7 giorni (Open-Meteo) */}
       {wxDays && wxDays.length > 0 && <>
         <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossimi 7 giorni</div>
-        <div style={{ background: CARD, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 4px", display: "grid", gridTemplateColumns: `repeat(${wxDays.length}, minmax(0, 1fr))`, gap: 2 }}>{/* 14.66: tutti i giorni a schermo */}
+        <div style={{ background: CARD, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
           {wxDays.map((d, i) => (
-            <div key={d.date} style={{ minWidth: 0, textAlign: "center", padding: "4px 1px", borderRadius: 14, background: i === 0 ? MIST : "transparent" }}>
-              <div style={{ fontSize: 11, color: TXT2, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i === 0 ? "oggi" : i === 1 ? "dom." : `${d.dow.slice(0, 3)} ${d.dnum}`}</div>
-              <div style={{ fontSize: 22, lineHeight: "28px", margin: "2px 0" }} title={d.l}>{d.e}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TXT, whiteSpace: "nowrap" }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
-              <div style={{ fontSize: 10.5, color: d.rain >= 1 ? TXT : TXT2, fontWeight: d.rain >= 10 ? 700 : 500, whiteSpace: "nowrap" }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
-              <div style={{ fontSize: 10.5, color: TXT2, whiteSpace: "nowrap" }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
+            <div key={d.date} style={{ minWidth: 84, flex: "0 0 auto", textAlign: "center", padding: "4px 2px", borderRadius: 14, background: i === 0 ? MIST : "transparent" }}>
+              <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{d.dow}{i > 1 ? ` ${d.dnum}` : ""}</div>
+              <div style={{ fontSize: 24, lineHeight: "30px", margin: "2px 0" }} title={d.l}>{d.e}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TXT }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
+              <div style={{ fontSize: 12, color: d.rain >= 1 ? TXT : TXT2, fontWeight: d.rain >= 10 ? 700 : 500 }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm${d.pop != null ? ` · ${d.pop}%` : ""}` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
             </div>
           ))}
         </div>
@@ -2624,6 +2619,17 @@ const fetchTempAt = async (lat, lng, atMs = null) => {
     return typeof t === "number" ? Math.round(t) : null;
   } catch (_) { return null; }
 };
+// 14.64: con la tastiera aperta il contenitore si accorcia (Frame); il campo attivo va riportato in vista, tenendo conto della scala
+const keepInView = el => {
+  const go = () => { try {
+    const sc = el.closest("[data-scroll]"); if (!sc) return;
+    const r = el.getBoundingClientRect(), cr = sc.getBoundingClientRect(); const k = cr.width / (sc.clientWidth || 1) || 1;
+    const vv = window.visualViewport; const visBottom = Math.min(cr.bottom, vv ? vv.offsetTop + vv.height : window.innerHeight);
+    const delta = r.bottom + 16 * k - visBottom;
+    if (delta > 0) sc.scrollTop += delta / k;
+  } catch (_) {} };
+  [60, 250, 500, 900].forEach(ms => setTimeout(go, ms));
+};
 function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, geoOff, locName, onCloudCheck, geo, pendingShot, onShotConsumed, modelCond }) {
   const [temp, setTemp] = useState("");          // "" = sconosciuta; si compila da sola allo scatto, l'ape può ritoccarla
   useEffect(() => {
@@ -2747,6 +2753,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
+  const preRef = useRef(null);   // 14.64: analisi locale avviata allo scatto { canvasKey, p }
   const CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nuvoloso", "Molto nuvoloso": "☁️ Molto nuvoloso", "Coperto": "☁️ Molto nuvoloso", "Nuvoloso": "☁️ Molto nuvoloso", "Pioggia": "🌧️ Pioggia", "Temporale": "⛈️ Temporale", "Neve": "❄️ Neve", "Nebbia": "🌫️ Nebbia", "Ventoso": "🌬️ Ventoso", "Arcobaleno": "🌈 Arcobaleno" };
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   const cloudCheck = onCloudCheck ? ((img, hints) => withTimeout(onCloudCheck(img, hints), 9000).catch(() => null)) : null;   // Bee-Eye risponde entro 9 s o passa la mano
@@ -2757,7 +2764,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     const hintsCtx = { modello: ctx.model || null, descrizione: (ctx.caption || "").slice(0, 300) || null, scelta: ctx.cond || null, descrizioneLetta: (() => { try { const t = readCaption(ctx.caption || ""); return t ? t.cls : null; } catch (_) { return null; } })() };
     if (!navigator.onLine) { setAi({ offline: true }); return; }   // senza rete: si pubblica nello zaino, controllo al rientro
     setAi({ checking: true });
-    withTimeout(analyzePhoto(c), 12000).then(async v => {
+    const pre = preRef.current && preRef.current.key === c.__bwKey ? preRef.current.p : null;   // 14.64: verdetto già in lavorazione dallo scatto
+    (pre || withTimeout(analyzePhoto(c), 12000)).then(async v => {
       if (aiSeqRef.current !== my) return;             // verdetto di uno scatto passato: ignorato
       // ── CASCATA: sui casi incerti si chiede il secondo parere a Bee-Eye ──
       const uncertain = onCloudCheck && (
@@ -2860,6 +2868,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         setCaptured(c.toDataURL("image/jpeg", .85));
         setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
         try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
+        try { const key = c.width + "x" + c.height + ":" + Date.now(); preRef.current = { key, p: withTimeout(analyzePhoto(c), 12000) }; preRef.current.p.catch(() => {}); c.__bwKey = key; } catch (_) { preRef.current = null; }   // 14.64: occhi al lavoro subito
       } finally { URL.revokeObjectURL(url); }
     };
     im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
@@ -2910,8 +2919,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const publish = () => {
     if (!canPublish) return;
     setPosting(true); setArmed(true); setStep(1);
-    setTimeout(() => setStep(2), 250); setTimeout(() => setStep(3), 500);
-    setTimeout(() => { setStep(4); runAI({ model: modelCond, caption, cond }); }, 750);
+    setTimeout(() => setStep(2), 120); setTimeout(() => setStep(3), 240);
+    setTimeout(() => { setStep(4); runAI({ model: modelCond, caption, cond }); }, 360);   // 14.64: passi più rapidi, la foto è già analizzata
   };
   useEffect(() => { if (ai?.block && !armed) setAi(null); }, [cond, caption]);   // 14.62: ritenta dopo una modifica
   useEffect(() => {
@@ -2996,7 +3005,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         </div>
       ) : (
         /* ── DOPO LO SCATTO: anteprima e pubblicazione ── */
-        <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
+        <div data-scroll="1" style={{ flex: 1, overflowY: "auto", background: BODY }}>
           <div style={{ margin: "12px 14px 0", borderRadius: 24, overflow: "hidden", background: NIGHT3, position: "relative", aspectRatio: "4 / 5", boxShadow: "0 14px 36px rgba(0,0,0,.4)" }}>
             <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 60%, rgba(5,10,30,.8))" }} />
@@ -3024,12 +3033,12 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             </div>
             <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase" }}>Descrizione <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(facoltativa)</span></span>
-              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onChange={e => setCaption(e.target.value)} style={{ background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
+              <textarea rows={2} placeholder="Es. nuvole basse sul mare, vento da nord" value={caption} onFocus={e => keepInView(e.target)} onChange={e => setCaption(e.target.value)} style={{ background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", fontSize: 14, resize: "none", outline: "none", color: TXT, lineHeight: 1.5, width: "100%" }} />
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: 10, background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 14, padding: "9px 12px", marginBottom: 12 }}>
               <NavIcon name="thermo" size={18} color={HONEY2} sw={2} />
               <span style={{ flex: 1, fontSize: 13, color: TXT2 }}>Temperatura {temp === "" ? "(in arrivo…)" : "· automatica, puoi correggerla"}</span>
-              <input type="number" inputMode="numeric" value={temp} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 17, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif" }} />
+              <input type="number" inputMode="numeric" value={temp} onFocus={e => keepInView(e.target)} onChange={e => setTemp(e.target.value)} placeholder="—" aria-label="Temperatura in gradi" style={{ width: 58, minHeight: 32, textAlign: "right", border: "none", outline: "none", background: "none", fontSize: 17, fontWeight: 700, color: TXT, fontFamily: "'Inter',sans-serif" }} />
               <span style={{ fontSize: 16, fontWeight: 700, color: TXT }}>°</span>
             </div>
             <GeoChip />
@@ -4258,22 +4267,17 @@ function AppInner() {
       .catch(() => {});                          // modulo assente (anteprima): resta la demo
   }, []);
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => { try { const c = JSON.parse(localStorage.getItem("bw_profile") || "null"); return c?.name ? { ...c, mine: true, avatar: c.avatar || "🌤️" } : null; } catch (_) { return null; } });   // 14.64: già dentro, anche senza rete
   // 14.47: la fotocamera del telefono si apre nello stesso tocco di «Scatta» (il campo sta nel body, così non si perde cambiando schermata)
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
-    if (inSiteFrame()) return;                                                 // 14.64: dentro il sito nessun accesso a fotocamera o galleria
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const [siteCamNotice, setSiteCamNotice] = useState(false);   // 14.64: avviso "scatta dal telefono" dentro il sito
-  const openCamera = () => {
-    if (inSiteFrame()) { setSiteCamNotice(true); setTimeout(() => setSiteCamNotice(false), 4200); return; }   // 14.64: niente fotocamera né galleria dal sito
-    try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post");
-  };
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -4437,33 +4441,7 @@ function AppInner() {
   });
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
-  // ── 14.63: il globo del sito parla con l'app ───────────────────────────────────────────────
-  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay, setGeo, setLocAt };
-  useEffect(() => {
-    if (!inSiteFrame()) return;
-    const onMsg = ev => {
-      if (!SITE_ORIGINS.includes(ev.origin) || !ev.data || ev.data.source !== "beeweat-site") return;
-      const d = ev.data, r = siteRef.current;
-      if (d.type === "view" && SITE_VIEW_TO_TAB[d.view]) { r.setOverlay(null); r.setTab(SITE_VIEW_TO_TAB[d.view]); }
-      if (d.type === "open-place" && d.place) r.openPlaceChat({ name: String(d.place), lat: +d.lat, lng: +d.lng }, null);
-      if (d.type === "location" && Number.isFinite(+d.lat) && Number.isFinite(+d.lng)) {   // 14.65: la posizione del sito vale come un fix GPS
-        const g = { lat: +d.lat, lng: +d.lng, __real: true };
-        r.setGeo(cur => (cur && cur.__real && Math.abs(cur.lat - g.lat) < 0.0005 && Math.abs(cur.lng - g.lng) < 0.0005) ? cur : g);
-        r.setGeoReal(true);
-        if (d.city) r.setLocAt({ name: String(d.city), lat: g.lat, lng: g.lng });
-        try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
-      }
-    };
-    window.addEventListener("message", onMsg);
-    tellSite({ type: "need-location" });                                            // 14.65: appena parte chiede la posizione al sito
-    return () => window.removeEventListener("message", onMsg);
-  }, []);
-  useEffect(() => { tellSite({ type: "view", view: TAB_TO_SITE_VIEW[tab] || "feed" }); }, [tab]);
-  useEffect(() => { tellSite({ type: "radius", km }); }, [km]);
-  useEffect(() => { if (geo && typeof geo.lat === "number") tellSite({ type: "location", lat: geo.lat, lng: geo.lng, city: locAt?.name || user?.city || null, km }); }, [geo?.lat, geo?.lng, locAt?.name]);
-  useEffect(() => { tellSite({ type: "refresh" }); }, [posts.length, events.length]);   // nuovo cielo o evento: il globo ricarica
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
-  siteRef.current.setGeoReal = setGeoReal;         // 14.65: per la posizione che arriva dal sito
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(() => { try { return localStorage.getItem("bw_geo_off") === "1"; } catch (_) { return false; } });   // l'ape ha scelto: solo città, niente GPS
   useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
@@ -4481,7 +4459,8 @@ function AppInner() {
     // e vedrà l'invito una sola volta, al momento giusto: quando scatta il primo cielo.
     // 13.8: bw_geo_ok NON basta più per avviare il GPS all'ingresso — Safari richiede il permesso a ogni visita,
     // quindi chi aveva detto sì in passato rivedeva il popup. Il GPS parte solo allo scatto (CameraView).
-    let off = false; try { off = localStorage.getItem("bw_geo_off") === "1"; } catch (_) {}
+    let off = false, okBefore = false; try { off = localStorage.getItem("bw_geo_off") === "1"; okBefore = localStorage.getItem("bw_geo_ok") === "1"; } catch (_) {}
+    if (okBefore && !off) { go(); return; }   // 14.64: «posizione precisa» è attiva: il GPS parte subito (il telefono conferma da sé se serve), non più solo allo scatto
     if (navigator.permissions?.query) {   // permesso ricordato dal sistema (Chrome/Android): si usa in silenzio, senza popup
       navigator.permissions.query({ name: "geolocation" }).then(st => { if (st.state === "granted" && !off) go(); }).catch(() => {});
     }
@@ -4769,6 +4748,7 @@ function AppInner() {
           comments: r.comments_count || 0, views: r.views_count || 0,
           img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
+      try { const cache = (rows || []).slice(0, 40).map(r => ({ ...r, profiles: undefined, _pr: pmap[r.user_id] || null, _star: myStars.has(r.id) })); localStorage.setItem("bw_feed_cache", JSON.stringify({ at: Date.now(), au: au?.id || null, rows: cache })); } catch (_) {}   // 14.64
     } catch (e) { console.warn("feed:", e?.message || e); }
     finally { setFeedReady(true); feedBusy.current = false; if (feedAgain.current) { feedAgain.current = false; setTimeout(loadFeedRef.current, 400); } }
   }, [sb, user, feedKey]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -4797,6 +4777,20 @@ function AppInner() {
     return () => clearTimeout(t);
   }, [user]);
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  useEffect(() => {   // 14.64: feed dell'ultima volta, subito (senza rete resta quello)
+    if (!sb?.isConfigured || !user) return;
+    try {
+      const j = JSON.parse(localStorage.getItem("bw_feed_cache") || "null"); if (!j || !Array.isArray(j.rows) || !j.rows.length) return;
+      if (Date.now() - j.at > 3 * 86400000) return;
+      const g = geoRef.current;
+      const cards = j.rows.map(r => { const pr = r._pr || {}; const pt = { lat: r.lat, lng: r.lng };
+        return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null, time: fmtPostTime(r.created_at), ts: r.created_at, city: titleCase(r.city || pr.city || ""), precision: r.precision || null, dist: g && r.lat != null ? +kmDist(g, pt).toFixed(1) : 0, bearing: g && r.lat != null ? Math.round(bearingTo(g, pt)) : 0,
+          dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined, cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: !!r._star, aiClass: r.ai_class || null, aiScore: r.ai_score ?? null, comments: r.comments_count || 0, views: r.views_count || 0,
+          img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!j.au && r.user_id === j.au, uid: r.user_id, cached: true }; });
+      setPosts(ps => ps.some(p => !p.pending) ? ps : [...ps.filter(p => p.pending), ...cards]);
+      setFeedReady(true);
+    } catch (_) {}
+  }, [sb, user]);
   // Avvisi (campanella): elenco reale + arrivo in tempo reale
   const [alerts, setAlerts] = useState([]);
   const [notifToast, setNotifToast] = useState(null);
@@ -5155,10 +5149,10 @@ function AppInner() {
   // Modifica post (autore o admin)
   const [editTarget, setEditTarget] = useState(null);
   const [admins, setAdmins] = useState(null);   // gli amministratori, per il Centro assistenza
-  const [splash, setSplash] = useState(true);   // lo splash d'avvio: logo e numeri dell'alveare
+  const [splash, setSplash] = useState(() => { try { return !JSON.parse(localStorage.getItem("bw_profile") || "null")?.name; } catch (_) { return true; } });   // 14.64: niente splash per chi è già dentro
   const [userCount, setUserCount] = useState(null);
   const [onlineCount, setOnlineCount] = useState(null);
-  useEffect(() => { const t = setTimeout(() => setSplash(false), 2200); return () => clearTimeout(t); }, []);
+  useEffect(() => { if (!splash) return; const t = setTimeout(() => setSplash(false), 2200); return () => clearTimeout(t); }, []);
   useEffect(() => { if (sb?.isConfigured && sb.getUserCount) sb.getUserCount().then(setUserCount).catch(() => {}); }, [sb, user]);
   useEffect(() => {   // presence: solo gli admin ne hanno bisogno, ma tutti "segnano presenza" (leggero)
     if (!sb?.isConfigured || !myUid || !sb.subscribePresence) return;
@@ -5418,15 +5412,29 @@ function AppInner() {
   });
   // ── Zaino offline: i post senza rete si salvano e partono da soli ────────────
   const OUTBOX_KEY = "bw_outbox";
-  const loadOutbox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch (_) { return []; } };
-  const saveOutbox = box => { try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(box)); return true; } catch (_) { return false; } };
+  // 14.64: lo zaino vive in IndexedDB (centinaia di MB), non più in localStorage (5 MB: una foto o due e «memoria piena»)
+  const obDB = () => new Promise((res, rej) => { try { const r = indexedDB.open("beeweat", 1); r.onupgradeneeded = () => { try { r.result.createObjectStore("outbox", { keyPath: "ts" }); } catch (_) {} }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked")); } catch (e) { rej(e); } });
+  const obTx = async (mode, fn) => { const db = await obDB(); return new Promise((res, rej) => { const tx = db.transaction("outbox", mode); const st = tx.objectStore("outbox"); let out; try { out = fn(st); } catch (e) { rej(e); return; } tx.oncomplete = () => { db.close(); res(out && "result" in out ? out.result : out); }; tx.onerror = () => { db.close(); rej(tx.error); }; tx.onabort = () => { db.close(); rej(tx.error || new Error("abort")); }; }); };
+  const loadOutbox = async () => {
+    let box = [];
+    try { box = (await obTx("readonly", st => st.getAll())) || []; } catch (_) {}
+    try {   // migrazione: quello che era in localStorage passa in IndexedDB
+      const ls = JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]");
+      if (ls.length) { try { await obTx("readwrite", st => { ls.forEach(it => st.put(it)); }); localStorage.removeItem(OUTBOX_KEY); box = box.concat(ls.filter(it => !box.some(b => b.ts === it.ts))); } catch (_) { box = box.concat(ls); } }
+    } catch (_) {}
+    return box.sort((a, b) => a.ts - b.ts);
+  };
+  const saveOutbox = async box => {
+    try { await obTx("readwrite", st => { st.clear(); box.forEach(it => st.put(it)); }); return true; } catch (_) {}
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(box)); return true; } catch (_) { return false; }
+  };
   const isNetErr = e => !navigator.onLine || /fetch|network|internet|connessione|timeout|load failed/i.test(String(e?.message || e));
   const flushingRef = useRef(false);
   const flushOutbox = async () => {
     if (flushingRef.current || !sb?.isConfigured || !navigator.onLine) return;
-    const box = loadOutbox();
-    if (!box.length) return;
     flushingRef.current = true;
+    const box = await loadOutbox();
+    if (!box.length) { flushingRef.current = false; return; }
     const remain = [];
     let sent = 0;
     const rejected = [];
@@ -5462,7 +5470,7 @@ function AppInner() {
                 if (v.needsJudge && !(verdict.cielo_visibile && (verdict.fiducia || 0) >= 0.7)) { rejected.push("non si vede un cielo vero: sembra una parete o un soffitto"); continue; }   // 14.55
                 it.aiClass = j.cls || v.cls; it.aiScore = j.score; it.needsCheck = false;
               } else {   // giudice muto: vale l'occhio locale, con la stessa prudenza della fotocamera
-                if (v.needsJudge) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }   // 14.55: grigio senza azzurro aspetta Bee-Eye
+                if (v.needsJudge) { it.tries = (it.tries || 0) + 1; it.lastErr = "l'occhio dell'alveare non risponde"; remain.push(it); continue; }   // 14.55/14.64: aspetta Bee-Eye, senza arrendersi
                 const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
                 if (v.block || (v.conflict && !soft)) { rejected.push(v.reason || "sembra una scena d'interni: inquadra il cielo vero"); continue; }
                 it.aiClass = v.cls; it.aiScore = v.score; it.needsCheck = false;
@@ -5470,7 +5478,7 @@ function AppInner() {
             }
           } else {   // occhi locali indisponibili: giudica Bee-Eye; se tace, si riprova più tardi
             const verdict = await askBee({});
-            if (!verdict) { it.tries = (it.tries || 0) + 1; if (it.tries < 10) remain.push(it); continue; }
+            if (!verdict) { it.tries = (it.tries || 0) + 1; it.lastErr = "l'occhio dell'alveare non risponde"; remain.push(it); continue; }
             const j = judgeCloud(verdict);
             if (!j.ok) { rejected.push(j.reason); continue; }
             it.aiClass = j.cls; it.aiScore = j.score; it.needsCheck = false;
@@ -5482,32 +5490,36 @@ function AppInner() {
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
-        it.tries = (it.tries || 0) + 1;
-        if (it.tries < 10) remain.push(it);                       // dopo 10 tentativi falliti si arrende
+        it.tries = (it.tries || 0) + 1; it.lastErr = String(e?.message || e).slice(0, 120);
+        remain.push(it);                                          // 14.64: non si arrende mai: resta nello zaino, si riprova
       }
     }
-    saveOutbox(remain);
+    await saveOutbox(remain);
     flushingRef.current = false;
+    if (remain.some(it => (it.tries || 0) >= 10 && !it.warned)) { remain.forEach(it => { if ((it.tries || 0) >= 10) it.warned = true; }); await saveOutbox(remain); alert("🎒 Alcuni post nello zaino non riescono a partire (" + (remain.find(it => it.lastErr)?.lastErr || "server non raggiungibile") + "). Restano al sicuro: tocca «in attesa» sulla scheda per riprovare."); }
     if (sent || rejected.length) { setPosts(ps => ps.filter(p => !p.pending)); await loadFeed(); }
     if (rejected.length) alert(`🔎 ${rejected.length} foto non ${rejected.length === 1 ? "ha" : "hanno"} superato il controllo e non ${rejected.length === 1 ? "è stata pubblicata" : "sono state pubblicate"}:\n· ` + rejected.join("\n· ") + "\n\nInquadra il cielo vero e riprova. 🌤️");
   };
   useEffect(() => {
     const go = () => { flushOutbox(); };
-    window.addEventListener("online", go);
+    const onVis = () => { if (document.visibilityState === "visible") go(); };
+    window.addEventListener("online", go); document.addEventListener("visibilitychange", onVis);
     const iv = setInterval(go, 60 * 1000);
-    go();                                                          // anche all'avvio: consegna gli arretrati
-    return () => { window.removeEventListener("online", go); clearInterval(iv); };
-  }, [sb]);
+    const t = setTimeout(go, user ? 1500 : 0);                     // anche all'avvio (14.64: appena c'è l'ape): consegna gli arretrati
+    return () => { window.removeEventListener("online", go); document.removeEventListener("visibilitychange", onVis); clearInterval(iv); clearTimeout(t); };
+  }, [sb, user]);
+  const flushRef = useRef(null); flushRef.current = flushOutbox;
   // all'avvio, i post ancora nello zaino ricompaiono nel feed come "in attesa"
   useEffect(() => {
     if (!user) return;
-    const box = loadOutbox();
-    if (!box.length) return;
+    let stop = false;
+    loadOutbox().then(box => { if (stop || !box.length) return;
     setPosts(ps => {
       const have = new Set(ps.filter(p => p.pending).map(p => p.id));
       const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city || locName || user.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
       return cards.length ? [...cards, ...ps] : ps;
-    });
+    }); });
+    return () => { stop = true; };
   }, [user]);
 
   const shrinkImage = (dataUrl, maxW = 1600, q = 0.82) => new Promise(res => {
@@ -5550,10 +5562,10 @@ function AppInner() {
       : { lat: Math.round(geo.lat * 20) / 20, lng: Math.round(geo.lng * 20) / 20 };   // 14.45: senza posizione precisa, solo la zona della città (~5 km)
     const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(pendTs)), ts: new Date(pendTs).toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
-    const toOutbox = () => {
-      const box = loadOutbox();
+    const toOutbox = async () => {
+      const box = await loadOutbox();
       box.push({ ts: pendTs, img, caption, cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
-      if (!saveOutbox(box)) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
+      if (!(await saveOutbox(box))) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       if (navigator.onLine) setTimeout(() => flushOutbox(), 400);   // rete c'è: il controllo in coda parte subito
       else alert("📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒");
@@ -5722,7 +5734,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post" && !inSiteFrame()) return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
@@ -5881,7 +5893,6 @@ function AppInner() {
 
   function wrap(content) {
     return <Frame>{content}
-      {siteCamNotice && <div role="status" style={{ position: "absolute", left: 16, right: 16, bottom: 96, zIndex: 210, background: HONEY, color: INK, borderRadius: 16, padding: "12px 14px", fontSize: 14, fontWeight: 700, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "'Inter',sans-serif" }}>I cieli si scattano dall'app sul telefono: qui su beeweat.com puoi guardare, dare stelle e chattare.</div>}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#0B1430,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
         <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
@@ -5911,7 +5922,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {tab === "feed" && <FeedScreen homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
+        {tab === "feed" && <FeedScreen onRetry={() => flushRef.current && flushRef.current()} homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
