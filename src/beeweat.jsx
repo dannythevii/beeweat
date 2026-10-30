@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.66";
+const APP_VERSION = "14.67";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3061,7 +3061,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
+function ProfileView({ onGender, user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
   // 14.37: tavola 4 — copertina con l'ultimo cielo, grado, statistiche, Raggio, griglia
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
@@ -3182,6 +3182,7 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
           {/* IMPOSTAZIONI */}
           <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, overflow: "hidden" }}>
             <Row icon="bell" title="Configurazione" sub={notif?.enabled ? `Avvisi attivi · entro ${notif.radiusKm} km` : "Avvisi disattivati"} onClick={onOpenNotif} />
+            {onGender && <Row icon="bee" title="Chi sei" sub={({ f: "Donna", m: "Uomo", x: "Altro" }[user.gender] || "Non indicato") + " · facoltativo, serve solo alle statistiche dell'alveare, mai mostrato"} right={<select value={user.gender || ""} onChange={e => onGender(e.target.value || null)} aria-label="Chi sei" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">—</option><option value="f">Donna</option><option value="m">Uomo</option><option value="x">Altro</option></select>} />}
             {onToggleReceipts && <Row icon={<span style={{ fontSize: 15, fontWeight: 700, color: TXT, letterSpacing: "-1px" }}>✓✓</span>} title="Conferma di lettura" sub={user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"} onClick={() => onToggleReceipts(!(user.readReceipts !== false))} right={user.readReceipts !== false} />}
             <Row icon="pin" title="Posizione precisa" sub="Sempre attiva · zona di ~1 km, mai la casa. Se il telefono la nega: Impostazioni → Safari → Posizione → Consenti" border={false} />
           </div>
@@ -4262,7 +4263,7 @@ function AppInner() {
         // 14.46: la sessione è già sul telefono: si entra subito col profilo salvato, il server aggiorna dopo (anche senza rete non si esce)
         let session = null; try { session = (await m.supabase.auth.getSession()).data?.session || null; } catch (_) {}
         if (session) { try { const c = JSON.parse(localStorage.getItem("bw_profile") || "null"); if (c?.name) setUser(u => u || { ...c, mine: true }); } catch (_) {} }
-        const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false }); }).catch(() => {});
+        const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false, gender: p.gender || null }); }).catch(() => {});
         fromServer();
         // 14.52: mai chiamare Supabase dentro questo evento (tiene un lucchetto: la registrazione restava in attesa) → si rimanda di un giro
         m.supabase.auth.onAuthStateChange((ev, ses) => { if ((ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") && ses) setTimeout(fromServer, 0); if (ev === "SIGNED_OUT") { setUser(null); try { localStorage.removeItem("bw_profile"); } catch (_) {} } });
@@ -4281,7 +4282,7 @@ function AppInner() {
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
   const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
-  useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts })); } catch (_) {} } }, [user, sb]);   // 14.46
+  useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts, gender: user.gender || null })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
   // ── Tasto/gesto "indietro" del browser: chiude i sottomenu invece di uscire dal sito ──
@@ -5781,6 +5782,10 @@ function AppInner() {
         catch (e) { failAlert("Città non salvata", e); }
       }
     }} isAdmin={isAdmin}
+    onGender={sb?.isConfigured && sb.setMyGender ? async g => {
+      setUser(u => u ? { ...u, gender: g } : u);
+      try { await sb.setMyGender(g); } catch (e) { failAlert("Impostazione non salvata (hai lanciato beeweat-14.67-statistiche.sql?)", e); }
+    } : undefined}
     onToggleReceipts={sb?.isConfigured && sb.setReadReceipts ? async on => {
       setUser(u => u ? { ...u, readReceipts: on } : u);
       try { await sb.setReadReceipts(on); } catch (e) { failAlert("Impostazione non salvata", e); }

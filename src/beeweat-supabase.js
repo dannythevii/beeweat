@@ -829,9 +829,15 @@ export async function adminPosts(limit = 200) {
 }
 // Assistenza: tutte le chat dirette tra api e amministratori
 export async function adminSupportMessages() {
-  const { data, error } = await supabase.rpc("admin_support_messages", { p_limit: 2000 });
-  if (error) throw error;
-  const rows = data || [];
+  let rows = null, rpcErr = null;
+  try { const { data, error } = await supabase.rpc("admin_support_messages", { p_limit: 2000 }); if (error) throw error; rows = data || []; } catch (e) { rpcErr = e; }
+  if (!rows) {   // 14.67: senza la funzione sul server (SQL non ancora lanciato) si leggono almeno le chat dell'admin collegato
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw rpcErr || new Error("Utente non autenticato");
+    const { data, error } = await supabase.from("messages").select("*").eq("scope", "direct").or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`).order("created_at", { ascending: false }).limit(2000);
+    if (error) throw rpcErr || error;
+    rows = data || []; rows.__partial = String(rpcErr?.message || rpcErr || "funzione admin_support_messages assente");
+  }
   const ids = [...new Set(rows.flatMap(m => [m.from_user_id, m.to_user_id]).filter(Boolean))];
   const { data: profs } = ids.length ? await supabase.from("profiles").select("id,name,avatar_url,city,is_admin").in("id", ids) : { data: [] };
   const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
@@ -870,4 +876,13 @@ export async function myAdminInvite() {
 export async function answerAdminInvite(id, accept) {
   const { data, error } = await supabase.rpc("answer_admin_invite", { p_id: id, p_accept: !!accept });
   if (error) throw error; return !!data;
+}
+// 14.67: statistiche per il cruscotto e genere (facoltativo) dell'ape
+export async function adminStats(days = 30) {
+  const { data, error } = await supabase.rpc("admin_stats", { p_days: days });
+  if (error) throw error; return data || null;
+}
+export async function setMyGender(g) {
+  const { error } = await supabase.rpc("set_my_gender", { p_g: g || null });
+  if (error) throw error;
 }
