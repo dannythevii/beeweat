@@ -778,3 +778,96 @@ export async function updateMyLocation(lat, lng) {
 // const unsubscribe = subscribePostChat(post.id, (msg) => console.log("nuovo:", msg));
 // // ... quando chiudi la chat: unsubscribe();
 // ============================================================================
+
+// ============================================================================
+// 14.66 — AREA RISERVATA (cruscotto web degli amministratori) e segnalazioni
+// ============================================================================
+// Segnalazione dal tasto «Segnala» (prima restava solo sul telefono)
+export async function createReport(postId, reason, note) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { error } = await supabase.from("reports").insert({ post_id: postId, reporter_id: user.id, reason: reason || null, note: note || null });
+  if (error) throw error;
+}
+export async function adminReports(status = "open", limit = 300) {
+  let q = supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (status && status !== "all") q = q.eq("status", status);
+  const { data, error } = await q; if (error) throw error;
+  const rows = data || [];
+  const pids = [...new Set(rows.map(r => r.post_id).filter(Boolean))];
+  const uids = [...new Set(rows.map(r => r.reporter_id).filter(Boolean))];
+  const [{ data: posts }, { data: profs }] = await Promise.all([
+    pids.length ? supabase.from("posts").select("id,user_id,image_url,thumb_url,caption,condition,city,created_at,archived_at").in("id", pids) : { data: [] },
+    uids.length ? supabase.from("profiles").select("id,name,avatar_url").in("id", uids) : { data: [] },
+  ]);
+  const pm = Object.fromEntries((posts || []).map(p => [p.id, p])), um = Object.fromEntries((profs || []).map(p => [p.id, p]));
+  const authors = [...new Set((posts || []).map(p => p.user_id))];
+  const { data: aprofs } = authors.length ? await supabase.from("profiles").select("id,name,avatar_url,banned_until").in("id", authors) : { data: [] };
+  const am = Object.fromEntries((aprofs || []).map(p => [p.id, p]));
+  rows.forEach(r => { r.post = pm[r.post_id] || null; r.reporter = um[r.reporter_id] || null; r.author = r.post ? (am[r.post.user_id] || null) : null; });
+  return rows;
+}
+export async function adminResolveReport(id, status, outcome) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from("reports").update({ status, outcome: outcome || null, handled_by: user?.id || null, handled_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+// Api (con email, cieli, sospensione) — solo amministratori
+export async function adminProfiles() {
+  const { data, error } = await supabase.rpc("admin_list_profiles");
+  if (error) throw error; return data || [];
+}
+export async function adminOverview() {
+  const { data, error } = await supabase.rpc("admin_overview");
+  if (error) throw error; return data || null;
+}
+// Cieli recenti (anche archiviati), con autore e numeri
+export async function adminPosts(limit = 200) {
+  const { data, error } = await supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return attachProfiles(await enrichCounts(data || []));
+}
+// Assistenza: tutte le chat dirette tra api e amministratori
+export async function adminSupportMessages() {
+  const { data, error } = await supabase.rpc("admin_support_messages", { p_limit: 2000 });
+  if (error) throw error;
+  const rows = data || [];
+  const ids = [...new Set(rows.flatMap(m => [m.from_user_id, m.to_user_id]).filter(Boolean))];
+  const { data: profs } = ids.length ? await supabase.from("profiles").select("id,name,avatar_url,city,is_admin").in("id", ids) : { data: [] };
+  const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+  rows.forEach(m => { m.from = pm[m.from_user_id] || null; m.to = pm[m.to_user_id] || null; });
+  return rows;
+}
+// Inviti ad amministratore
+export async function adminInvite(toUser) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const { error } = await supabase.from("admin_invites").insert({ from_admin: user.id, to_user: toUser });
+  if (error) throw error;
+}
+export async function adminInvites() {
+  const { data, error } = await supabase.from("admin_invites").select("*").order("created_at", { ascending: false }).limit(100);
+  if (error) throw error; return data || [];
+}
+export async function adminRevokeInvite(id) {
+  const { error } = await supabase.from("admin_invites").update({ status: "revoked", answered_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+export async function adminSetAdmin(target, on) {
+  const { error } = await supabase.rpc("admin_set_admin", { p_target: target, p_on: on });
+  if (error) throw error;
+}
+// L'ape: c'è un invito in attesa per me?
+export async function myAdminInvite() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase.from("admin_invites").select("*").eq("to_user", user.id).eq("status", "pending").order("created_at", { ascending: false }).limit(1);
+  if (error) return null;
+  const inv = (data || [])[0]; if (!inv) return null;
+  try { const { data: p } = await supabase.from("profiles").select("name").eq("id", inv.from_admin).single(); inv.from_name = p?.name || "un amministratore"; } catch (_) { inv.from_name = "un amministratore"; }
+  return inv;
+}
+export async function answerAdminInvite(id, accept) {
+  const { data, error } = await supabase.rpc("answer_admin_invite", { p_id: id, p_accept: !!accept });
+  if (error) throw error; return !!data;
+}

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.65";
+const APP_VERSION = "14.66";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3186,7 +3186,10 @@ function ProfileView({ user, posts, onLogout, onBack, onAvatar, onOpenNotif, not
             <Row icon="pin" title="Posizione precisa" sub="Sempre attiva · zona di ~1 km, mai la casa. Se il telefono la nega: Impostazioni → Safari → Posizione → Consenti" border={false} />
           </div>
           {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4ADE80", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
-          {isAdmin && <div style={{ background: NIGHT2, border: `1px solid ${HONEY}55`, borderRadius: 18, overflow: "hidden", marginTop: 10 }}><Row icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} /></div>}
+          {isAdmin && <div style={{ background: NIGHT2, border: `1px solid ${HONEY}55`, borderRadius: 18, overflow: "hidden", marginTop: 10 }}>
+            <Row icon="gear" honey title="Area riservata" sub="Il cruscotto degli amministratori: api, cieli, assistenza, segnalazioni" onClick={() => { try { window.open("/admin.html", "_blank"); } catch (_) { location.href = "/admin.html"; } }} />
+            <Row icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} />
+          </div>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, minHeight: 46, borderRadius: 14, border: `1px solid ${RED}55`, background: "rgba(240,86,91,.08)", color: "#FFB4B6", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color="#FFB4B6" /> Logout</button>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: TXT2, fontSize: 12.5, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}><NavIcon name="bee" size={14} color={HONEY2} sw={1.8} />Beeweat v{APP_VERSION}</div>
         </div>
@@ -4332,7 +4335,7 @@ function AppInner() {
   const [following, setFollowing] = useState([]);
   const [reported, setReported] = useState([]);
   const [reportTarget, setReportTarget] = useState(null);
-  const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); };
+  const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); if (sb?.isConfigured && sb.createReport && typeof post.id === "string" && !/^(ob_|tx_|d\d)/.test(post.id)) sb.createReport(post.id, reason).catch(e => console.warn("segnalazione:", e?.message || e)); };   // 14.66
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
   const [socialTick, setSocialTick] = useState(0);
@@ -4902,6 +4905,19 @@ function AppInner() {
     } catch (_) {} })();
   }, [sb, user]);
   const [banInfo, setBanInfo] = useState(null);
+  const [adminInvite, setAdminInvite] = useState(null);   // 14.66: proposta «diventa amministratore» in attesa di risposta
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || !sb.myAdminInvite) return;
+    let stop = false;
+    const look = () => sb.myAdminInvite().then(i => { if (!stop) setAdminInvite(i); }).catch(() => {});
+    look(); const iv = setInterval(look, 5 * 60 * 1000);
+    return () => { stop = true; clearInterval(iv); };
+  }, [sb, user]);
+  const answerInvite = async accept => {
+    const inv = adminInvite; setAdminInvite(null); if (!inv) return;
+    try { await sb.answerAdminInvite(inv.id, accept); if (accept) { setIsAdmin(true); alert("Benvenuto tra gli amministratori dell'alveare 👑\nTrovi l'Area riservata nel tuo Profilo."); } }
+    catch (e) { alert("Non sono riuscito a registrare la risposta: " + (e?.message || e)); }
+  };
   // ── Push sul dispositivo (Web Push VAPID) ──
   const [pushState, setPushState] = useState("off");   // off | on | denied | unsupported
   useEffect(() => {
@@ -5891,6 +5907,11 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {adminInvite && !splash && <PermissionInvite sheet emoji="👑" title="Vuoi diventare amministratore?"
+        lines={[["1", `${adminInvite.from_name} ti propone di entrare tra gli amministratori dell'alveare.`],
+                ["2", "Potrai gestire api, cieli, segnalazioni e assistenza dall'Area riservata."],
+                ["3", "Si diventa amministratori solo con il consenso di entrambi: decidi tu."]]}
+        cta="Accetto" onAccept={() => answerInvite(true)} onLater={() => answerInvite(false)} laterLabel="No, grazie" />}
       {splash && <div style={{ position: "absolute", inset: 0, zIndex: 200, background: "linear-gradient(180deg,#0B1430,#141F45)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
         <div style={{ animation: "float 3.5s ease-in-out infinite" }}><BeeweatLogo size={130} /></div>
         <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 36, letterSpacing: ".04em", color: HONEY2 }}>BEEWEAT</div>
