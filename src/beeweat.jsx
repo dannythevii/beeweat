@@ -2,17 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.68";
-
-// ── 14.68: ponte con il sito beeweat.com (l'app incorniciata accanto al globo) ───────────────
-const SITE_ORIGINS = ["https://beeweat.com", "https://www.beeweat.com"];
-const inSiteFrame = () => { try { return window.self !== window.top; } catch (_) { return true; } };
-const tellSite = msg => {                                   // dall'app al globo; fuori dalla cornice non parte nulla
-  if (!inSiteFrame()) return;
-  SITE_ORIGINS.forEach(o => { try { window.parent.postMessage({ source: "beeweat-app", ...msg }, o); } catch (_) {} });
-};
-const SITE_VIEW_TO_TAB = { feed: "feed", radar: "vicini", beecast: "beecast", eventi: "eventi", beeworld: "contatti" };
-const TAB_TO_SITE_VIEW = { feed: "feed", vicini: "radar", beecast: "beecast", eventi: "eventi", contatti: "beeworld" };
+const APP_VERSION = "14.69";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -121,7 +111,7 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     calendar: <><rect x="3" y="5" width="18" height="16" rx="3" {...p} /><path d="M3 10h18M8 3v4M16 3v4" {...p} /></>,
     globe: <><circle cx="12" cy="12" r="9" {...p} /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" {...p} /></>,
     bee: <><ellipse cx="12" cy="14" rx="4.5" ry="6" {...p} /><path d="M9 12h6M8.5 16h7M12 8V5M10 5l2-2 2 2" {...p} /><path d="M7.5 11c-4-2-5-6-2-6s4 3 2 6zM16.5 11c4-2 5-6 2-6s-4 3-2 6z" {...p} /></>,
-    share: <><circle cx="18" cy="5" r="2.6" {...p} /><circle cx="6" cy="12" r="2.6" {...p} /><circle cx="18" cy="19" r="2.6" {...p} /><path d="M8.3 10.7l7.4-4.3M8.3 13.3l7.4 4.3" {...p} /></>,   /* 14.68: punti collegati */
+    share: <><circle cx="18" cy="5" r="2.6" {...p} /><circle cx="6" cy="12" r="2.6" {...p} /><circle cx="18" cy="19" r="2.6" {...p} /><path d="M8.3 10.7l7.4-4.3M8.3 13.3l7.4 4.3" {...p} /></>,   // 14.69: tre punti collegati
     trophy: <><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v3M8 20h8M9 17h6" {...p} /></>,
     crown: <><path d="M3 18h18M3 18L2 8l5 4 5-7 5 7 5-4-1 10" {...p} /></>,
     sunset: <><path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 4v3M5 8l2 2M19 8l-2 2M2 21h20" {...p} /></>,
@@ -1202,7 +1192,7 @@ function useDialog(onClose, label, active = true) {
 }
 
 // ─── SEGNALAZIONE CONTENUTO ───────────────────────────────────────────────────
-const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo"];   // 14.68: via "Altro"
+const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo", "Altro"];
 function ReportModal({ post, onSubmit, onClose }) {
   const dlg = useDialog(onClose, "Segnala contenuto");
   const [reason, setReason] = useState(null);
@@ -1937,14 +1927,14 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       {/* 14.26: prossimi 7 giorni (Open-Meteo) */}
       {wxDays && wxDays.length > 0 && <>
         <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossimi 7 giorni</div>
-        <div style={{ background: CARD, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 4px", display: "grid", gridTemplateColumns: `repeat(${wxDays.length}, minmax(0, 1fr))`, gap: 2 }}>{/* 14.68: tutti i giorni a schermo */}
+        <div style={{ background: CARD, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
           {wxDays.map((d, i) => (
-            <div key={d.date} style={{ minWidth: 0, textAlign: "center", padding: "4px 1px", borderRadius: 14, background: i === 0 ? MIST : "transparent" }}>
-              <div style={{ fontSize: 11, color: TXT2, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i === 0 ? "oggi" : i === 1 ? "dom." : `${d.dow.slice(0, 3)} ${d.dnum}`}</div>
-              <div style={{ fontSize: 22, lineHeight: "28px", margin: "2px 0" }} title={d.l}>{d.e}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: TXT, whiteSpace: "nowrap" }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
-              <div style={{ fontSize: 10.5, color: d.rain >= 1 ? TXT : TXT2, fontWeight: d.rain >= 10 ? 700 : 500, whiteSpace: "nowrap" }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
-              <div style={{ fontSize: 10.5, color: TXT2, whiteSpace: "nowrap" }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
+            <div key={d.date} style={{ minWidth: 84, flex: "0 0 auto", textAlign: "center", padding: "4px 2px", borderRadius: 14, background: i === 0 ? MIST : "transparent" }}>
+              <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{d.dow}{i > 1 ? ` ${d.dnum}` : ""}</div>
+              <div style={{ fontSize: 24, lineHeight: "30px", margin: "2px 0" }} title={d.l}>{d.e}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TXT }}>{d.hi}° <span style={{ color: TXT2, fontWeight: 500 }}>{d.lo}°</span></div>
+              <div style={{ fontSize: 12, color: d.rain >= 1 ? TXT : TXT2, fontWeight: d.rain >= 10 ? 700 : 500 }}>{d.rain != null && d.rain >= 0.5 ? `${Math.round(d.rain)} mm${d.pop != null ? ` · ${d.pop}%` : ""}` : d.pop != null && d.pop >= 20 ? `${d.pop}%` : "—"}</div>
+              <div style={{ fontSize: 12, color: TXT2 }}>{d.wind != null ? `${d.wind} km/h` : ""}</div>
             </div>
           ))}
         </div>
@@ -4286,17 +4276,12 @@ function AppInner() {
   const shotInputRef = useRef(null);
   const [pendingShot, setPendingShot] = useState(null);
   useEffect(() => {
-    if (inSiteFrame()) return;                                                 // 14.68: dentro il sito nessun accesso a fotocamera o galleria
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.style.display = "none";
     inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) setPendingShot(f); });
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const [siteCamNotice, setSiteCamNotice] = useState(false);   // 14.68: avviso "scatta dal telefono" dentro il sito
-  const openCamera = () => {
-    if (inSiteFrame()) { setSiteCamNotice(true); setTimeout(() => setSiteCamNotice(false), 4200); return; }   // 14.68: niente fotocamera né galleria dal sito
-    try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post");
-  };
+  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts, gender: user.gender || null })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
@@ -4460,33 +4445,7 @@ function AppInner() {
   });
   const [geoRestored] = useState(() => { try { return !!localStorage.getItem("bw_last_geo"); } catch (_) { return false; } });
   const [locAt, setLocAt] = useState(null);                 // { name, lat, lng } — il nome del posto in cui ci si trova
-  // ── 14.68: il globo del sito parla con l'app ───────────────────────────────────────────────
-  const siteRef = useRef({}); siteRef.current = { setTab, openPlaceChat, setOverlay, setGeo, setLocAt };
-  useEffect(() => {
-    if (!inSiteFrame()) return;
-    const onMsg = ev => {
-      if (!SITE_ORIGINS.includes(ev.origin) || !ev.data || ev.data.source !== "beeweat-site") return;
-      const d = ev.data, r = siteRef.current;
-      if (d.type === "view" && SITE_VIEW_TO_TAB[d.view]) { r.setOverlay(null); r.setTab(SITE_VIEW_TO_TAB[d.view]); }
-      if (d.type === "open-place" && d.place) r.openPlaceChat({ name: String(d.place), lat: +d.lat, lng: +d.lng }, null);
-      if (d.type === "location" && Number.isFinite(+d.lat) && Number.isFinite(+d.lng)) {   // 14.68: la posizione del sito vale come un fix GPS
-        const g = { lat: +d.lat, lng: +d.lng, __real: true };
-        r.setGeo(cur => (cur && cur.__real && Math.abs(cur.lat - g.lat) < 0.0005 && Math.abs(cur.lng - g.lng) < 0.0005) ? cur : g);
-        r.setGeoReal(true);
-        if (d.city) r.setLocAt({ name: String(d.city), lat: g.lat, lng: g.lng });
-        try { localStorage.setItem("bw_last_geo", JSON.stringify({ lat: g.lat, lng: g.lng })); localStorage.setItem("bw_geo_ok", "1"); } catch (_) {}
-      }
-    };
-    window.addEventListener("message", onMsg);
-    tellSite({ type: "need-location" });                                            // 14.68: appena parte chiede la posizione al sito
-    return () => window.removeEventListener("message", onMsg);
-  }, []);
-  useEffect(() => { tellSite({ type: "view", view: TAB_TO_SITE_VIEW[tab] || "feed" }); }, [tab]);
-  useEffect(() => { tellSite({ type: "radius", km }); }, [km]);
-  useEffect(() => { if (geo && typeof geo.lat === "number") tellSite({ type: "location", lat: geo.lat, lng: geo.lng, city: locAt?.name || user?.city || null, km }); }, [geo?.lat, geo?.lng, locAt?.name]);
-  useEffect(() => { tellSite({ type: "refresh" }); }, [posts.length, events.length]);   // nuovo cielo o evento: il globo ricarica
   const [geoReal, setGeoReal] = useState(false);   // vera solo quando arriva dal GPS
-  siteRef.current.setGeoReal = setGeoReal;         // 14.68: per la posizione che arriva dal sito
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(false);   // 14.65: la posizione precisa è l'unica modalità
   useEffect(() => { try { localStorage.removeItem("bw_geo_off"); } catch (_) {} }, []);
@@ -5789,7 +5748,7 @@ function AppInner() {
   );
 
   // overlay screens (full-screen, hide bottom nav)
-  if (overlay === "post" && !inSiteFrame()) return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
+  if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
@@ -5952,7 +5911,6 @@ function AppInner() {
 
   function wrap(content) {
     return <Frame>{content}
-      {siteCamNotice && <div role="status" style={{ position: "absolute", left: 16, right: 16, bottom: 96, zIndex: 210, background: HONEY, color: INK, borderRadius: 16, padding: "12px 14px", fontSize: 14, fontWeight: 700, textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "'Inter',sans-serif" }}>I cieli si scattano dall'app sul telefono: qui su beeweat.com puoi guardare, dare stelle e chattare.</div>}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
       {adminInvite && !splash && <PermissionInvite sheet emoji="👑" title="Vuoi diventare amministratore?"
         lines={[["1", `${adminInvite.from_name} ti propone di entrare tra gli amministratori dell'alveare.`],
