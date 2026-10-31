@@ -71,10 +71,124 @@ function Login({ onIn }) {
 }
 const Hex = () => <svg width="40" height="40" viewBox="0 0 64 64"><polygon points="32,6 55,19 55,45 32,58 9,45 9,19" fill={HONEY} /><polygon points="32,12 50,22 50,42 32,52 14,42 14,22" fill="none" stroke={INK} strokeWidth="1.5" opacity=".5" /></svg>;
 
+
+// ── grafici (SVG, senza librerie) ─────────────────────────────────────────────
+const C1 = HONEY, C2 = ELEC, C3 = "#7FB3FF", C4 = "#9BE7BF", C5 = "#FFB4B6", C6 = "#C9A7FF", PAL = [C1, C2, C4, C5, C6, C3, "#F2A65A", "#59B6F0", "#A0AEC0", "#E88A7A", "#B8E4FA", "#6B7FA8"];
+const Card = ({ title, sub, children, style }) => <div className="card" style={{ padding: 16, minWidth: 0, ...style }}><div style={{ fontWeight: 700 }}>{title}</div>{sub && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{sub}</div>}{children}</div>;
+const Empty = () => <div className="muted" style={{ padding: "26px 0", textAlign: "center", fontSize: 13 }}>Ancora niente in questo periodo.</div>;
+function Bars({ data, x, y, h = 150, color = C1, fmt = v => v, labelEvery = 1, tip }) {   // barre verticali
+  if (!data || !data.length) return <Empty />;
+  const W = 600, pad = 22, bw = (W - pad * 2) / data.length, max = Math.max(1, ...data.map(d => +y(d) || 0));
+  return <svg viewBox={`0 0 ${W} ${h + 34}`} style={{ width: "100%", display: "block" }}>
+    {[0.5, 1].map(k => <line key={k} x1={pad} x2={W - pad} y1={h - h * k + 8} y2={h - h * k + 8} stroke={LINE} strokeDasharray="3 4" />)}
+    {data.map((d, i) => { const v = +y(d) || 0, bh = v / max * h; return <g key={i}>
+      <rect x={pad + i * bw + bw * 0.15} y={h + 8 - bh} width={bw * 0.7} height={Math.max(bh, v ? 2 : 0)} rx={3} fill={typeof color === "function" ? color(d, i) : color}><title>{tip ? tip(d) : `${x(d)}: ${fmt(v)}`}</title></rect>
+      {v > 0 && bw > 22 && <text x={pad + i * bw + bw / 2} y={h + 4 - bh} textAnchor="middle" fontSize="10" fill={TXT2}>{fmt(v)}</text>}
+      {i % labelEvery === 0 && <text x={pad + i * bw + bw / 2} y={h + 24} textAnchor="middle" fontSize={bw < 18 ? 9 : 10.5} fill={TXT2}>{x(d)}</text>}
+    </g>; })}
+  </svg>;
+}
+function HBars({ data, x, y, fmt = v => v, max: mx }) {   // barre orizzontali con etichetta
+  if (!data || !data.length) return <Empty />;
+  const max = mx || Math.max(1, ...data.map(d => +y(d) || 0));
+  return <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{data.map((d, i) => { const v = +y(d) || 0; return <div key={i} style={{ display: "grid", gridTemplateColumns: "140px 1fr 48px", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x(d)}>{x(d)}</span>
+    <span style={{ height: 10, background: NIGHT3, borderRadius: 5, overflow: "hidden" }}><span style={{ display: "block", height: "100%", width: `${v / max * 100}%`, background: PAL[i % PAL.length], borderRadius: 5 }} /></span>
+    <span className="muted" style={{ textAlign: "right" }}>{fmt(v)}</span></div>; })}</div>;
+}
+function Donut({ data, x, y, size = 150 }) {
+  const tot = (data || []).reduce((s, d) => s + (+y(d) || 0), 0);
+  if (!tot) return <Empty />;
+  let a = -Math.PI / 2; const r = size / 2 - 4, cx = size / 2, cy = size / 2, ri = r * 0.62;
+  const arcs = data.map((d, i) => { const v = (+y(d) || 0) / tot, a2 = a + v * Math.PI * 2; const p = (ang, rr) => [cx + rr * Math.cos(ang), cy + rr * Math.sin(ang)]; const [x1, y1] = p(a, r), [x2, y2] = p(a2, r), [x3, y3] = p(a2, ri), [x4, y4] = p(a, ri); const lg = v > 0.5 ? 1 : 0;
+    const path = v >= 0.9999 ? null : `M${x1} ${y1}A${r} ${r} 0 ${lg} 1 ${x2} ${y2}L${x3} ${y3}A${ri} ${ri} 0 ${lg} 0 ${x4} ${y4}Z`; a = a2; return { d, v, path, i }; });
+  return <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+    <svg width={size} height={size} style={{ flexShrink: 0 }}>{arcs.map(k => k.path ? <path key={k.i} d={k.path} fill={PAL[k.i % PAL.length]}><title>{`${x(k.d)}: ${Math.round(k.v * 100)}%`}</title></path> : <circle key={k.i} cx={cx} cy={cy} r={(r + ri) / 2} fill="none" stroke={PAL[k.i % PAL.length]} strokeWidth={r - ri} />)}<text x={cx} y={cy + 5} textAnchor="middle" fontSize="16" fontWeight="700" fill={TXT}>{tot}</text></svg>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, minWidth: 0 }}>{arcs.map(k => <div key={k.i} style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: PAL[k.i % PAL.length], flexShrink: 0 }} /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x(k.d)}</span><span className="muted" style={{ marginLeft: "auto", paddingLeft: 8 }}>{Math.round(k.v * 100)}%</span></div>)}</div>
+  </div>;
+}
+function Lines({ series, h = 150 }) {   // più linee sulla stessa asse delle date: series = [{ name, color, data: [{d, n}] }]
+  const all = [...new Set(series.flatMap(s => (s.data || []).map(p => p.d)))].sort();
+  if (!all.length) return <Empty />;
+  const W = 600, pad = 24, max = Math.max(1, ...series.flatMap(s => (s.data || []).map(p => +p.n || 0)));
+  const X = i => pad + (all.length === 1 ? (W - pad * 2) / 2 : i * (W - pad * 2) / (all.length - 1)), Y = v => h + 8 - v / max * h;
+  const lab = d => { const t = new Date(d + "T12:00:00"); return `${t.getDate()}/${t.getMonth() + 1}`; };
+  const every = Math.max(1, Math.ceil(all.length / 8));
+  return <div><svg viewBox={`0 0 ${W} ${h + 34}`} style={{ width: "100%", display: "block" }}>
+    {[0.5, 1].map(k => <line key={k} x1={pad} x2={W - pad} y1={Y(max * k)} y2={Y(max * k)} stroke={LINE} strokeDasharray="3 4" />)}
+    {series.map((s, si) => { const m = Object.fromEntries((s.data || []).map(p => [p.d, +p.n || 0])); const pts = all.map((d, i) => [X(i), Y(m[d] || 0)]); return <g key={si}><path d={pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join("")} fill="none" stroke={s.color} strokeWidth="2.2" strokeLinejoin="round" />{pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="2.6" fill={s.color}><title>{`${lab(all[i])} · ${s.name}: ${m[all[i]] || 0}`}</title></circle>)}</g>; })}
+    {all.map((d, i) => i % every === 0 && <text key={d} x={X(i)} y={h + 24} textAnchor="middle" fontSize="10" fill={TXT2}>{lab(d)}</text>)}
+    <text x={pad} y={12} fontSize="10" fill={TXT2}>{max}</text>
+  </svg><div style={{ display: "flex", gap: 14, fontSize: 12, marginTop: 4 }}>{series.map(s => <span key={s.name} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 3, background: s.color, borderRadius: 2 }} />{s.name}</span>)}</div></div>;
+}
+// stima del genere dal nome (solo quando l'ape non l'ha indicato): nomi italiani in -a femminili, in -o/-e/-i maschili, con le eccezioni più comuni
+const MALE_A = new Set(["andrea", "luca", "nicola", "mattia", "elia", "tobia", "luka", "mustafa", "joshua", "ezra", "isaia", "zaccaria", "geremia", "battista", "gianluca", "gianandrea", "pierluca", "giosuè"]);
+const FEMALE_X = new Set(["irene", "rachele", "matilde", "alice", "beatrice", "adele", "denise", "agnese", "cloe", "noemi", "naomi", "salome", "ines", "dolores", "mercedes", "nives", "carmen", "ester", "ruth", "miriam", "karen", "ingrid", "astrid", "sharon", "jennifer", "nicole", "michelle", "giuditta", "marilyn", "dorothy", "liz", "beth", "rose", "jasmine", "celine", "lourdes", "soledad", "solange", "yasmin", "elisabeth", "elizabeth", "margareth", "margaret", "edith", "judith", "heather", "ruth"]);
+const guessGender = name => { const n = String(name || "").trim().toLowerCase().split(/[\s._-]+/)[0].normalize("NFD").replace(/[̀-ͯ]/g, ""); if (!n || n.length < 2) return "?"; if (FEMALE_X.has(n)) return "f"; if (MALE_A.has(n)) return "m"; if (/a$/.test(n)) return "f"; if (/[oeiy]$/.test(n) || /[bcdfghjklmnpqrstvwxz]$/.test(n)) return "m"; return "?"; };
+const DOW = ["", "lun", "mar", "mer", "gio", "ven", "sab", "dom"];
+const GL = { f: "Donne", m: "Uomini", x: "Altro", "?": "Non indicato" };
+
+function Stats({ days, setDays, profiles }) {
+  const [st, setSt] = useState(null), [err, setErr] = useState(null);
+  useEffect(() => { setSt(null); sb.adminStats(days).then(setSt).catch(setErr); }, [days]);
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, h) => ({ h, n: (st?.per_ora || []).find(x => x.h === h)?.n || 0 })), [st]);
+  const dow = useMemo(() => [1, 2, 3, 4, 5, 6, 7].map(d => ({ d, n: (st?.per_dow || []).find(x => x.d === d)?.n || 0 })), [st]);
+  const genere = useMemo(() => {   // dichiarato dalle api; per chi non l'ha indicato, stima dal nome
+    const decl = { f: 0, m: 0, x: 0 }, est = { f: 0, m: 0, "?": 0 };
+    (profiles || []).forEach(p => { const g = p.gender; if (g === "f" || g === "m" || g === "x") decl[g]++; else est[guessGender(p.name)]++; });
+    return { decl, est, nDecl: decl.f + decl.m + decl.x, nEst: est.f + est.m + est["?"] };
+  }, [profiles]);
+  const bestHour = hours.reduce((a, b) => b.n > a.n ? b : a, hours[0]);
+  const bestDow = dow.reduce((a, b) => b.n > a.n ? b : a, dow[0]);
+  const totPosts = (st?.per_giorno || []).reduce((s, x) => s + x.n, 0);
+  const ai = st?.ai || {}, descr = st?.descrizione || {};
+  const perc = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+  return <>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 10px", flexWrap: "wrap", gap: 10 }}>
+      <div><div style={{ fontSize: 18, fontWeight: 700 }}>Cosa fa l'alveare</div><div className="muted" style={{ fontSize: 12.5 }}>Abitudini, orari, soggetti preferiti, eventi, genere: i numeri per capire chi usa Beeweat e come.</div></div>
+      <div style={{ display: "flex", gap: 6 }}>{[[7, "7 giorni"], [30, "30 giorni"], [90, "3 mesi"], [365, "1 anno"]].map(([d, l]) => <button key={d} className={"btn s" + (days === d ? " p" : "")} onClick={() => setDays(d)}>{l}</button>)}</div>
+    </div>
+    <Err e={err} />
+    {!st && !err && <div className="muted" style={{ padding: 20 }}>Calcolo…</div>}
+    {st && <>
+      <div className="grid" style={{ marginBottom: 14 }}>
+        <div className="card kpi"><b>{totPosts}</b><span>cieli nel periodo</span></div>
+        <div className="card kpi"><b>{st.attive_7 ?? "—"}</b><span>api attive negli ultimi 7 giorni{st.api ? ` (${perc(st.attive_7, st.api)})` : ""}</span></div>
+        <div className="card kpi"><b>{st.attive_30 ?? "—"}</b><span>api attive negli ultimi 30 giorni{st.api ? ` (${perc(st.attive_30, st.api)})` : ""}</span></div>
+        <div className="card kpi"><b>{bestHour.n ? `${bestHour.h}:00` : "—"}</b><span>l'ora in cui si fotografa di più</span></div>
+        <div className="card kpi"><b>{bestDow.n ? DOW[bestDow.d] : "—"}</b><span>il giorno della settimana più attivo</span></div>
+        <div className="card kpi"><b>{perc(descr.con, (descr.con || 0) + (descr.senza || 0))}</b><span>cieli con una descrizione scritta</span></div>
+        <div className="card kpi"><b>{perc(ai.uguali, (ai.uguali || 0) + (ai.diversi || 0))}</b><span>condizione scelta uguale a quella vista dall'AI</span></div>
+        <div className="card kpi"><b>{totPosts && (days <= 7 ? st.attive_7 : st.attive_30) ? (totPosts / Math.max(1, days <= 7 ? st.attive_7 : st.attive_30)).toFixed(1) : "—"}</b><span>cieli per ape attiva (media nel periodo)</span></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 14 }}>
+        <Card title="Cieli e api attive, giorno per giorno" sub="Quanti cieli vengono pubblicati e quante api diverse li pubblicano."><Lines series={[{ name: "cieli", color: C1, data: st.per_giorno || [] }, { name: "api attive", color: C2, data: (st.per_giorno || []).map(x => ({ d: x.d, n: x.api })) }]} /></Card>
+        <Card title="A che ora si fotografa il cielo" sub="Cieli per ora del giorno (ora italiana)."><Bars data={hours} x={d => d.h} y={d => d.n} color={d => d.h >= 6 && d.h < 20 ? C1 : C2} labelEvery={2} /></Card>
+        <Card title="Cosa preferiscono fotografare" sub="La condizione scelta dalle api al momento dello scatto."><Donut data={(st.per_condizione || []).slice(0, 9)} x={d => d.c} y={d => d.n} /></Card>
+        <Card title="I giorni della settimana" sub="Cieli pubblicati per giorno della settimana."><Bars data={dow} x={d => DOW[d.d]} y={d => d.n} color={d => d.d >= 6 ? C2 : C1} /></Card>
+        <Card title="Donne e uomini" sub={genere.nDecl ? `${genere.nDecl} api lo hanno indicato nel profilo; per le altre ${genere.nEst} è una stima dal nome.` : "Nessuna ape lo ha ancora indicato nel profilo: è una stima dal nome, da prendere con le pinze."}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            {genere.nDecl > 0 && <div><div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>DICHIARATO</div><Donut size={120} data={["f", "m", "x"].map(g => ({ g, n: genere.decl[g] }))} x={d => GL[d.g]} y={d => d.n} /></div>}
+            <div><div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>STIMA DAL NOME</div><Donut size={120} data={["f", "m", "?"].map(g => ({ g, n: genere.est[g] }))} x={d => GL[d.g]} y={d => d.n} /></div>
+          </div>
+        </Card>
+        <Card title="Dove si fotografa" sub="Le città con più cieli (e quante api diverse)."><HBars data={st.per_citta || []} x={d => d.c} y={d => d.n} fmt={v => v} /></Card>
+        <Card title="Che eventi vanno per la maggiore" sub="Eventi pubblicati per categoria."><div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}><div style={{ flex: "1 1 220px" }}><HBars data={st.eventi_cat || []} x={d => d.c} y={d => d.n} /></div><div style={{ flex: "0 0 auto" }}><Donut size={110} data={st.eventi_kind || []} x={d => d.k === "social" ? "Social" : "Meteo"} y={d => d.n} /></div></div></Card>
+        <Card title="Nuove iscrizioni per settimana" sub="Ultime 16 settimane."><Bars data={st.iscrizioni_sett || []} x={d => { const t = new Date(d.w + "T12:00:00"); return `${t.getDate()}/${t.getMonth() + 1}`; }} y={d => d.n} color={C4} /></Card>
+        <Card title="Stelle e commenti, giorno per giorno" sub="Quanto l'alveare reagisce ai cieli."><Lines series={[{ name: "stelle", color: C1, data: st.stelle_giorno || [] }, { name: "commenti", color: C3, data: st.commenti_giorno || [] }]} /></Card>
+        <Card title="Le api più attive" sub="Chi pubblica di più nel periodo, e quante stelle ha ricevuto."><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{(st.top_api || []).map((p, i) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><span className="muted" style={{ width: 18, textAlign: "right" }}>{i + 1}</span><span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}<span className="muted" style={{ fontWeight: 400 }}> · {p.city || ""}</span></span><span className="tag h">{p.n} cieli</span><span className="tag">{p.s} ⭐</span></div>)}{!(st.top_api || []).length && <Empty />}</div></Card>
+        <Card title="Temperature fotografate" sub="Quanti cieli per fascia di temperatura (°C)."><Bars data={st.temperature || []} x={d => `${d.t}–${d.t + 4}`} y={d => d.n} color={C3} /></Card>
+        <Card title="Segnalazioni per motivo" sub="Cosa infastidisce le api."><HBars data={st.segnalazioni || []} x={d => d.c} y={d => d.n} /></Card>
+      </div>
+    </>}
+  </>;
+}
+
 // ── Panoramica ────────────────────────────────────────────────────────────────
 function Overview({ me, go }) {
   const [o, setO] = useState(null), [err, setErr] = useState(null), [rep, setRep] = useState([]), [inv, setInv] = useState([]);
-  useEffect(() => { sb.adminOverview().then(setO).catch(setErr); sb.adminReports("open", 8).then(setRep).catch(() => {}); sb.adminInvites().then(x => setInv(x.filter(i => i.status === "pending"))).catch(() => {}); }, []);
+  const [days, setDays] = useState(30), [profiles, setProfiles] = useState([]);
+  useEffect(() => { sb.adminOverview().then(setO).catch(setErr); sb.adminReports("open", 8).then(setRep).catch(() => {}); sb.adminInvites().then(x => setInv(x.filter(i => i.status === "pending"))).catch(() => {}); sb.adminProfiles().then(setProfiles).catch(() => {}); }, []);
   const K = ({ v, l, onClick }) => <div className="card kpi" onClick={onClick} style={onClick ? { cursor: "pointer" } : null}><b>{v ?? "—"}</b><span>{l}</span></div>;
   return <>
     <H title="Panoramica" sub={`Ciao ${me?.name || ""}, ecco l'alveare oggi.`} />
@@ -100,6 +214,7 @@ function Overview({ me, go }) {
         <div className="muted" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>Un'ape diventa amministratore solo con il consenso di entrambi: tu la proponi da «Api», lei accetta nell'app.</div>
       </div>
     </div>
+    <Stats days={days} setDays={setDays} profiles={profiles} />
   </>;
 }
 const H = ({ title, sub, right }) => <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}><div><div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-.02em" }}>{title}</div>{sub && <div className="muted" style={{ marginTop: 2 }}>{sub}</div>}</div>{right}</div>;
@@ -199,7 +314,8 @@ function Reels({ toast }) {
 function Support({ me, toast, initial, onConsumed }) {
   const [msgs, setMsgs] = useState(null), [err, setErr] = useState(null), [sel, setSel] = useState(null), [text, setText] = useState(""), [profiles, setProfiles] = useState([]);
   const endRef = useRef(null);
-  const load = () => sb.adminSupportMessages().then(setMsgs).catch(setErr);
+  const [partial, setPartial] = useState(null);
+  const load = () => sb.adminSupportMessages().then(r => { setMsgs(r); setPartial(r.__partial || null); setErr(null); }).catch(setErr);
   useEffect(() => { load(); sb.getProfiles().then(setProfiles).catch(() => {}); const iv = setInterval(load, 20000); return () => clearInterval(iv); }, []);
   useEffect(() => { if (initial) { setSel({ id: initial.id, name: initial.name, avatar_url: initial.avatar_url }); onConsumed && onConsumed(); } }, [initial]);
   // un filo per ogni ape (non amministratore): tutti i suoi messaggi con qualunque admin
@@ -216,6 +332,7 @@ function Support({ me, toast, initial, onConsumed }) {
   return <>
     <H title="Assistenza" sub="Le chat delle api con gli amministratori. Rispondi da qui: l'ape riceve il messaggio nell'app, a tuo nome." right={<select value={sel?.id || ""} onChange={e => { const p = profiles.find(x => x.id === e.target.value); if (p) setSel(p); }}><option value="">Nuova chat con un'ape…</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.name} · {p.city || ""}</option>)}</select>} />
     <Err e={err} />
+    {partial && <div style={{ background: HONEY + "22", border: `1px solid ${HONEY}66`, color: HONEY2, borderRadius: 12, padding: "10px 12px", margin: "10px 0", fontSize: 13 }}>Vedi solo le tue chat: la funzione del server non risponde ({partial}). Lancia <b>beeweat-14.66-cruscotto.sql</b> in Supabase per vedere anche le chat degli altri amministratori.</div>}
     <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 14, height: "calc(100vh - 170px)" }}>
       <div className="card" style={{ overflow: "auto" }}>
         {threads.length === 0 && <div className="muted" style={{ padding: 16 }}>{msgs ? "Nessuna richiesta finora." : "Carico…"}</div>}
