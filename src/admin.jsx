@@ -35,8 +35,43 @@ const CSS = `
 `;
 const fmt = d => { try { return new Date(d).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (_) { return String(d || ""); } };
 const ago = d => { const m = Math.round((Date.now() - new Date(d).getTime()) / 60000); if (!isFinite(m)) return ""; if (m < 1) return "adesso"; if (m < 60) return m + " min"; const h = Math.round(m / 60); if (h < 48) return h + " h"; return Math.round(h / 24) + " g"; };
-const Ava = ({ p, size }) => <span className="ava" style={size ? { width: size, height: size } : null}>{p?.avatar_url && /^https?:/.test(p.avatar_url) ? <img src={p.avatar_url} alt="" /> : (p?.avatar_url && p.avatar_url.length <= 4 ? p.avatar_url : "🐝")}</span>;
-const Icon = ({ n }) => ({ home: "▦", bees: "🐝", reels: "🎞", help: "💬", flags: "⚑", events: "📅", mega: "📣", admins: "👑", out: "⏏" }[n] || "•");
+const Ava = ({ p, size }) => <span className="ava" style={size ? { width: size, height: size } : null}>{p?.avatar_url && /^https?:/.test(p.avatar_url) ? <img src={p.avatar_url} alt="" /> : (p?.avatar_url && p.avatar_url.length <= 4 ? p.avatar_url : <Icon n="bees" size={18} color={TXT2} />)}</span>;
+// 14.68: icone a tratto, le stesse dell'app (NavIcon della 14.34)
+const Icon = ({ n, size = 18, color = "currentColor", sw = 1.9 }) => {
+  const p = { stroke: color, strokeWidth: sw, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };
+  const paths = {
+    home: <><rect x="3" y="4" width="18" height="5" rx="1.5" {...p} /><rect x="3" y="12" width="18" height="8" rx="1.5" {...p} /></>,
+    bees: <><ellipse cx="12" cy="14" rx="4.5" ry="6" {...p} /><path d="M9 12h6M8.5 16h7M12 8V5M10 5l2-2 2 2" {...p} /><path d="M7.5 11c-4-2-5-6-2-6s4 3 2 6zM16.5 11c4-2 5-6 2-6s-4 3-2 6z" {...p} /></>,
+    reels: <><rect x="2" y="7" width="20" height="14" rx="3" {...p} /><circle cx="12" cy="14" r="3.4" {...p} /><path d="M8 7V5a1 1 0 011-1h6a1 1 0 011 1v2" {...p} /></>,
+    help: <><path d="M21 11.5a8 8 0 01-11.6 7.1L4 20l1.4-5.4A8 8 0 1121 11.5z" {...p} /></>,
+    flags: <><line x1="5" y1="21" x2="5" y2="4" {...p} /><path d="M5 4.5h12l-2.3 3.5L17 11.5H5z" {...p} /></>,
+    events: <><rect x="3" y="5" width="18" height="16" rx="3" {...p} /><path d="M3 10h18M8 3v4M16 3v4" {...p} /></>,
+    mega: <><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" {...p} /><path d="M13.7 21a2 2 0 01-3.4 0" {...p} /></>,
+    admins: <><path d="M3 18h18M3 18L2 8l5 4 5-7 5 7 5-4-1 10" {...p} /></>,
+    out: <><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" {...p} /></>,
+    star: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" {...p} />,
+    starFill: <polygon points="12,2.5 15,9 22,9.7 16.8,14.5 18.3,21.5 12,17.8 5.7,21.5 7.2,14.5 2,9.7 9,9" fill={HONEY} stroke="none" />,
+    eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" {...p} /><circle cx="12" cy="12" r="3.2" {...p} /></>,
+    comment: <><path d="M21 11.5a8 8 0 01-11.6 7.1L4 20l1.4-5.4A8 8 0 1121 11.5z" {...p} /></>,
+    trophy: <><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v3M8 20h8M9 17h6" {...p} /></>,
+    search: <><circle cx="11" cy="11" r="7" {...p} /><line x1="16.5" y1="16.5" x2="21" y2="21" {...p} /></>,
+    pin: <><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" {...p} /><circle cx="12" cy="10" r="2.4" {...p} /></>,
+    gear: <><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
+    warn: <><path d="M12 3l10 18H2zM12 10v5M12 18v.5" {...p} /></>,
+    check: <><polyline points="20 6 9 17 4 12" {...p} /></>,
+    close: <><line x1="6" y1="6" x2="18" y2="18" {...p} /><line x1="18" y1="6" x2="6" y2="18" {...p} /></>,
+    send: <><line x1="22" y1="2" x2="11" y2="13" {...p} /><polygon points="22,2 15,22 11,13 2,9" {...p} /></>,
+    sun: <><circle cx="12" cy="12" r="4" {...p} /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" {...p} /></>,
+    cloud: <><path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 18z" {...p} /></>,
+    rain: <><path d="M7 15h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 15zM8 18l-1 3M12 18l-1 3M16 18l-1 3" {...p} /></>,
+    storm: <><path d="M7 14h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.5A3.3 3.3 0 0 0 7 14zM13 14l-3 5h4l-3 4" {...p} /></>,
+    snow: <><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18" {...p} /></>,
+    fog: <><path d="M4 9h16M3 13h18M5 17h14" {...p} /></>,
+    wind: <><path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 18h8a2 2 0 1 1-2 2" {...p} /></>,
+    sunset: <><path d="M4 17h16M7 17a5 5 0 0 1 10 0M12 4v3M5 8l2 2M19 8l-2 2M2 21h20" {...p} /></>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[n] || <circle cx="12" cy="12" r="3" {...p} />}</svg>;
+};
 
 // ── piccoli strumenti ─────────────────────────────────────────────────────────
 function useToast() { const [t, setT] = useState(null); const show = m => { setT(m); setTimeout(() => setT(null), 2600); }; return [t, show]; }
@@ -126,6 +161,8 @@ const MALE_A = new Set(["andrea", "luca", "nicola", "mattia", "elia", "tobia", "
 const FEMALE_X = new Set(["irene", "rachele", "matilde", "alice", "beatrice", "adele", "denise", "agnese", "cloe", "noemi", "naomi", "salome", "ines", "dolores", "mercedes", "nives", "carmen", "ester", "ruth", "miriam", "karen", "ingrid", "astrid", "sharon", "jennifer", "nicole", "michelle", "giuditta", "marilyn", "dorothy", "liz", "beth", "rose", "jasmine", "celine", "lourdes", "soledad", "solange", "yasmin", "elisabeth", "elizabeth", "margareth", "margaret", "edith", "judith", "heather", "ruth"]);
 const guessGender = name => { const n = String(name || "").trim().toLowerCase().split(/[\s._-]+/)[0].normalize("NFD").replace(/[̀-ͯ]/g, ""); if (!n || n.length < 2) return "?"; if (FEMALE_X.has(n)) return "f"; if (MALE_A.has(n)) return "m"; if (/a$/.test(n)) return "f"; if (/[oeiy]$/.test(n) || /[bcdfghjklmnpqrstvwxz]$/.test(n)) return "m"; return "?"; };
 const DOW = ["", "lun", "mar", "mer", "gio", "ven", "sab", "dom"];
+const SKY_ICON = { "☀️": "sun", "⛅": "cloud", "☁️": "cloud", "🌧️": "rain", "⛈️": "storm", "❄️": "snow", "🌫️": "fog", "🌬️": "wind", "🌈": "sunset", "🌦️": "rain", "🌨️": "snow" };
+const Sky = ({ c, size = 15 }) => { const e = (c || "").split(" ")[0]; const n = SKY_ICON[e]; const l = (c || "").replace(/^[^ ]+ /, ""); return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{n ? <Icon n={n} size={size} color={ELEC === "#2457D6" ? "#7FB3FF" : TXT} /> : null}{l || c || "—"}</span>; };
 const GL = { f: "Donne", m: "Uomini", x: "Altro", "?": "Non indicato" };
 
 function Stats({ days, setDays, profiles }) {
@@ -164,7 +201,7 @@ function Stats({ days, setDays, profiles }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 14 }}>
         <Card title="Cieli e api attive, giorno per giorno" sub="Quanti cieli vengono pubblicati e quante api diverse li pubblicano."><Lines series={[{ name: "cieli", color: C1, data: st.per_giorno || [] }, { name: "api attive", color: C2, data: (st.per_giorno || []).map(x => ({ d: x.d, n: x.api })) }]} /></Card>
         <Card title="A che ora si fotografa il cielo" sub="Cieli per ora del giorno (ora italiana)."><Bars data={hours} x={d => d.h} y={d => d.n} color={d => d.h >= 6 && d.h < 20 ? C1 : C2} labelEvery={2} /></Card>
-        <Card title="Cosa preferiscono fotografare" sub="La condizione scelta dalle api al momento dello scatto."><Donut data={(st.per_condizione || []).slice(0, 9)} x={d => d.c} y={d => d.n} /></Card>
+        <Card title="Cosa preferiscono fotografare" sub="La condizione scelta dalle api al momento dello scatto."><Donut data={(st.per_condizione || []).slice(0, 9)} x={d => (d.c || "").replace(/^[^ ]+ /, "")} y={d => d.n} /></Card>
         <Card title="I giorni della settimana" sub="Cieli pubblicati per giorno della settimana."><Bars data={dow} x={d => DOW[d.d]} y={d => d.n} color={d => d.d >= 6 ? C2 : C1} /></Card>
         <Card title="Donne e uomini" sub={genere.nDecl ? `${genere.nDecl} api lo hanno indicato nel profilo; per le altre ${genere.nEst} è una stima dal nome.` : "Nessuna ape lo ha ancora indicato nel profilo: è una stima dal nome, da prendere con le pinze."}>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
@@ -173,10 +210,10 @@ function Stats({ days, setDays, profiles }) {
           </div>
         </Card>
         <Card title="Dove si fotografa" sub="Le città con più cieli (e quante api diverse)."><HBars data={st.per_citta || []} x={d => d.c} y={d => d.n} fmt={v => v} /></Card>
-        <Card title="Che eventi vanno per la maggiore" sub="Eventi pubblicati per categoria."><div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}><div style={{ flex: "1 1 220px" }}><HBars data={st.eventi_cat || []} x={d => d.c} y={d => d.n} /></div><div style={{ flex: "0 0 auto" }}><Donut size={110} data={st.eventi_kind || []} x={d => d.k === "social" ? "Social" : "Meteo"} y={d => d.n} /></div></div></Card>
+        <Card title="Che eventi vanno per la maggiore" sub="Eventi pubblicati per categoria."><div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}><div style={{ flex: "1 1 220px" }}><HBars data={st.eventi_cat || []} x={d => (d.c || "").replace(/^[^ ]+ /, "")} y={d => d.n} /></div><div style={{ flex: "0 0 auto" }}><Donut size={110} data={st.eventi_kind || []} x={d => d.k === "social" ? "Social" : "Meteo"} y={d => d.n} /></div></div></Card>
         <Card title="Nuove iscrizioni per settimana" sub="Ultime 16 settimane."><Bars data={st.iscrizioni_sett || []} x={d => { const t = new Date(d.w + "T12:00:00"); return `${t.getDate()}/${t.getMonth() + 1}`; }} y={d => d.n} color={C4} /></Card>
         <Card title="Stelle e commenti, giorno per giorno" sub="Quanto l'alveare reagisce ai cieli."><Lines series={[{ name: "stelle", color: C1, data: st.stelle_giorno || [] }, { name: "commenti", color: C3, data: st.commenti_giorno || [] }]} /></Card>
-        <Card title="Le api più attive" sub="Chi pubblica di più nel periodo, e quante stelle ha ricevuto."><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{(st.top_api || []).map((p, i) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><span className="muted" style={{ width: 18, textAlign: "right" }}>{i + 1}</span><span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}<span className="muted" style={{ fontWeight: 400 }}> · {p.city || ""}</span></span><span className="tag h">{p.n} cieli</span><span className="tag">{p.s} ⭐</span></div>)}{!(st.top_api || []).length && <Empty />}</div></Card>
+        <Card title="Le api più attive" sub="Chi pubblica di più nel periodo, e quante stelle ha ricevuto."><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{(st.top_api || []).map((p, i) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><span className="muted" style={{ width: 18, textAlign: "right" }}>{i + 1}</span><span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}<span className="muted" style={{ fontWeight: 400 }}> · {p.city || ""}</span></span><span className="tag h">{p.n} cieli</span><span className="tag" style={{ gap: 4 }}>{p.s} <Icon n="starFill" size={12} /></span></div>)}{!(st.top_api || []).length && <Empty />}</div></Card>
         <Card title="Temperature fotografate" sub="Quanti cieli per fascia di temperatura (°C)."><Bars data={st.temperature || []} x={d => `${d.t}–${d.t + 4}`} y={d => d.n} color={C3} /></Card>
         <Card title="Segnalazioni per motivo" sub="Cosa infastidisce le api."><HBars data={st.segnalazioni || []} x={d => d.c} y={d => d.n} /></Card>
       </div>
@@ -282,15 +319,15 @@ function Reels({ toast }) {
     <H title="Cieli" sub={rows ? `Ultimi ${rows.length} cieli pubblicati (anche archiviati)` : "Carico…"} right={<input placeholder="Cerca ape, città, testo…" value={q} onChange={e => setQ(e.target.value)} style={{ width: 260 }} />} />
     <Err e={err} />
     <div className="card" style={{ overflow: "auto", maxHeight: "calc(100vh - 170px)" }}><table>
-      <thead><tr><th></th><th>Ape</th><th>Cielo</th><th>Dove</th><th>Quando</th><th>⭐</th><th>👁</th><th>💬</th><th>AI</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Ape</th><th>Cielo</th><th>Dove</th><th>Quando</th><th><Icon n="star" size={14} /></th><th><Icon n="eye" size={14} /></th><th><Icon n="comment" size={14} /></th><th>AI</th><th></th></tr></thead>
       <tbody>{list.map(p => <tr key={p.id}>
         <td><img className="thumb" src={p.thumb_url || p.image_url} alt="" onClick={() => setBig(p)} style={{ cursor: "zoom-in" }} /></td>
         <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Ava p={p.profiles} size={28} /><span style={{ fontWeight: 600 }}>{p.profiles?.name || "—"}</span></div></td>
-        <td><div>{p.condition}{p.temp != null && <span className="muted"> · {Math.round(p.temp)}°</span>}</div>{p.caption && <div className="muted" style={{ fontSize: 12.5, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.caption}</div>}</td>
+        <td><div><Sky c={p.condition} />{p.temp != null && <span className="muted"> · {Math.round(p.temp)}°</span>}</div>{p.caption && <div className="muted" style={{ fontSize: 12.5, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.caption}</div>}</td>
         <td>{p.city || "—"}{p.precision === "city" && <span className="muted"> ≈</span>}</td>
         <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmt(p.created_at)}{p.archived_at && <div><span className="tag">archiviato</span></div>}</td>
         <td>{p.stars_count || 0}</td><td>{p.views_count || 0}</td><td>{p.comments_count || 0}</td>
-        <td className="muted" style={{ fontSize: 12 }}>{p.ai_class ? `${p.ai_class}${p.ai_score != null ? " · " + Math.round(p.ai_score * 100) + "%" : ""}` : "—"}</td>
+        <td className="muted" style={{ fontSize: 12 }}>{p.ai_class ? <><Sky c={p.ai_class} size={13} />{p.ai_score != null ? ` · ${Math.round(p.ai_score * 100)}%` : ""}</> : "—"}</td>
         <td style={{ whiteSpace: "nowrap" }}>
           <button className="btn s" onClick={() => setEdit({ id: p.id, caption: p.caption || "", condition: p.condition || CONDITIONS[0], img: p.image_url })}>Correggi</button>{" "}
           <button className="btn s" onClick={() => setAward({ id: p.id, message: "" })}>Premia</button>{" "}
@@ -395,8 +432,8 @@ function Events({ toast }) {
     <div className="card" style={{ overflow: "auto", maxHeight: "calc(100vh - 170px)" }}><table>
       <thead><tr><th>Tipo</th><th>Titolo</th><th>Luogo</th><th>Ape</th><th>Quando</th><th>Fine</th><th></th></tr></thead>
       <tbody>{(rows || []).map(e => <tr key={e.id}>
-        <td><span className={"tag " + (e.kind === "social" ? "h" : "b")}>{e.type || ""} {e.kind === "social" ? "social" : "meteo"}</span></td>
-        <td><b>{e.title}</b>{e.cat && <div className="muted" style={{ fontSize: 12 }}>{e.cat}</div>}</td><td>{e.place || "—"}</td><td>{e.profiles?.name || "—"}</td>
+        <td><span className={"tag " + (e.kind === "social" ? "h" : "b")}><Icon n={e.kind === "social" ? "events" : "warn"} size={12} /> {e.kind === "social" ? "social" : "meteo"}</span></td>
+        <td><b>{e.title}</b>{e.cat && <div className="muted" style={{ fontSize: 12 }}>{String(e.cat).replace(/^[^ ]+ /, "")}</div>}</td><td>{e.place || "—"}</td><td>{e.profiles?.name || "—"}</td>
         <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmt(e.starts_at || e.created_at)}</td><td className="muted">{e.ends ? String(e.ends).slice(0, 16) : "—"}</td>
         <td style={{ whiteSpace: "nowrap" }}><button className="btn s" onClick={() => setEdit({ ...e })}>Correggi</button>{" "}<button className="btn s d" onClick={() => { if (confirm("Eliminare l'evento «" + e.title + "»?")) act(() => sb.deleteEvent(e.id), "Evento eliminato"); }}>Elimina</button></td>
       </tr>)}</tbody>
@@ -466,7 +503,7 @@ function Admin() {
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside className="side" style={{ width: 230, flexShrink: 0, borderRight: `1px solid ${LINE}`, padding: 16, display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 16px" }}><Hex /><div><div style={{ fontWeight: 700 }}>Beeweat</div><div className="muted" style={{ fontSize: 11.5 }}>Area riservata</div></div></div>
-        {NAV.map(([k, l]) => <button key={k} className={"nav" + (view === k ? " on" : "")} onClick={() => go(k)}><Icon n={k} /> {l}{k === "flags" && openFlags > 0 && <span className="n">{openFlags}</span>}</button>)}
+        {NAV.map(([k, l]) => <button key={k} className={"nav" + (view === k ? " on" : "")} onClick={() => go(k)}><Icon n={k} /><span>{l}</span>{k === "flags" && openFlags > 0 && <span className="n">{openFlags}</span>}</button>)}
         <div style={{ marginTop: "auto", padding: 8, display: "flex", alignItems: "center", gap: 10 }}><Ava p={me} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>{me?.name}</div><div className="muted" style={{ fontSize: 11 }}>amministratore</div></div><button className="btn s" title="Esci" onClick={async () => { await sb.logout(); setState("login"); }}><Icon n="out" /></button></div>
         <a href="/" className="muted" style={{ fontSize: 12, padding: "0 8px 4px", textDecoration: "none" }}>← Torna all'app</a>
       </aside>
