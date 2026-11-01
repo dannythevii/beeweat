@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.69";
+const APP_VERSION = "14.70";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -897,8 +897,7 @@ function AuthScreen({ onLogin, sb }) {
           // Se la conferma email non è richiesta, si entra subito; altrimenti si mostra l'avviso
           try {
             await T(sb.loginEmail({ email: form.email, password: form.password }));
-            let prof = null; try { prof = await T(sb.getCurrentProfile(), 8000); } catch (_) {}
-            onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
+            onLogin({ name: form.name || "Utente Bee", city: form.city || CITY });   // 14.70: dentro subito
             return;
           } catch (_) {
             setInfo("Registrazione inviata! Controlla la tua email e conferma il link, poi accedi.");
@@ -906,8 +905,8 @@ function AuthScreen({ onLogin, sb }) {
           }
         } else {
           await T(sb.loginEmail({ email: form.email, password: form.password }));
-          let prof = null; try { prof = await T(sb.getCurrentProfile(), 8000); } catch (_) {}
-          onLogin({ name: prof?.name || form.name || "Utente Bee", city: prof?.city || form.city || CITY });
+          let cached = null; try { cached = JSON.parse(localStorage.getItem("bw_profile") || "null"); } catch (_) {}   // 14.70: dentro subito, il profilo vero arriva un attimo dopo
+          onLogin({ name: cached?.name || form.name || "Utente Bee", city: cached?.city || form.city || CITY, avatar: cached?.avatar || "🌤️" });
         }
       } catch (e) {
         let m = e?.message || e?.error_description || e?.msg || "";
@@ -4329,7 +4328,7 @@ function AppInner() {
     setNotif(next);
     if (!sb?.isConfigured) return;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()); if (!au) return;
       await sb.supabase.from("profiles").update({ notif_prefs: next }).eq("id", au.id);
     } catch (e) { console.warn("notifiche:", e?.message || e); } })();
   };
@@ -4353,7 +4352,7 @@ function AppInner() {
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()); if (!au) return;
       const { groups: gs, members } = await sb.getMyGroups();
       setGroups(gs.map(g => ({
         id: g.id, name: g.name, owner: g.owner_id, mine: g.owner_id === au.id,
@@ -4403,7 +4402,7 @@ function AppInner() {
     if (!(sb?.isConfigured && typeof g.id === "string" && g.id.includes("-"))) { if (!threads[id]) setThreads(th => ({ ...th, [id]: [] })); return; }
     setThreads(th => ({ ...th, [id]: th[id] || [] }));
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const rows = await sb.getGroupMessages(g.id);
       setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
       if (chatUnsubRef.current) chatUnsubRef.current();
@@ -4421,7 +4420,7 @@ function AppInner() {
     if (sb?.isConfigured) {
       setThreads(th => ({ ...th, [id]: th[id] || [] }));
       (async () => { try {
-        const { data: { user: au } } = await sb.supabase.auth.getUser();
+        const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
         const rows = await sb.getPlaceMessages(place.name);
         setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
         if (chatUnsubRef.current) chatUnsubRef.current();
@@ -4732,7 +4731,7 @@ function AppInner() {
     const geo = geoRef.current;
     try {
       const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       let myStars = new Set();
       if (au) { const { data: st } = await sb.supabase.from("stars").select("post_id").eq("user_id", au.id); myStars = new Set((st || []).map(x => x.post_id)); }
       const ids = [...new Set((rows || []).map(r => r.user_id))];
@@ -4840,7 +4839,7 @@ function AppInner() {
     if (!sb?.isConfigured || !user) return;
     let unsub = null;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()); if (!au) return;
       setAlerts(await sb.getNotifications());
       unsub = await sb.subscribeNotifications(au.id, (ev, n, old) => {
         if (ev === "INSERT" && n) {
@@ -4883,7 +4882,7 @@ function AppInner() {
   const unreadCount = alerts.filter(a => !a.read).length;
   // Amministratore Beeweat? (colonna is_admin sul profilo)
   const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => { if (sb?.isConfigured && user) sb.supabase.auth.getUser().then(({ data }) => setMyUid(data?.user?.id || null)); }, [sb, user]);
+  useEffect(() => { if (sb?.isConfigured && user) (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()).then(({ data }) => setMyUid(data?.user?.id || null)); }, [sb, user]);
   useEffect(() => {
     if (!sb?.isConfigured) return;
     const { data: sub } = sb.supabase.auth.onAuthStateChange(ev => {
@@ -5002,12 +5001,12 @@ function AppInner() {
     };
   };
   const loadUserPosts = async (uid, limit) => { try {
-    const { data: { user: au } } = await sb.supabase.auth.getUser();
+    const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
     const rows = await sb.getPostsByUser(uid, limit || 30);
     setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
   } catch (e) { console.warn("post utente:", e?.message || e); } };
   const loadCityPosts = async city => { try {
-    const { data: { user: au } } = await sb.supabase.auth.getUser();
+    const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
     const rows = await sb.getPostsByCity(city);
     setExtraPosts(rows.map(r => mapRemoteRow(r, au?.id)));
   } catch (e) { console.warn("post città:", e?.message || e); } };
@@ -5072,7 +5071,7 @@ function AppInner() {
       const a = await sb.getLatestAward();
       if (!a || (Date.now() - new Date(a.created_at).getTime()) > AWARD_LIFE) { setAward(null); setAwardShow(false); return; }   // premio scaduto: 24 ore e via
       const r = await sb.getPostById(a.post_id);
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       setAward({ award: a, post: mapRemoteRow(r, au?.id) });
       let shown = null; try { shown = localStorage.getItem("bw_award_shown"); } catch (_) {}
       if (shown === a.id) return;                                                     // già mostrata a quest'ape: una volta sola
@@ -5090,7 +5089,7 @@ function AppInner() {
   useEffect(() => {
     if (!feedWorld || !sb?.isConfigured) { setWorldFeedPosts([]); return; }
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const rows = await sb.getWorldFeed();
       setWorldFeedPosts(rows.map(r => mapRemoteRow(r, au?.id)));
       sb.getWorldCount().then(setWorldCount).catch(() => {});
@@ -5102,7 +5101,7 @@ function AppInner() {
     if (!feedFollowed || !sb?.isConfigured || !followingIds.length) { setFollowedPosts([]); return; }
     let stop = false;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const lists = await Promise.all(followingIds.slice(0, 60).map(uid => sb.getPostsByUser(uid, 12).catch(() => [])));
       if (stop) return;
       const seen = new Set();
@@ -5180,7 +5179,7 @@ function AppInner() {
     setArchive({ posts: null, loading: true, back, who }); setOverlay("archive");
     try {   // 14.46: tutti i cieli — quelli recenti e quelli già in archivio — in un'unica vista mese per mese
       const [arch, live] = await Promise.all([sb.getArchivedPosts(uid).catch(() => []), sb.getPostsByUser(uid, 2000)]);
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const seen = new Set(); const rows = [...live, ...arch].filter(r => !seen.has(r.id) && seen.add(r.id));
       setArchive(a => ({ ...a, posts: rows.map(r => mapRemoteRow(r, au?.id)), loading: false }));
     } catch (e) { console.warn("storico:", e?.message || e); setArchive(a => ({ ...a, posts: [], loading: false })); }
@@ -5253,7 +5252,7 @@ function AppInner() {
       (async () => {
         try {
           const r = await sb.getPostById(a.post_id);
-          const { data: { user: au } } = await sb.supabase.auth.getUser();
+          const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
           const mapped = mapRemoteRow(r, au?.id);
           setFocusPost(mapped);                                                      // stato riservato: i ricarichi non lo toccano
           setOverlay(null); setTab("feed"); setFeedWorld(false);
@@ -5280,7 +5279,7 @@ function AppInner() {
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const profs = await sb.getProfiles();
       setContacts(profs
         .map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null, me: !!au && p.id === au.id, postsCount: p.posts_count || 0 }))
@@ -5304,7 +5303,7 @@ function AppInner() {
     setAlerts(a => a.map(n => n.type === "direct" && n.from_user_id === c.id ? { ...n, read: true } : n));
     sb.markDirectNotifsRead(c.id).catch(() => {});
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const rows = await sb.getDirectMessages(c.id);
       setThreads(th => ({ ...th, [c.id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null, deliveredAt: r.delivered_at || null })) }));
       if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(c.id).catch(e => console.warn("lettura:", e?.message || e));   // ✓✓ dalla sua parte
@@ -5319,7 +5318,7 @@ function AppInner() {
     const beat = async () => { try {
       const rows = await sb.getDirectMessages(chatOpenId);
       if (!alive) return;
-      const { data: { user: au } } = await sb.supabase.auth.getUser();
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       setThreads(th => {
         const local = th[chatOpenId] || [];
         const fresh = (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, text: r.text, time: fmtTime(r.created_at), readAt: r.read_at || null, deliveredAt: r.delivered_at || null }));
@@ -5336,7 +5335,7 @@ function AppInner() {
     if (!sb?.isConfigured || !user) return;
     let unsub = null;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()); if (!au) return;
       if (sb.markAllDelivered) sb.markAllDelivered().catch(() => {});   // quello che è arrivato mentre l'app dormiva: consegnato
       unsub = await sb.subscribeDirect(au.id, m => {
         setThreads(th => ({ ...th, [m.from_user_id]: [...(th[m.from_user_id] || []), { id: m.id, me: false, text: m.text, time: fmtTime(m.created_at), readAt: null, deliveredAt: null }] }));
@@ -5363,7 +5362,7 @@ function AppInner() {
     setUser(u => ({ ...u, avatar: a }));
     if (!sb?.isConfigured) return;
     (async () => { try {
-      const { data: { user: au } } = await sb.supabase.auth.getUser(); if (!au) return;
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser()); if (!au) return;
       let url = a;
       if (typeof a === "string" && a.startsWith("data:")) {
         const blob = dataURLtoBlob(a);
@@ -5645,7 +5644,7 @@ function AppInner() {
       setThreads(th => ({ ...th, [id]: th[id] || [] }));
       setOverlay({ back, chat: { id, name: "Chat pubblica", ava: "🌐", sub: `Post di ${post.user} · ${post.city}`, public: true } });
       (async () => { try {
-        const { data: { user: au } } = await sb.supabase.auth.getUser();
+        const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
         const rows = await sb.getPostMessages(post.id);
         setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
         if (chatUnsubRef.current) chatUnsubRef.current();

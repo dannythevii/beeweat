@@ -9,10 +9,16 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// 14.70: l'utente collegato, letto dalla sessione già sul telefono: nessuna richiesta al server.
+// (auth.getUser() fa una richiesta a ogni chiamata e passa da un lucchetto del browser: 20 chiamate insieme = secondi persi)
+export async function authUser() {
+  try { const { data: { session } } = await supabase.auth.getSession(); return { data: { user: session?.user || null } }; }
+  catch (_) { return { data: { user: null } }; }
+}
 
 // ── Foto premiata 🏅: gli admin premiano, tutti vedono l'annuncio ────────────
 export async function createAward(postId, message) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("awards")
     .insert({ post_id: postId, awarded_by: user.id, message: message || null }).select().single();
@@ -72,7 +78,7 @@ async function enrichCounts(rows) {
     supabase.from("stars").select("post_id").in("post_id", ids),
     supabase.from("post_views").select("post_id").in("post_id", ids),
     supabase.from("messages").select("post_id").eq("scope", "post").in("post_id", ids),
-    supabase.auth.getUser(),
+    authUser(),
   ]);
   const tally = q => (q?.data || []).reduce((m, r) => (m[r.post_id] = (m[r.post_id] || 0) + 1, m), {});
   const sc = tally(st), vc = tally(vw), cc = tally(cm);
@@ -135,7 +141,7 @@ export async function getEvents(limit = 200) {
   return attachProfiles(data || []);
 }
 export async function createEvent(ev) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   let image_url = null;
   if (ev.file) { try { image_url = await uploadPhoto(ev.file); } catch (e) { console.warn("foto evento:", e?.message || e); } }   // la foto dell'evento, se c'è
@@ -222,7 +228,7 @@ export async function deletePost(post) {
 
 // ── Push (Web Push VAPID) e posizione per le allerte ─────────────────────────
 export async function savePushSub(sub) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const k = sub.keys || {};
   const { error } = await supabase.from("push_subs").upsert(
@@ -231,7 +237,7 @@ export async function savePushSub(sub) {
   if (error) throw error;
 }
 export async function saveMyLocation(lat, lng) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("user_location").upsert(
     { user_id: user.id, lat, lng, updated_at: new Date().toISOString() },
@@ -244,7 +250,7 @@ export async function deleteMessage(id) {
   if (error) throw error;
 }
 export async function clearDirectChat(otherId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("messages").delete()
     .eq("scope", "direct")
@@ -257,7 +263,7 @@ export async function markNotifRead(id) {
   await supabase.from("notifications").update({ read: true }).eq("id", id);
 }
 export async function markAllNotifsRead() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
 }
@@ -274,7 +280,7 @@ export async function banUser(userId, until, reason) {
 
 // ── Visualizzazioni dei post (una per utente) ────────────────────────────────
 export async function registerView(postId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("post_views").upsert(
     { post_id: postId, user_id: user.id },
@@ -298,7 +304,7 @@ export async function getPlaceMessages(place, limit = 50) {
   return rows;
 }
 export async function sendPlaceMessage(place, text) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
     .insert({ scope: "place", place, from_user_id: user.id, text })
@@ -335,7 +341,7 @@ export async function getMyGroups() {
   return { groups: data || [], members };
 }
 export async function createGroup(name, memberIds) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data: g, error } = await supabase.from("groups")
     .insert({ name, owner_id: user.id }).select().single();
@@ -373,7 +379,7 @@ export async function getGroupMessages(groupId, limit = 50) {
   return rows;
 }
 export async function sendGroupMessage(groupId, text) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
     .insert({ scope: "group", group_id: groupId, from_user_id: user.id, text })
@@ -392,19 +398,19 @@ export async function subscribeGroupChat(groupId, onNew) {
 
 // ── Seguiti / Follower ────────────────────────────────────────────────────────
 export async function getMyFollows() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return [];
   const { data, error } = await supabase.from("follows").select("followed_id").eq("follower_id", user.id);
   if (error) throw error; return (data || []).map(r => r.followed_id);
 }
 export async function getMyFollowers() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return [];
   const { data, error } = await supabase.from("follows").select("follower_id").eq("followed_id", user.id);
   if (error) throw error; return (data || []).map(r => r.follower_id);
 }
 export async function setFollow(followedId, on) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   if (on) {
     const { error } = await supabase.from("follows")
@@ -424,7 +430,7 @@ export async function getNotifications(limit = 30) {
   if (error) throw error; return data || [];
 }
 export async function markDirectNotifsRead(fromId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("notifications").update({ read: true })
     .eq("user_id", user.id).eq("type", "direct").eq("from_user_id", fromId);
@@ -475,7 +481,7 @@ export async function getUserPostCount(userId) {
   return count || 0;
 }
 export async function getDirectMessages(otherId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages").select("*")
     .eq("scope", "direct")
@@ -484,7 +490,7 @@ export async function getDirectMessages(otherId) {
   if (error) throw error; return data || [];
 }
 export async function sendDirectMessage(toId, text) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
     .insert({ scope: "direct", from_user_id: user.id, to_user_id: toId, text })
@@ -505,21 +511,21 @@ export async function subscribeDirect(myId, onMessage, onRead) {
 }
 // Segno come CONSEGNATI tutti i messaggi arrivati a me (✓✓ bianche dalla parte di chi scrive)
 export async function markAllDelivered() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("messages").update({ delivered_at: new Date().toISOString() })
     .eq("scope", "direct").eq("to_user_id", user.id).is("delivered_at", null);
 }
 // Segno come letti i messaggi che X mi ha scritto (spunta ✓✓ dalla sua parte)
 export async function markDirectRead(fromId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("messages").update({ read_at: new Date().toISOString() })
     .eq("scope", "direct").eq("to_user_id", user.id).eq("from_user_id", fromId).is("read_at", null);
 }
 // Preferenza: conferma di lettura sì/no
 export async function setReadReceipts(on) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("profiles").update({ read_receipts: !!on }).eq("id", user.id);
   if (error) throw error;
@@ -552,8 +558,10 @@ export async function nameTaken(name) {
   return !!(data && data.length);
 }
 export async function registerEmail({ email, password, name, city }) {
-  if (name && await nameTaken(name))
-    throw new Error("Questo nome è già usato da un'altra ape 🐝 — scegline uno diverso.");
+  if (name) {   // 14.70: controllo rapido; se il server tarda, si va avanti (il nome resta comunque unico lato database)
+    let taken = false; try { taken = await Promise.race([nameTaken(name), new Promise(r => setTimeout(() => r(false), 4000))]); } catch (_) {}
+    if (taken) throw new Error("Questo nome è già usato da un'altra ape 🐝 — scegline uno diverso.");
+  }
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: { data: { name, city } },
@@ -598,7 +606,7 @@ export async function logout() {
 
 // Utente corrente + suo profilo
 export async function getCurrentProfile() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return null;
   const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
   if (error) throw error;
@@ -609,7 +617,7 @@ export async function getCurrentProfile() {
 // FOTO (Storage)  — carica nel bucket "posts" e restituisce l'URL pubblico
 // ============================================================================
 export async function uploadPhoto(file) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const path = `${user.id}/${Date.now()}.jpg`;
   const { error } = await supabase.storage.from("posts").upload(path, file, {
@@ -627,7 +635,7 @@ export async function uploadPhoto(file) {
 
 // Crea un post: prima carica la foto, poi salva il record
 export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
   const row = {
@@ -660,7 +668,7 @@ export async function getFeedNearby({ lat, lng, radiusKm = 10 }) {
 
 // I miei post
 export async function getMyPosts() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return [];
   const { data, error } = await supabase.from("posts")
     .select("*").eq("user_id", user.id).order("created_at", { ascending: false });
@@ -672,7 +680,7 @@ export async function getMyPosts() {
 // STELLE / LIKE  (metti o togli)
 // ============================================================================
 export async function toggleStar(postId) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data: existing } = await supabase.from("stars")
     .select("post_id").eq("post_id", postId).eq("user_id", user.id).maybeSingle();
@@ -717,7 +725,7 @@ export async function getPostMessages(postId, limit = 50) {
 
 // Invia un messaggio nella chat pubblica del post
 export async function sendPostMessage(postId, text) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages").insert({
     scope: "post", post_id: postId, from_user_id: user.id, text,
@@ -742,7 +750,7 @@ export async function subscribePostChat(postId, onNew) {
 // NOTIFICHE  (preferenze + token + posizione)
 // ============================================================================
 export async function saveNotifPrefs(prefs) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("notification_prefs")
     .upsert({ user_id: user.id, ...prefs });
@@ -751,7 +759,7 @@ export async function saveNotifPrefs(prefs) {
 }
 
 export async function saveDeviceToken(token, platform) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("device_tokens").upsert({ user_id: user.id, token, platform });
   if (error) throw error;
@@ -759,7 +767,7 @@ export async function saveDeviceToken(token, platform) {
 }
 
 export async function updateMyLocation(lat, lng) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("user_location")
     .upsert({ user_id: user.id, lat, lng, updated_at: new Date().toISOString() });
@@ -784,7 +792,7 @@ export async function updateMyLocation(lat, lng) {
 // ============================================================================
 // Segnalazione dal tasto «Segnala» (prima restava solo sul telefono)
 export async function createReport(postId, reason, note) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("reports").insert({ post_id: postId, reporter_id: user.id, reason: reason || null, note: note || null });
   if (error) throw error;
@@ -808,7 +816,7 @@ export async function adminReports(status = "open", limit = 300) {
   return rows;
 }
 export async function adminResolveReport(id, status, outcome) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   const { error } = await supabase.from("reports").update({ status, outcome: outcome || null, handled_by: user?.id || null, handled_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
@@ -832,7 +840,7 @@ export async function adminSupportMessages() {
   let rows = null, rpcErr = null;
   try { const { data, error } = await supabase.rpc("admin_support_messages", { p_limit: 2000 }); if (error) throw error; rows = data || []; } catch (e) { rpcErr = e; }
   if (!rows) {   // 14.67: senza la funzione sul server (SQL non ancora lanciato) si leggono almeno le chat dell'admin collegato
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await authUser();
     if (!user) throw rpcErr || new Error("Utente non autenticato");
     const { data, error } = await supabase.from("messages").select("*").eq("scope", "direct").or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`).order("created_at", { ascending: false }).limit(2000);
     if (error) throw rpcErr || error;
@@ -846,7 +854,7 @@ export async function adminSupportMessages() {
 }
 // Inviti ad amministratore
 export async function adminInvite(toUser) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("admin_invites").insert({ from_admin: user.id, to_user: toUser });
   if (error) throw error;
@@ -865,7 +873,7 @@ export async function adminSetAdmin(target, on) {
 }
 // L'ape: c'è un invito in attesa per me?
 export async function myAdminInvite() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await authUser();
   if (!user) return null;
   const { data, error } = await supabase.from("admin_invites").select("*").eq("to_user", user.id).eq("status", "pending").order("created_at", { ascending: false }).limit(1);
   if (error) return null;
