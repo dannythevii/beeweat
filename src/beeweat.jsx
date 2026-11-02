@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.72";
+const APP_VERSION = "14.71";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2748,8 +2748,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     let sw = v.videoWidth / dz, sh = v.videoHeight / dz;
     const ar = FORMAT_AR[format];                 // formato scelto: ritaglio centrato (16:9 / pano 21:9)
     if (ar) { if (sw / sh > ar) sw = sh * ar; else sh = sw / ar; }
-    const kc = Math.min(1, 2048 / Math.max(sw, sh));   // 14.72: al massimo 2048 px sul lato lungo (il cielo pubblicato è 1600)
-    c.width = Math.round(sw * kc); c.height = Math.round(sh * kc);
+    c.width = Math.round(sw); c.height = Math.round(sh);
     c.getContext("2d").drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, c.width, c.height); setCaptured(c.toDataURL("image/jpeg", .85)); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) }); streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false); };
   const [ai, setAi] = useState(null);
   const aiSeqRef = useRef(0);
@@ -4731,16 +4730,12 @@ function AppInner() {
     feedBusy.current = true;
     const geo = geoRef.current;
     try {
-      const [rows, { data: { user: au } }] = await Promise.all([   // 14.72: cieli e identità insieme
-        sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 }),
-        sb.authUser ? sb.authUser() : sb.supabase.auth.getUser(),
-      ]);
+      const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
+      const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
+      let myStars = new Set();
+      if (au) { const { data: st } = await sb.supabase.from("stars").select("post_id").eq("user_id", au.id); myStars = new Set((st || []).map(x => x.post_id)); }
       const ids = [...new Set((rows || []).map(r => r.user_id))];
-      const [{ data: st }, { data: profs }] = await Promise.all([   // 14.72: stelle e profili in parallelo
-        au ? sb.supabase.from("stars").select("post_id").eq("user_id", au.id) : Promise.resolve({ data: [] }),
-        ids.length ? sb.supabase.from("profiles").select("id,name,city,avatar_url").in("id", ids) : Promise.resolve({ data: [] }),
-      ]);
-      const myStars = new Set((st || []).map(x => x.post_id));
+      const { data: profs } = ids.length ? await sb.supabase.from("profiles").select("id,name,city,avatar_url").in("id", ids) : { data: [] };
       const pmap = Object.fromEntries((profs || []).map(p => [p.id, p]));
       setPosts((rows || []).map(r => {
         const pr = pmap[r.user_id] || {}; const pt = { lat: r.lat, lng: r.lng };
@@ -4863,14 +4858,15 @@ function AppInner() {
     } catch (e) { console.warn("avvisi:", e?.message || e); } })();
     const refreshA = () => { if (!document.hidden) sb.getNotifications().then(setAlerts).catch(() => {}); };
     document.addEventListener("visibilitychange", refreshA);
-    const ivA = setInterval(refreshA, 60000);       // rete di sicurezza: riallinea ogni 60s (14.72; gli avvisi arrivano già in tempo reale)
+    const ivA = setInterval(refreshA, 20000);       // rete di sicurezza: riallinea ogni 20s
     return () => { document.removeEventListener("visibilitychange", refreshA); clearInterval(ivA); try { if (unsub) unsub(); } catch (_) {} };
   }, [sb, user]);
   useEffect(() => {
     const noZoom = e => e.preventDefault();
     document.addEventListener("gesturestart", noZoom);           // pinch su iOS
-    // 14.72: niente touchmove non passivo sul documento (frenava lo scorrimento del reel); il pinch è già bloccato da touch-action e gesturestart
-    return () => { document.removeEventListener("gesturestart", noZoom); };
+    const noPinch = e => { if (e.touches && e.touches.length > 1) e.preventDefault(); };
+    document.addEventListener("touchmove", noPinch, { passive: false });
+    return () => { document.removeEventListener("gesturestart", noZoom); document.removeEventListener("touchmove", noPinch); };
   }, []);
   useEffect(() => {
     const h = e => { if (e.data?.type === "notif-tap") routeNotifTap(e.data.kind, e.data.from || null); };
@@ -5137,7 +5133,6 @@ function AppInner() {
     else if (award?.post) base = withAward(base);                                        // poi resta solo il nastro, dove il post compare
     return base;
   }, [feedWorld, feedFollowed, followedPosts, posts, worldFeedPosts, focusPost, award, awardShow]);
-  const feedRanked = useMemo(() => withRank(feedShown), [feedShown, rankOf]);   // 14.72: una volta per cambio di dati, non a ogni render
   useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
@@ -5320,7 +5315,7 @@ function AppInner() {
   useEffect(() => {                                        // battito della chat diretta aperta: spunte sempre vere
     if (!sb?.isConfigured || !chatOpenId || typeof chatOpenId !== "string" || !chatOpenId.includes("-") || /^(post_|place_|g_)/.test(chatOpenId)) return;
     let alive = true;
-    const beat = async () => { if (document.hidden) return; try {   // 14.72: niente battito in secondo piano
+    const beat = async () => { try {
       const rows = await sb.getDirectMessages(chatOpenId);
       if (!alive) return;
       const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
@@ -5332,7 +5327,7 @@ function AppInner() {
       });
       if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(chatOpenId).catch(() => {});
     } catch (_) {} };
-    const iv = setInterval(beat, 6000);          // 14.72: le spunte arrivano in tempo reale; il battito è solo un riallineamento
+    const iv = setInterval(beat, 2500);          // battito rapido: le spunte cambiano in 2-3 secondi
     return () => { alive = false; clearInterval(iv); };
   }, [sb, chatOpenId]);
   // Messaggi diretti in arrivo, in tempo reale (una sola iscrizione globale)
@@ -5504,8 +5499,7 @@ function AppInner() {
         }
         if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng, it.ts || null); } catch (_) {} }   // 14.29: la temperatura dell'ORA DELLO SCATTO
         const itCity = it.city || await cityForPost(it.lat, it.lng);                       // zaino: il nome del posto si decide alla partenza
-        const obFile = typeof it.img === "string" && it.img.startsWith("data:") ? await shrinkImage(it.img) : dataURLtoBlob(it.img);   // 14.72: anche dallo zaino la foto parte a 1600 px
-        await sb.createPost({ file: obFile, caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, createdAt: it.ts ? new Date(it.ts).toISOString() : undefined, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
+        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, createdAt: it.ts ? new Date(it.ts).toISOString() : undefined, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -5950,7 +5944,7 @@ function AppInner() {
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {tab === "feed" && <FeedScreen onRetry={() => flushRef.current && flushRef.current()} homeKey={feedHome} modelCond={wx?.condition} posts={feedRanked} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
+        {tab === "feed" && <FeedScreen onRetry={() => flushRef.current && flushRef.current()} homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}

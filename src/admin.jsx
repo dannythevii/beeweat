@@ -213,11 +213,98 @@ function Stats({ days, setDays, profiles }) {
         <Card title="Che eventi vanno per la maggiore" sub="Eventi pubblicati per categoria."><div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}><div style={{ flex: "1 1 220px" }}><HBars data={st.eventi_cat || []} x={d => (d.c || "").replace(/^[^ ]+ /, "")} y={d => d.n} /></div><div style={{ flex: "0 0 auto" }}><Donut size={110} data={st.eventi_kind || []} x={d => d.k === "social" ? "Social" : "Meteo"} y={d => d.n} /></div></div></Card>
         <Card title="Nuove iscrizioni per settimana" sub="Ultime 16 settimane."><Bars data={st.iscrizioni_sett || []} x={d => { const t = new Date(d.w + "T12:00:00"); return `${t.getDate()}/${t.getMonth() + 1}`; }} y={d => d.n} color={C4} /></Card>
         <Card title="Stelle e commenti, giorno per giorno" sub="Quanto l'alveare reagisce ai cieli."><Lines series={[{ name: "stelle", color: C1, data: st.stelle_giorno || [] }, { name: "commenti", color: C3, data: st.commenti_giorno || [] }]} /></Card>
-        <Card title="Le api più attive" sub="Chi pubblica di più nel periodo, e quante stelle ha ricevuto."><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{(st.top_api || []).map((p, i) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><span className="muted" style={{ width: 18, textAlign: "right" }}>{i + 1}</span><span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}<span className="muted" style={{ fontWeight: 400 }}> · {p.city || ""}</span></span><span className="tag h">{p.n} cieli</span><span className="tag" style={{ gap: 4 }}>{p.s} <Icon n="starFill" size={12} /></span></div>)}{!(st.top_api || []).length && <Empty />}</div></Card>
+        <Card title="Le api più attive" sub="Chi pubblica di più nel periodo, e quante stelle ha ricevuto."><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{(st.top_api || []).map((p, i) => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><span className="muted" style={{ width: 18, textAlign: "right" }}>{i + 1}</span><span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => location.hash = "bee/" + p.id} title="Apri la scheda">{p.name}<span className="muted" style={{ fontWeight: 400 }}> · {p.city || ""}</span></span><span className="tag h">{p.n} cieli</span><span className="tag" style={{ gap: 4 }}>{p.s} <Icon n="starFill" size={12} /></span></div>)}{!(st.top_api || []).length && <Empty />}</div></Card>
         <Card title="Temperature fotografate" sub="Quanti cieli per fascia di temperatura (°C)."><Bars data={st.temperature || []} x={d => `${d.t}–${d.t + 4}`} y={d => d.n} color={C3} /></Card>
         <Card title="Segnalazioni per motivo" sub="Cosa infastidisce le api."><HBars data={st.segnalazioni || []} x={d => d.c} y={d => d.n} /></Card>
       </div>
     </>}
+  </>;
+}
+
+
+// ── Scheda dell'ape: le stesse statistiche della Panoramica, per una sola ape ─────────────────
+function BeeCard({ id, me, toast, go, openChat }) {
+  const [p, setP] = useState(null), [st, setSt] = useState(null), [err, setErr] = useState(null), [days, setDays] = useState(30), [big, setBig] = useState(null);
+  const [edit, setEdit] = useState(null), [ban, setBan] = useState(null);
+  const loadP = () => sb.adminProfiles().then(rows => setP(rows.find(x => x.id === id) || null)).catch(setErr);
+  useEffect(() => { loadP(); }, [id]);
+  useEffect(() => { setSt(null); sb.adminUserStats(id, days).then(setSt).catch(setErr); }, [id, days]);
+  const act = async (fn, msg) => { try { await fn(); toast(msg); loadP(); } catch (e) { alert("Errore: " + (e?.message || e)); } };
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, h) => ({ h, n: (st?.per_ora || []).find(x => x.h === h)?.n || 0 })), [st]);
+  const dow = useMemo(() => [1, 2, 3, 4, 5, 6, 7].map(d => ({ d, n: (st?.per_dow || []).find(x => x.d === d)?.n || 0 })), [st]);
+  const bestHour = hours.reduce((a, b) => b.n > a.n ? b : a, hours[0]), bestDow = dow.reduce((a, b) => b.n > a.n ? b : a, dow[0]);
+  const perc = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+  const banned = p?.banned_until && new Date(p.banned_until) > new Date();
+  const ai = st?.ai || {}, descr = st?.descrizione || {};
+  const segnRic = (st?.segnalazioni_ricevute || []).reduce((a, x) => a + x.n, 0);
+  return <>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}><button className="btn s" onClick={() => go("bees")}>← Api</button><span className="muted" style={{ fontSize: 12 }}>Scheda dell'ape</span></div>
+    <Err e={err} />
+    {!p ? <div className="muted">Carico…</div> : <>
+      <div className="card" style={{ padding: 18, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <Ava p={p} size={64} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{p.name}{p.is_admin && <span className="tag h">admin</span>}{banned && <span className="tag r">sospesa fino al {fmt(p.banned_until)}</span>}{p.id === me.id && <span className="muted" style={{ fontSize: 13 }}>(tu)</span>}</div>
+          <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{p.city || "—"} · {p.email || "—"} · iscritta il {p.created_at ? fmt(p.created_at).slice(0, 8) : "—"}{p.gender ? ` · ${{ f: "donna", m: "uomo", x: "altro" }[p.gender] || ""}` : ""}</div>
+          {banned && p.ban_reason && <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>Motivo: {p.ban_reason}</div>}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button className="btn s" onClick={() => openChat(p)}>Scrivi</button>
+          <button className="btn s" onClick={() => setEdit({ ...p })}>Correggi</button>
+          {banned ? <button className="btn s" onClick={() => act(() => sb.banUser(p.id, null, null), "Sospensione tolta")}>Riattiva</button> : <button className="btn s" onClick={() => setBan({ days: 7, reason: "" })}>Sospendi</button>}
+        </div>
+      </div>
+      <div className="grid" style={{ marginTop: 14 }}>
+        <div className="card kpi"><b>{st?.cieli_tot ?? "—"}</b><span>cieli in tutto{st?.primo ? ` · dal ${fmt(st.primo).slice(0, 8)}` : ""}</span></div>
+        <div className="card kpi"><b>{st?.stelle_tot ?? "—"}</b><span>stelle ricevute</span></div>
+        <div className="card kpi"><b>{st?.occhi_tot ?? "—"}</b><span>occhi sui suoi cieli</span></div>
+        <div className="card kpi"><b>{st?.commenti_tot ?? "—"}</b><span>commenti ricevuti</span></div>
+        <div className="card kpi"><b>{st?.follower ?? "—"} / {st?.seguiti ?? "—"}</b><span>follower / seguiti</span></div>
+        <div className="card kpi"><b>{st?.premi ?? "—"}</b><span>foto premiate</span></div>
+        <div className="card kpi"><b>{st?.eventi_tot ?? "—"}</b><span>eventi pubblicati</span></div>
+        <div className="card kpi" style={segnRic ? { borderColor: RED + "66" } : null}><b>{segnRic}</b><span>segnalazioni ricevute</span></div>
+        <div className="card kpi"><b>{st?.messaggi_inviati ?? "—"}</b><span>messaggi scritti</span></div>
+        <div className="card kpi"><b>{st?.ultimo ? ago(st.ultimo) + " fa" : "—"}</b><span>ultimo cielo</span></div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 0 10px", flexWrap: "wrap", gap: 10 }}>
+        <div><div style={{ fontSize: 18, fontWeight: 700 }}>Cosa fa {p.name}</div><div className="muted" style={{ fontSize: 12.5 }}>Le abitudini di questa ape nel periodo scelto.</div></div>
+        <div style={{ display: "flex", gap: 6 }}>{[[7, "7 giorni"], [30, "30 giorni"], [90, "3 mesi"], [365, "1 anno"]].map(([d, l]) => <button key={d} className={"btn s" + (days === d ? " p" : "")} onClick={() => setDays(d)}>{l}</button>)}</div>
+      </div>
+      {!st ? <div className="muted" style={{ padding: 20 }}>Calcolo…</div> : <>
+        <div className="grid" style={{ marginBottom: 14 }}>
+          <div className="card kpi"><b>{st.cieli_periodo ?? 0}</b><span>cieli nel periodo</span></div>
+          <div className="card kpi"><b>{st.giorni_attivi ?? 0}</b><span>giorni in cui ha pubblicato</span></div>
+          <div className="card kpi"><b>{bestHour.n ? `${bestHour.h}:00` : "—"}</b><span>l'ora in cui fotografa di più</span></div>
+          <div className="card kpi"><b>{bestDow.n ? DOW[bestDow.d] : "—"}</b><span>il suo giorno più attivo</span></div>
+          <div className="card kpi"><b>{perc(descr.con, (descr.con || 0) + (descr.senza || 0))}</b><span>cieli con descrizione</span></div>
+          <div className="card kpi"><b>{perc(ai.uguali, (ai.uguali || 0) + (ai.diversi || 0))}</b><span>condizione uguale a quella vista dall'AI</span></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 14 }}>
+          <Card title="Cieli, giorno per giorno"><Lines series={[{ name: "cieli", color: C1, data: st.per_giorno || [] }]} /></Card>
+          <Card title="A che ora fotografa"><Bars data={hours} x={d => d.h} y={d => d.n} color={d => d.h >= 6 && d.h < 20 ? C1 : C2} labelEvery={2} /></Card>
+          <Card title="Cosa preferisce fotografare"><Donut data={(st.per_condizione || []).slice(0, 9)} x={d => (d.c || "").replace(/^[^ ]+ /, "")} y={d => d.n} /></Card>
+          <Card title="I suoi giorni della settimana"><Bars data={dow} x={d => DOW[d.d]} y={d => d.n} color={d => d.d >= 6 ? C2 : C1} /></Card>
+          <Card title="Dove fotografa"><HBars data={st.per_citta || []} x={d => d.c} y={d => d.n} /></Card>
+          <Card title="Stelle e commenti ricevuti, giorno per giorno"><Lines series={[{ name: "stelle", color: C1, data: st.stelle_giorno || [] }, { name: "commenti", color: C3, data: st.commenti_giorno || [] }]} /></Card>
+          <Card title="Gli eventi che pubblica" sub="Per categoria, con la quota meteo/social."><div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}><div style={{ flex: "1 1 220px" }}><HBars data={st.eventi_cat || []} x={d => (d.c || "").replace(/^[^ ]+ /, "")} y={d => d.n} /></div><div style={{ flex: "0 0 auto" }}><Donut size={110} data={st.eventi_kind || []} x={d => d.k === "social" ? "Social" : "Meteo"} y={d => d.n} /></div></div></Card>
+          <Card title="Temperature fotografate"><Bars data={st.temperature || []} x={d => `${d.t}–${d.t + 4}`} y={d => d.n} color={C3} /></Card>
+          <Card title="Segnalazioni ricevute" sub="Sui suoi cieli, per motivo (tutto il tempo)."><HBars data={st.segnalazioni_ricevute || []} x={d => d.c} y={d => d.n} /></Card>
+          <Card title="Segnalazioni fatte" sub="Quelle che ha inviato lei (tutto il tempo)."><HBars data={st.segnalazioni_fatte || []} x={d => d.c} y={d => d.n} /></Card>
+          <Card title="Gli ultimi cieli" sub="Clic per vedere grande." style={{ gridColumn: "1 / -1" }}>
+            {(st.recenti || []).length ? <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>{st.recenti.map(r => <div key={r.id} style={{ flex: "0 0 auto", width: 110 }}><img src={r.img} alt="" onClick={() => setBig(r)} style={{ width: 110, height: 138, objectFit: "cover", borderRadius: 10, cursor: "zoom-in", background: NIGHT3, display: "block" }} /><div style={{ fontSize: 11.5, marginTop: 4 }}><Sky c={r.cond} size={12} /></div><div className="muted" style={{ fontSize: 11 }}>{r.city || ""} · {ago(r.at)} fa</div></div>)}</div> : <Empty />}
+          </Card>
+        </div>
+      </>}
+    </>}
+    {big && <div className="modal" onClick={() => setBig(null)}><img src={big.img} alt="" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 16 }} /></div>}
+    {edit && <Confirm title="Correggi l'ape" label="Salva" onClose={() => setEdit(null)} onOk={() => act(async () => { await sb.adminUpdateProfile(edit.id, { name: edit.name.trim(), city: edit.city || "" }); setEdit(null); }, "Profilo corretto")}>
+      <label className="muted" style={{ fontSize: 12 }}>Nome</label><input value={edit.name || ""} onChange={e => setEdit({ ...edit, name: e.target.value })} style={{ width: "100%", margin: "4px 0 10px" }} />
+      <label className="muted" style={{ fontSize: 12 }}>Città</label><input value={edit.city || ""} onChange={e => setEdit({ ...edit, city: e.target.value })} style={{ width: "100%", marginTop: 4 }} />
+    </Confirm>}
+    {ban && <Confirm title={`Sospendi ${p?.name}`} label="Sospendi" danger onClose={() => setBan(null)} onOk={() => act(async () => { await sb.banUser(p.id, new Date(Date.now() + ban.days * 86400000).toISOString(), ban.reason || null); setBan(null); }, "Ape sospesa")}>
+      <label className="muted" style={{ fontSize: 12 }}>Durata</label><select value={ban.days} onChange={e => setBan({ ...ban, days: +e.target.value })} style={{ width: "100%", margin: "4px 0 10px" }}>{[1, 3, 7, 30, 90, 365].map(d => <option key={d} value={d}>{d} {d === 1 ? "giorno" : "giorni"}</option>)}</select>
+      <label className="muted" style={{ fontSize: 12 }}>Motivo (facoltativo)</label><input value={ban.reason} onChange={e => setBan({ ...ban, reason: e.target.value })} style={{ width: "100%", marginTop: 4 }} />
+    </Confirm>}
   </>;
 }
 
@@ -257,7 +344,7 @@ function Overview({ me, go }) {
 const H = ({ title, sub, right }) => <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}><div><div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-.02em" }}>{title}</div>{sub && <div className="muted" style={{ marginTop: 2 }}>{sub}</div>}</div>{right}</div>;
 
 // ── Api ───────────────────────────────────────────────────────────────────────
-function Bees({ me, toast, openChat }) {
+function Bees({ me, toast, openChat, go }) {
   const [rows, setRows] = useState(null), [err, setErr] = useState(null), [q, setQ] = useState(""), [filter, setFilter] = useState("all");
   const [edit, setEdit] = useState(null), [ban, setBan] = useState(null), [del, setDel] = useState(null), [promo, setPromo] = useState(null);
   const [invites, setInvites] = useState([]);
@@ -279,11 +366,12 @@ function Bees({ me, toast, openChat }) {
     <div className="card" style={{ overflow: "auto", maxHeight: "calc(100vh - 170px)" }}><table>
       <thead><tr><th>Ape</th><th>Email</th><th>Città</th><th>Cieli</th><th>Ultimo cielo</th><th>Iscritta</th><th>Stato</th><th></th></tr></thead>
       <tbody>{list.map(p => { const banned = p.banned_until && new Date(p.banned_until) > new Date(); return <tr key={p.id}>
-        <td><div style={{ display: "flex", alignItems: "center", gap: 10 }}><Ava p={p} /><div><div style={{ fontWeight: 600 }}>{p.name}{p.id === me.id && <span className="muted"> (tu)</span>}</div></div></div></td>
+        <td><div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => go("bee/" + p.id)} title="Apri la scheda"><Ava p={p} /><div><div style={{ fontWeight: 600 }}>{p.name}{p.id === me.id && <span className="muted"> (tu)</span>}</div><div className="muted" style={{ fontSize: 11 }}>scheda →</div></div></div></td>
         <td className="muted" style={{ fontSize: 12.5 }}>{p.email || "—"}</td><td>{p.city || "—"}</td><td>{p.posts_count}</td>
         <td className="muted">{p.last_post_at ? ago(p.last_post_at) + " fa" : "—"}</td><td className="muted">{p.created_at ? fmt(p.created_at).slice(0, 8) : "—"}</td>
         <td>{p.is_admin && <span className="tag h">admin</span>} {banned && <span className="tag r" title={p.ban_reason || ""}>sospesa fino al {fmt(p.banned_until)}</span>} {pending.has(p.id) && <span className="tag b">invito inviato</span>}</td>
         <td style={{ whiteSpace: "nowrap" }}>
+          <button className="btn s p" onClick={() => go("bee/" + p.id)}>Scheda</button>{" "}
           <button className="btn s" onClick={() => openChat(p)}>Scrivi</button>{" "}
           <button className="btn s" onClick={() => setEdit({ ...p })}>Correggi</button>{" "}
           {banned ? <button className="btn s" onClick={() => act(() => sb.banUser(p.id, null, null), "Sospensione tolta")}>Riattiva</button> : <button className="btn s" onClick={() => setBan({ p, days: 7, reason: "" })}>Sospendi</button>}{" "}
@@ -322,7 +410,7 @@ function Reels({ toast }) {
       <thead><tr><th></th><th>Ape</th><th>Cielo</th><th>Dove</th><th>Quando</th><th><Icon n="star" size={14} /></th><th><Icon n="eye" size={14} /></th><th><Icon n="comment" size={14} /></th><th>AI</th><th></th></tr></thead>
       <tbody>{list.map(p => <tr key={p.id}>
         <td><img className="thumb" src={p.thumb_url || p.image_url} alt="" onClick={() => setBig(p)} style={{ cursor: "zoom-in" }} /></td>
-        <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Ava p={p.profiles} size={28} /><span style={{ fontWeight: 600 }}>{p.profiles?.name || "—"}</span></div></td>
+        <td><div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => location.hash = "bee/" + p.user_id} title="Apri la scheda dell'ape"><Ava p={p.profiles} size={28} /><span style={{ fontWeight: 600 }}>{p.profiles?.name || "—"}</span></div></td>
         <td><div><Sky c={p.condition} />{p.temp != null && <span className="muted"> · {Math.round(p.temp)}°</span>}</div>{p.caption && <div className="muted" style={{ fontSize: 12.5, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.caption}</div>}</td>
         <td>{p.city || "—"}{p.precision === "city" && <span className="muted"> ≈</span>}</td>
         <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmt(p.created_at)}{p.archived_at && <div><span className="tag">archiviato</span></div>}</td>
@@ -497,13 +585,13 @@ function Admin() {
   if (state === "loading") return <><style>{CSS}</style><div className="muted" style={{ padding: 40 }}>Un attimo…</div></>;
   if (state === "login") return <><style>{CSS}</style><Login onIn={check} /></>;
   if (state === "denied") return <><style>{CSS}</style><div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}><div className="card" style={{ padding: 26, maxWidth: 420, textAlign: "center" }}><Hex /><div style={{ fontWeight: 700, fontSize: 18, marginTop: 10 }}>Area riservata</div><div className="muted" style={{ marginTop: 6, lineHeight: 1.5 }}>Ciao {me?.name}: questo cruscotto è solo per gli amministratori dell'alveare.</div><button className="btn" style={{ marginTop: 16 }} onClick={async () => { await sb.logout(); setState("login"); }}>Esci</button></div></div></>;
-  const page = { home: <Overview me={me} go={go} />, bees: <Bees me={me} toast={showToast} openChat={openChat} />, reels: <Reels toast={showToast} />, help: <Support me={me} toast={showToast} initial={chatWith} onConsumed={() => setChatWith(null)} />, flags: <Flags toast={showToast} />, events: <Events toast={showToast} />, mega: <Megaphone toast={showToast} />, admins: <Admins me={me} toast={showToast} /> }[view] || <Overview me={me} go={go} />;
+  const page = { home: <Overview me={me} go={go} />, bees: <Bees me={me} toast={showToast} openChat={openChat} go={go} />, reels: <Reels toast={showToast} />, help: <Support me={me} toast={showToast} initial={chatWith} onConsumed={() => setChatWith(null)} />, flags: <Flags toast={showToast} />, events: <Events toast={showToast} />, mega: <Megaphone toast={showToast} />, admins: <Admins me={me} toast={showToast} /> }[view] || (view.startsWith("bee/") ? <BeeCard id={view.slice(4)} me={me} toast={showToast} go={go} openChat={openChat} /> : <Overview me={me} go={go} />);
   return <>
     <style>{CSS}</style>
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <aside className="side" style={{ width: 230, flexShrink: 0, borderRight: `1px solid ${LINE}`, padding: 16, display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 16px" }}><Hex /><div><div style={{ fontWeight: 700 }}>Beeweat</div><div className="muted" style={{ fontSize: 11.5 }}>Area riservata</div></div></div>
-        {NAV.map(([k, l]) => <button key={k} className={"nav" + (view === k ? " on" : "")} onClick={() => go(k)}><Icon n={k} /><span>{l}</span>{k === "flags" && openFlags > 0 && <span className="n">{openFlags}</span>}</button>)}
+        {NAV.map(([k, l]) => <button key={k} className={"nav" + (view === k || (k === "bees" && view.startsWith("bee/")) ? " on" : "")} onClick={() => go(k)}><Icon n={k} /><span>{l}</span>{k === "flags" && openFlags > 0 && <span className="n">{openFlags}</span>}</button>)}
         <div style={{ marginTop: "auto", padding: 8, display: "flex", alignItems: "center", gap: 10 }}><Ava p={me} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>{me?.name}</div><div className="muted" style={{ fontSize: 11 }}>amministratore</div></div><button className="btn s" title="Esci" onClick={async () => { await sb.logout(); setState("login"); }}><Icon n="out" /></button></div>
         <a href="/" className="muted" style={{ fontSize: 12, padding: "0 8px 4px", textDecoration: "none" }}>← Torna all'app</a>
       </aside>
