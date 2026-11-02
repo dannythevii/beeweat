@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.71";
+const APP_VERSION = "14.72";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -314,11 +314,21 @@ const BEE_CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nu
 
 // ─── OCCHI AI DELL'ALVEARE: moderazione + classifica del cielo (nel telefono) ──
 let _aiModelsP = null;
-const loadAIModels = () => {
+const _breath = ms => new Promise(r => setTimeout(r, ms));   // 14.72: una pausa tra un modello e l'altro: il telefono respira
+const loadAIModels = (gentle = false) => {
   if (_aiModelsP) return _aiModelsP;
   _aiModelsP = (async () => {
     const tf = await import("https://esm.sh/@tensorflow/tfjs@4.20.0");
     await tf.ready();
+    if (gentle) {   // in sordina: uno alla volta, con respiro
+      const cocoSsd = await import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"); await _breath(600);
+      const detector = await cocoSsd.load({ base: "lite_mobilenet_v2" }); await _breath(1200);
+      const nsfwjs = await import("https://esm.sh/nsfwjs@4.2.0"); await _breath(600);
+      const nsfw = await nsfwjs.load(); await _breath(1200);
+      const mobilenetMod = await import("https://esm.sh/@tensorflow-models/mobilenet@2.1.1"); await _breath(600);
+      const scenes = await mobilenetMod.load({ version: 2, alpha: 0.5 });
+      return { detector, nsfw, scenes };
+    }
     const [cocoSsd, nsfwjs, mobilenetMod] = await Promise.all([
       import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"),
       import("https://esm.sh/nsfwjs@4.2.0"),
@@ -4448,10 +4458,14 @@ function AppInner() {
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(false);   // 14.65: la posizione precisa è l'unica modalità
   useEffect(() => { try { localStorage.removeItem("bw_geo_off"); } catch (_) {} }, []);
-  useEffect(() => {   // gli occhi AI si scaricano in sordina all'avvio: il primo scatto li trova già svegli
-    const t = setTimeout(() => { loadAIModels().catch(() => {}); }, 2500);
+  useEffect(() => {   // 14.72: gli occhi AI si scaricano in sordina solo DOPO l'ingresso, 40 s dopo, a telefono fermo, uno alla volta
+    if (!user) return;
+    let t = setTimeout(() => {
+      const go = () => { loadAIModels(true).catch(() => {}); };
+      if ("requestIdleCallback" in window) window.requestIdleCallback(go, { timeout: 20000 }); else go();
+    }, 40000);
     return () => clearTimeout(t);
-  }, []);
+  }, [user]);
   const [geoInvite, setGeoInvite] = useState(false);
   const [geoGo, setGeoGo] = useState(false);          // via libera al GPS (dopo l'invito, o subito se già concesso)
   const [geoTick, setGeoTick] = useState(0);          // per ritentare il GPS dopo una riattivazione
