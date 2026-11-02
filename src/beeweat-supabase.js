@@ -1,5 +1,5 @@
 // ============================================================================
-// BEEWEAT — Modulo di integrazione con Supabase
+// BEEWEAT — Modulo di integrazione con Supabase (14.72: controlli di sicurezza lato app)
 // ----------------------------------------------------------------------------
 // Le chiavi vivono in beeweat-config.js: questo file NON va più modificato
 // quando arrivano gli aggiornamenti.
@@ -9,6 +9,25 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./beeweat-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── 14.72 Sicurezza: controlli lato app, in coppia con i vincoli del database (beeweat-14.71-sicurezza.sql) ──
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PLAIN_ID_RE = /^[A-Za-z0-9-]{1,64}$/;   // numeri o uuid: niente virgole, punti o parentesi (sintassi dei filtri)
+// un identificativo che finisce dentro un filtro costruito a stringa: gli id delle api sono UUID veri,
+// per gli altri (cieli, gruppi, eventi) basta che non contenga sintassi dei filtri
+function mustId(id, what = "identificativo", uuid = false) {
+  const v = String(id ?? "").trim();
+  if (!(uuid ? UUID_RE : PLAIN_ID_RE).test(v)) throw new Error(`Beeweat: ${what} non valido`);
+  return v;
+}
+// testo ripulito e limitato (stesse soglie dei vincoli nel database)
+export const TEXT_LIMITS = { message: 2000, caption: 500, title: 120, description: 2000, note: 1000 };
+function cleanText(t, max, required = true) {
+  const v = String(t ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim();
+  if (required && !v) throw new Error("Beeweat: il testo è vuoto");
+  if (v.length > max) throw new Error(`Beeweat: testo troppo lungo (massimo ${max} caratteri)`);
+  return v;
+}
 // 14.70: l'utente collegato, letto dalla sessione già sul telefono: nessuna richiesta al server.
 // (auth.getUser() fa una richiesta a ogni chiamata e passa da un lucchetto del browser: 20 chiamate insieme = secondi persi)
 export async function authUser() {
@@ -145,16 +164,21 @@ export async function createEvent(ev) {
   if (!user) throw new Error("Utente non autenticato");
   let image_url = null;
   if (ev.file) { try { image_url = await uploadPhoto(ev.file); } catch (e) { console.warn("foto evento:", e?.message || e); } }   // la foto dell'evento, se c'è
+  const title = cleanText(ev.title, TEXT_LIMITS.title);
+  const description = cleanText(ev.description, TEXT_LIMITS.description, false) || null;
   const { data, error } = await supabase.from("events").insert({
-    user_id: user.id, type: ev.type ?? null, cat: ev.cat ?? null, title: ev.title,
+    user_id: user.id, type: ev.type ?? null, cat: ev.cat ?? null, title,
     place: ev.place ?? null, sev: ev.sev ?? null, lat: ev.lat ?? null, lng: ev.lng ?? null,
     ends: ev.ends ?? null, image_url,
-    kind: ev.kind || "meteo", description: ev.description ?? null, starts_at: ev.startsAt ?? null,
+    kind: ev.kind || "meteo", description, starts_at: ev.startsAt ?? null,
     address: ev.address ?? null, link: ev.link ?? null, contact: ev.contact ?? null,
   }).select().single();
   if (error) throw error; return data;
 }
 export async function updateEvent(id, patch) {
+  id = mustId(id, "evento");
+  if (patch.title !== undefined) patch.title = cleanText(patch.title, TEXT_LIMITS.title);
+  if (patch.description !== undefined) patch.description = cleanText(patch.description, TEXT_LIMITS.description, false) || null;
   const allowed = {};
   for (const k of ["type", "cat", "title", "place", "sev", "lat", "lng", "ends", "kind", "description", "starts_at", "address", "link", "contact", "image_url"])
     if (patch[k] !== undefined) allowed[k] = patch[k];
@@ -208,8 +232,9 @@ export async function searchCities(q, limit = 60) {
 
 // ── Modifica post (autore o amministratore) ──────────────────────────────────
 export async function updatePost(postId, { caption, condition }) {
+  postId = mustId(postId, "cielo");
   const patch = {};
-  if (caption !== undefined) patch.caption = caption;
+  if (caption !== undefined) patch.caption = cleanText(caption, TEXT_LIMITS.caption, false);
   if (condition !== undefined) patch.condition = condition;
   const { error } = await supabase.from("posts").update(patch).eq("id", postId);
   if (error) throw error;
@@ -250,6 +275,7 @@ export async function deleteMessage(id) {
   if (error) throw error;
 }
 export async function clearDirectChat(otherId) {
+  otherId = mustId(otherId, "contatto", true);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("messages").delete()
@@ -304,6 +330,7 @@ export async function getPlaceMessages(place, limit = 50) {
   return rows;
 }
 export async function sendPlaceMessage(place, text) {
+  text = cleanText(text, TEXT_LIMITS.message);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
@@ -379,6 +406,7 @@ export async function getGroupMessages(groupId, limit = 50) {
   return rows;
 }
 export async function sendGroupMessage(groupId, text) {
+  groupId = mustId(groupId, "gruppo"); text = cleanText(text, TEXT_LIMITS.message);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
@@ -387,6 +415,7 @@ export async function sendGroupMessage(groupId, text) {
   if (error) throw error; return data;
 }
 export async function subscribeGroupChat(groupId, onNew) {
+  groupId = mustId(groupId, "gruppo");
   await authRealtime();
   const ch = supabase.channel("group:" + groupId)
     .on("postgres_changes",
@@ -430,6 +459,7 @@ export async function getNotifications(limit = 30) {
   if (error) throw error; return data || [];
 }
 export async function markDirectNotifsRead(fromId) {
+  fromId = mustId(fromId, "contatto", true);
   const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("notifications").update({ read: true })
@@ -481,6 +511,7 @@ export async function getUserPostCount(userId) {
   return count || 0;
 }
 export async function getDirectMessages(otherId) {
+  otherId = mustId(otherId, "contatto", true);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages").select("*")
@@ -490,6 +521,7 @@ export async function getDirectMessages(otherId) {
   if (error) throw error; return data || [];
 }
 export async function sendDirectMessage(toId, text) {
+  toId = mustId(toId, "destinatario", true); text = cleanText(text, TEXT_LIMITS.message);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages")
@@ -518,6 +550,7 @@ export async function markAllDelivered() {
 }
 // Segno come letti i messaggi che X mi ha scritto (spunta ✓✓ dalla sua parte)
 export async function markDirectRead(fromId) {
+  fromId = mustId(fromId, "contatto", true);
   const { data: { user } } = await authUser();
   if (!user) return;
   await supabase.from("messages").update({ read_at: new Date().toISOString() })
@@ -617,6 +650,8 @@ export async function getCurrentProfile() {
 // FOTO (Storage)  — carica nel bucket "posts" e restituisce l'URL pubblico
 // ============================================================================
 export async function uploadPhoto(file) {
+  if (!file || !/^image\//.test(file.type || "")) throw new Error("Beeweat: si possono caricare solo foto");
+  if (file.size > 10 * 1024 * 1024) throw new Error("Beeweat: la foto supera i 10 MB");
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const path = `${user.id}/${Date.now()}.jpg`;
@@ -637,6 +672,7 @@ export async function uploadPhoto(file) {
 export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
+  caption = cleanText(caption, TEXT_LIMITS.caption, false);
   const image_url = await uploadPhoto(file);
   const row = {
     user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
@@ -725,6 +761,7 @@ export async function getPostMessages(postId, limit = 50) {
 
 // Invia un messaggio nella chat pubblica del post
 export async function sendPostMessage(postId, text) {
+  postId = mustId(postId, "cielo"); text = cleanText(text, TEXT_LIMITS.message);
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { data, error } = await supabase.from("messages").insert({
@@ -736,6 +773,7 @@ export async function sendPostMessage(postId, text) {
 
 // Ascolta in tempo reale i nuovi messaggi del post. Restituisce una funzione per disiscriversi.
 export async function subscribePostChat(postId, onNew) {
+  postId = mustId(postId, "cielo");
   await authRealtime();
   const channel = supabase
     .channel(`post:${postId}`)
@@ -792,6 +830,7 @@ export async function updateMyLocation(lat, lng) {
 // ============================================================================
 // Segnalazione dal tasto «Segnala» (prima restava solo sul telefono)
 export async function createReport(postId, reason, note) {
+  postId = mustId(postId, "cielo"); note = cleanText(note, TEXT_LIMITS.note, false) || null;
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("reports").insert({ post_id: postId, reporter_id: user.id, reason: reason || null, note: note || null });
@@ -842,7 +881,8 @@ export async function adminSupportMessages() {
   if (!rows) {   // 14.67: senza la funzione sul server (SQL non ancora lanciato) si leggono almeno le chat dell'admin collegato
     const { data: { user } } = await authUser();
     if (!user) throw rpcErr || new Error("Utente non autenticato");
-    const { data, error } = await supabase.from("messages").select("*").eq("scope", "direct").or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`).order("created_at", { ascending: false }).limit(2000);
+    const uid = mustId(user.id, "utente", true);
+    const { data, error } = await supabase.from("messages").select("*").eq("scope", "direct").or(`from_user_id.eq.${uid},to_user_id.eq.${uid}`).order("created_at", { ascending: false }).limit(2000);
     if (error) throw rpcErr || error;
     rows = data || []; rows.__partial = String(rpcErr?.message || rpcErr || "funzione admin_support_messages assente");
   }
