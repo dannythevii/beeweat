@@ -207,9 +207,10 @@ export async function searchCities(q, limit = 60) {
 }
 
 // ── Modifica post (autore o amministratore) ──────────────────────────────────
-export async function updatePost(postId, { caption, condition }) {
+export async function updatePost(postId, { caption, condition, city }) {
   const patch = {};
   if (caption !== undefined) patch.caption = caption;
+  if (city !== undefined) patch.city = city;   // 14.73: il cruscotto corregge anche il posto
   if (condition !== undefined) patch.condition = condition;
   const { error } = await supabase.from("posts").update(patch).eq("id", postId);
   if (error) throw error;

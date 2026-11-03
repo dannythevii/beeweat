@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.72";
+const APP_VERSION = "14.73";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -278,25 +278,28 @@ const reverseCity = (lat, lng) => {
   REVERSE_CACHE.set(key, p);
   return p;
 };
+// 14.73: prima OpenStreetMap (conosce i comuni italiani: Piano di Sorrento è Piano di Sorrento), poi Photon,
+// e solo per ultimo BigDataCloud, che sulla costiera rispondeva «Positano» a chilometri di distanza.
+const _fetchT = (url, ms = 6000) => { const c = new AbortController(); const t = setTimeout(() => c.abort(), ms); return fetch(url, { signal: c.signal }).finally(() => clearTimeout(t)); };
 const reverseCityRaw = async (lat, lng) => {
-  try {
-    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=it`);
-    const j = await r.json();
-    const name = j.locality || j.city || j.principalSubdivision || null;
-    if (name) return name;
+  try {   // 1 · OpenStreetMap (Nominatim): il comune
+    const r3 = await _fetchT(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${lat}&lon=${lng}&accept-language=it`);
+    const j3 = await r3.json();
+    const a = j3?.address || {};
+    const n3 = a.city || a.town || a.village || a.municipality || null;
+    if (n3) return n3;
   } catch (_) {}
-  try {   // traduttore di riserva: se il primo tace, parla il secondo
-    const r2 = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=it`);
+  try {   // 2 · Photon (dati OpenStreetMap)
+    const r2 = await _fetchT(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=it`);
     const j2 = await r2.json();
     const p = j2?.features?.[0]?.properties;
     const n2 = p?.city || p?.town || p?.village || p?.name || null;
     if (n2) return n2;
   } catch (_) {}
-  try {   // terzo motore: OpenStreetMap
-    const r3 = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${lat}&lon=${lng}&accept-language=it`);
-    const j3 = await r3.json();
-    const a = j3?.address || {};
-    return a.city || a.town || a.village || a.municipality || a.county || null;
+  try {   // 3 · BigDataCloud, solo se gli altri tacciono
+    const r = await _fetchT(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=it`);
+    const j = await r.json();
+    return j.city || j.locality || j.principalSubdivision || null;
   } catch (_) { return null; }
 };
 // Geocodifica diretta: nome città → coordinate (Open-Meteo, gratuita senza chiavi)

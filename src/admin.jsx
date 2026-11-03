@@ -417,14 +417,15 @@ function Reels({ toast }) {
         <td>{p.stars_count || 0}</td><td>{p.views_count || 0}</td><td>{p.comments_count || 0}</td>
         <td className="muted" style={{ fontSize: 12 }}>{p.ai_class ? <><Sky c={p.ai_class} size={13} />{p.ai_score != null ? ` · ${Math.round(p.ai_score * 100)}%` : ""}</> : "—"}</td>
         <td style={{ whiteSpace: "nowrap" }}>
-          <button className="btn s" onClick={() => setEdit({ id: p.id, caption: p.caption || "", condition: p.condition || CONDITIONS[0], img: p.image_url })}>Correggi</button>{" "}
+          <button className="btn s" onClick={() => setEdit({ id: p.id, caption: p.caption || "", condition: p.condition || CONDITIONS[0], city: p.city || "", img: p.image_url })}>Correggi</button>{" "}
           <button className="btn s" onClick={() => setAward({ id: p.id, message: "" })}>Premia</button>{" "}
           <button className="btn s d" onClick={() => setDel(p)}>Elimina</button>
         </td>
       </tr>)}</tbody>
     </table></div>
     {big && <div className="modal" onClick={() => setBig(null)}><img src={big.image_url} alt="" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 16 }} /></div>}
-    {edit && <Confirm title="Correggi il cielo" label="Salva" onClose={() => setEdit(null)} onOk={() => act(async () => { await sb.updatePost(edit.id, { caption: edit.caption, condition: edit.condition }); setEdit(null); }, "Cielo corretto")}>
+    {edit && <Confirm title="Correggi il cielo" label="Salva" onClose={() => setEdit(null)} onOk={() => act(async () => { await sb.updatePost(edit.id, { caption: edit.caption, condition: edit.condition, city: edit.city }); setEdit(null); }, "Cielo corretto")}>
+      <label className="muted" style={{ fontSize: 12 }}>Posto (città)</label><input value={edit.city} onChange={e => setEdit({ ...edit, city: e.target.value })} style={{ width: "100%", margin: "4px 0 10px" }} placeholder="Es. Piano di Sorrento" />
       <label className="muted" style={{ fontSize: 12 }}>Condizione</label><select value={edit.condition} onChange={e => setEdit({ ...edit, condition: e.target.value })} style={{ width: "100%", margin: "4px 0 10px" }}>{CONDITIONS.map(c => <option key={c}>{c}</option>)}</select>
       <label className="muted" style={{ fontSize: 12 }}>Descrizione</label><textarea rows={3} value={edit.caption} onChange={e => setEdit({ ...edit, caption: e.target.value })} style={{ width: "100%", marginTop: 4 }} />
     </Confirm>}
