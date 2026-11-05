@@ -900,3 +900,10 @@ export async function adminUserStats(userId, days = 30) {
   const { data, error } = await supabase.rpc("admin_user_stats", { p_user: userId, p_days: days });
   if (error) throw error; return data || null;
 }
+// 14.74: l'ape elimina da sola il proprio account (richiesto dagli store)
+export async function deleteMyAccount() {
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) throw error;
+  try { await supabase.auth.signOut(); } catch (_) {}
+  return true;
+}

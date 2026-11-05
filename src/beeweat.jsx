@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.73";
+const APP_VERSION = "14.74";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1240,6 +1240,33 @@ function ReportModal({ post, onSubmit, onClose }) {
 
 // ─── POST CARD ────────────────────────────────────────────────────────────────
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
+// 14.74: «Elimina account» — spiega cosa sparisce, chiede di scrivere ELIMINA, poi cancella tutto sul server
+function DeleteAccountSheet({ user, onConfirm, onClose }) {
+  const dlg = useDialog(onClose, "Elimina account");
+  const [txt, setTxt] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState(null);
+  const ok = txt.trim().toUpperCase() === "ELIMINA";
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(5,10,30,.72)", display: "flex", alignItems: "flex-end", zIndex: 90 }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "22px 22px 0 0", padding: "20px 18px calc(22px + env(safe-area-inset-bottom, 0px))" }}>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 19, color: TXT, marginBottom: 6 }}>Eliminare l'account di {user?.name}?</div>
+        <div style={{ fontSize: 13.5, color: TXT2, lineHeight: 1.5, marginBottom: 12 }}>È definitivo e immediato. Spariscono per sempre:</div>
+        <ul style={{ margin: "0 0 14px", paddingLeft: 18, color: TXT, fontSize: 13.5, lineHeight: 1.6 }}>
+          <li>il profilo, l'email e la password</li>
+          <li>tutti i tuoi cieli con le foto, le stelle e i commenti ricevuti</li>
+          <li>i messaggi, le chat e i gruppi che hai creato</li>
+          <li>gli eventi pubblicati, i seguiti e i follower</li>
+        </ul>
+        <div style={{ fontSize: 12.5, color: TXT2, lineHeight: 1.5, marginBottom: 12 }}>Restano solo i numeri anonimi delle statistiche dell'alveare. Non si può annullare: per tornare dovrai registrarti di nuovo.</div>
+        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 6 }}>Per confermare scrivi ELIMINA</label>
+        <input value={txt} onChange={e => setTxt(e.target.value)} autoCapitalize="characters" autoCorrect="off" placeholder="ELIMINA" style={{ width: "100%", minHeight: 46, background: NIGHT3, border: `1.5px solid ${ok ? RED : LINE}`, borderRadius: 14, padding: "0 14px", color: TXT, fontSize: 16, fontWeight: 700, letterSpacing: ".08em", outline: "none", boxSizing: "border-box" }} />
+        {err && <div style={{ marginTop: 10, fontSize: 13, color: "#FFB4B6", lineHeight: 1.45 }}>{err}</div>}
+        <button disabled={!ok || busy} onClick={async () => { setBusy(true); setErr(null); try { await onConfirm(); } catch (e) { setErr("Non sono riuscito a eliminare l'account: " + (e?.message || e) + ". Riprova, o scrivici dal Centro assistenza."); setBusy(false); } }}
+          style={{ width: "100%", marginTop: 14, minHeight: 50, borderRadius: 16, border: "none", background: ok ? RED : NIGHT3, color: ok ? "#fff" : TXT2, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15, cursor: ok ? "pointer" : "default" }}>{busy ? "Elimino…" : "Elimina definitivamente"}</button>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, minHeight: 44, borderRadius: 16, border: `1.5px solid ${LINE}`, background: "none", color: TXT, fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Annulla, tengo l'account</button>
+      </div>
+    </div>
+  );
+}
 function PermissionInvite({ emoji, title, lines, cta, onAccept, onLater, laterLabel, sheet }) {
   const dlg = useDialog(onLater || onAccept, "Invito");
   if (sheet) return (   // 14.3: foglio dal basso (invito posizione allo scatto)
@@ -3073,7 +3100,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ onGender, user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
+function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
   // 14.37: tavola 4 — copertina con l'ultimo cielo, grado, statistiche, Raggio, griglia
   const [followTab, setFollowTab] = useState(null);
   const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
@@ -3204,6 +3231,7 @@ function ProfileView({ onGender, user, posts, onLogout, onBack, onAvatar, onOpen
             <Row icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} />
           </div>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, minHeight: 46, borderRadius: 14, border: `1px solid ${RED}55`, background: "rgba(240,86,91,.08)", color: "#FFB4B6", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color="#FFB4B6" /> Logout</button>
+          {onDeleteAccount && <button onClick={onDeleteAccount} style={{ width: "100%", marginTop: 10, padding: 12, minHeight: 44, borderRadius: 14, border: "none", background: "none", color: "#FFB4B6", fontWeight: 600, fontSize: 13.5, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: .85 }}>Elimina il mio account</button>}{/* 14.74 */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: TXT2, fontSize: 12.5, fontWeight: 600, marginTop: 14, paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", letterSpacing: ".03em" }}><NavIcon name="bee" size={14} color={HONEY2} sw={1.8} />Beeweat v{APP_VERSION}</div>
         </div>
       </div>
@@ -4923,6 +4951,17 @@ function AppInner() {
   }, [sb, user]);
   const [banInfo, setBanInfo] = useState(null);
   const [adminInvite, setAdminInvite] = useState(null);   // 14.66: proposta «diventa amministratore» in attesa di risposta
+  // 14.74: «Elimina account» — anche dal web: app.beeweat.com/#elimina-account apre il Profilo con il foglio di conferma
+  const [delAsk, setDelAsk] = useState(false);
+  useEffect(() => { if (user && /#elimina-account/.test(location.hash)) { setOverlay("profile"); setDelAsk(true); try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {} } }, [user]);
+  const deleteMyAccount = async () => {
+    if (!sb?.isConfigured || !sb.deleteMyAccount) throw new Error("server non collegato");
+    await sb.deleteMyAccount();
+    try { Object.keys(localStorage).filter(k => k.startsWith("bw_")).forEach(k => localStorage.removeItem(k)); } catch (_) {}
+    try { indexedDB.deleteDatabase("beeweat"); } catch (_) {}
+    setDelAsk(false); setUser(null); setTab("feed"); setOverlay(null); setPosts([]);
+    setTimeout(() => alert("Il tuo account è stato eliminato. Grazie per i cieli che hai condiviso con l'alveare. 🐝"), 300);
+  };
   useEffect(() => {
     if (!sb?.isConfigured || !user || !sb.myAdminInvite) return;
     let stop = false;
@@ -5772,7 +5811,7 @@ function AppInner() {
     return { photo: { src: p.img, caption: p.caption, items, index }, back: o };
   });
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} who={archive.who} onBack={() => setOverlay(archive.back || "profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
-  if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={true} onToggleGeo={null} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
+  if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={true} onToggleGeo={null} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onDeleteAccount={sb?.isConfigured ? () => setDelAsk(true) : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
       const v = window.prompt("Il tuo nome su Beeweat:", user.name);
       if (v === null) return;
@@ -5928,6 +5967,7 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {delAsk && user && <DeleteAccountSheet user={user} onConfirm={deleteMyAccount} onClose={() => setDelAsk(false)} />}
       {adminInvite && !splash && <PermissionInvite sheet emoji="👑" title="Vuoi diventare amministratore?"
         lines={[["1", `${adminInvite.from_name} ti propone di entrare tra gli amministratori dell'alveare.`],
                 ["2", "Potrai gestire api, cieli, segnalazioni e assistenza dall'Area riservata."],
