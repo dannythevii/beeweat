@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
+import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beeweat-lang.js";   // 14.75: doppia lingua
+installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.74";
+const APP_VERSION = "14.75";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2310,7 +2312,7 @@ function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid,
         ))}
       </div></div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, position: "relative" }}>
-        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{visible.length} eventi {view === "social" ? "social" : "meteo"} {inf ? "in tutto il mondo" : `entro ${km} km`}</span>
+        <span style={{ fontSize: 12, color: TXT2, fontWeight: 500 }}>{`${visible.length} eventi ${view === "social" ? "social" : "meteo"} ${inf ? "in tutto il mondo" : `entro ${km} km`}`}</span>
         {setKm ? <RaggioPill km={inf ? "∞" : km} open={rg} onClick={() => setRg(v => !v)} /> : <WorldBtn on={inf} onClick={() => setInf(v => !v)} h={28} />}{/* 14.39 */}
       </div>
       {rg && <RaggioMenu km={km} setKm={setKm} count={visible.length} countLabel="eventi" worldOn={inf} onToggleWorld={() => setInf(v => !v)} onOpenRadar={onOpenRadar} onClose={() => setRg(false)} />}
@@ -3110,19 +3112,19 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
   const [editing, setEditing] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const cover = mine[0]?.img || null;
-  const Row = ({ icon, title, sub, onClick, right, border = true, honey }) => (
-    <button onClick={onClick} role={right === undefined ? undefined : "switch"} aria-checked={right === undefined ? undefined : !!right} style={{ width: "100%", background: "transparent", border: "none", borderBottom: border ? `1px solid ${LINE}` : "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>
+  const Row = ({ icon, title, sub, onClick, right, border = true, honey, control }) => (
+    <div onClick={control ? undefined : onClick} role={control ? undefined : right === undefined ? "button" : "switch"} tabIndex={control ? undefined : 0} onKeyDown={control || !onClick ? undefined : e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} aria-checked={control || right === undefined ? undefined : !!right} style={{ width: "100%", background: "transparent", border: "none", borderBottom: border ? `1px solid ${LINE}` : "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: control ? "default" : "pointer", fontFamily: "'Inter',sans-serif" }}>
       <div style={{ width: 38, height: 38, borderRadius: 12, background: honey ? "rgba(245,184,46,.16)" : MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <NavIcon name={icon} size={20} color={honey ? HONEY2 : TXT} sw={1.9} /> : icon}</div>
       <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 14.5, color: TXT }}>{title}</div>
         <div style={{ fontSize: 12, color: TXT2, lineHeight: 1.35 }}>{sub}</div>
       </div>
-      {right === undefined ? <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} /> : (
+      {control ? control : right === undefined ? <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} /> : (
         <div style={{ width: 44, height: 26, borderRadius: 13, background: right ? HONEY : NIGHT3, border: right ? "none" : `1px solid ${LINE}`, position: "relative", transition: "background .2s", flexShrink: 0 }}>
           <div style={{ position: "absolute", top: 3, left: 3, transform: right ? "translateX(18px)" : "none", width: 20, height: 20, borderRadius: "50%", background: right ? INK : TXT2, transition: "transform .2s ease-out" }} />
         </div>
       )}
-    </button>
+    </div>
   );
   const Tile = ({ p, big, list }) => {
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
@@ -3221,7 +3223,8 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
           {/* IMPOSTAZIONI */}
           <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, overflow: "hidden" }}>
             <Row icon="bell" title="Configurazione" sub={notif?.enabled ? `Avvisi attivi · entro ${notif.radiusKm} km` : "Avvisi disattivati"} onClick={onOpenNotif} />
-            {onGender && <Row icon="bee" title="Chi sei" sub={({ f: "Donna", m: "Uomo", x: "Altro" }[user.gender] || "Non indicato") + " · facoltativo, serve solo alle statistiche dell'alveare, mai mostrato"} right={<select value={user.gender || ""} onChange={e => onGender(e.target.value || null)} aria-label="Chi sei" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">—</option><option value="f">Donna</option><option value="m">Uomo</option><option value="x">Altro</option></select>} />}
+            <Row icon="globe" title="Lingua" sub={(getLangChoice() ? ({ it: "Italiano", en: "English" }[getLangChoice()]) : "Automatica") + " · " + (getLang() === "it" ? "Italiano" : "English")} control={<select value={getLangChoice()} onChange={e => { setLangChoice(e.target.value); setTimeout(() => window.location.reload(), 150); }} aria-label="Lingua" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">Automatica</option><option value="it">Italiano</option><option value="en">English</option></select>} />
+            {onGender && <Row icon="bee" title="Chi sei" sub={({ f: "Donna", m: "Uomo", x: "Altro" }[user.gender] || "Non indicato") + " · facoltativo, serve solo alle statistiche dell'alveare, mai mostrato"} control={<select value={user.gender || ""} onChange={e => onGender(e.target.value || null)} aria-label="Chi sei" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">—</option><option value="f">Donna</option><option value="m">Uomo</option><option value="x">Altro</option></select>} />}
             {onToggleReceipts && <Row icon={<span style={{ fontSize: 15, fontWeight: 700, color: TXT, letterSpacing: "-1px" }}>✓✓</span>} title="Conferma di lettura" sub={user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"} onClick={() => onToggleReceipts(!(user.readReceipts !== false))} right={user.readReceipts !== false} />}
             <Row icon="pin" title="Posizione precisa" sub="Sempre attiva · zona di ~1 km, mai la casa. Se il telefono la nega: Impostazioni → Safari → Posizione → Consenti" border={false} />
           </div>
