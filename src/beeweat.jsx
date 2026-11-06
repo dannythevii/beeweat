@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.75";
+const APP_VERSION = "14.76";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2909,7 +2909,11 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         setCaptured(c.toDataURL("image/jpeg", .85));
         setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
         try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
-        try { const key = c.width + "x" + c.height + ":" + Date.now(); preRef.current = { key, p: withTimeout(analyzePhoto(c), 12000) }; preRef.current.p.catch(() => {}); c.__bwKey = key; } catch (_) { preRef.current = null; }   // 14.64: occhi al lavoro subito
+        try {   // 14.64: occhi al lavoro subito · 14.76: ma un attimo dopo l'anteprima, così la foto compare senza aspettare
+          const key = c.width + "x" + c.height + ":" + Date.now(); c.__bwKey = key;
+          preRef.current = { key, p: new Promise((res, rej) => setTimeout(() => withTimeout(analyzePhoto(c), 12000).then(res, rej), 400)) };
+          preRef.current.p.catch(() => {});
+        } catch (_) { preRef.current = null; }
       } finally { URL.revokeObjectURL(url); }
     };
     im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
@@ -2921,8 +2925,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
   useEffect(() => {   // blocco in verticale mentre la fotocamera è aperta (Android; il web su iPhone non lo consente)
     try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (_) {}
-    loadAIModels().catch(() => {});   // pre-riscaldamento: gli occhi AI si preparano mentre inquadri
-    return () => { try { screen.orientation?.unlock?.(); } catch (_) {} };
+    const warm = setTimeout(() => { loadAIModels(true).catch(() => {}); }, 2500);   // 14.76: prima la fotocamera, gli occhi AI si preparano dopo, in sordina
+    return () => { clearTimeout(warm); try { screen.orientation?.unlock?.(); } catch (_) {} };
   }, []);
   const [saved, setSaved] = useState(false);
   const savePhoto = async () => {
@@ -4497,7 +4501,7 @@ function AppInner() {
     let t = setTimeout(() => {
       const go = () => { loadAIModels(true).catch(() => {}); };
       if ("requestIdleCallback" in window) window.requestIdleCallback(go, { timeout: 20000 }); else go();
-    }, 40000);
+    }, 12000);   // 14.76: era 40 s
     return () => clearTimeout(t);
   }, [user]);
   const [geoInvite, setGeoInvite] = useState(false);

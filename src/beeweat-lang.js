@@ -420,6 +420,7 @@ const RULES = [
   [/^Temporale segnalato a (.+)$/, m => `Thunderstorm reported at ${m[1]}`],
   [/^Controllo (\d)\/4 · (.+)$/, m => `Check ${m[1]}/4 · ${{ "modello del posto": "local model", "la tua descrizione": "your description", "la condizione scelta": "the chosen condition", "la foto (occhi dell'alveare)": "the photo (eyes of the hive)" }[m[2]] || tr(m[2])}`],
   [/^Controllo (\d)\/4…$/, m => `Check ${m[1]}/4…`],
+  [/^(\d{1,2}:\d{2}) fa$/, m => m[1]],   // 14.76: «08:11 fa» → «08:11»
   [/^(\d+) (min|h|giorni|giorno|ore|ora|anni|anno|mesi|mese|settimane|settimana) fa$/, m => `${m[1]} ${unit(m[1], m[2])} ago`],
   [/^(\d+) (cieli|cielo|stelle|stella|post|eventi|evento|utenti|utente|api|ape|foto|commenti|commento|messaggi|messaggio|membri|membro|caratteri|secondi|min|h|ore|ora|giorni|giorno|anni|anno)$/, m => `${m[1]} ${unit(m[1], m[2])}`],
   [/^(oggi|ieri) · (.+)$/, m => `${DICT[m[1]]} · ${m[2]}`],
