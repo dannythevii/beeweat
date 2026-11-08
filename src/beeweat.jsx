@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.78";
+const APP_VERSION = "14.79";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2096,7 +2096,7 @@ async function rvFrames(geo, km, R) {
   const list = [...(d.radar?.past || []).slice(-7), ...(d.radar?.nowcast || []).slice(0, 3)];
   if (!list.length) return [];
   const want = (2 * km * 1000) / 600;   // metri per pixel desiderati: il disco ≈ 600 px
-  const z = Math.max(3, Math.min(10, Math.round(Math.log2(156543.03 * Math.cos(geo.lat * Math.PI / 180) / want))));
+  const z = Math.max(3, Math.min(7, Math.round(Math.log2(156543.03 * Math.cos(geo.lat * Math.PI / 180) / want))));   // 14.79: RainViewer arriva a zoom 7
   const mpp = 156543.03 * Math.cos(geo.lat * Math.PI / 180) / Math.pow(2, z);
   const c = _mercPx(geo.lat, geo.lng, z), rpx = km * 1000 / mpp, k = R / rpx, n = Math.pow(2, z);
   const tx0 = Math.floor((c.x - rpx) / 256), tx1 = Math.floor((c.x + rpx) / 256), ty0 = Math.max(0, Math.floor((c.y - rpx) / 256)), ty1 = Math.min(n - 1, Math.floor((c.y + rpx) / 256));
@@ -2164,7 +2164,7 @@ function useRadarLayers(geo, km, R, on, isDay) {
 }
 function RadarLayerImgs({ frame, cx, cy, opacity }) {
   if (!frame) return null;
-  return <g opacity={opacity} style={{ pointerEvents: "none" }}>{frame.imgs.map((t, i) => t.href ? <image key={i} href={t.href} x={cx + t.x} y={cy + t.y} width={t.s} height={t.s} preserveAspectRatio="none" /> : null)}</g>;
+  return <g opacity={opacity} style={{ pointerEvents: "none", imageRendering: "auto" }}>{frame.imgs.map((t, i) => t.href ? <image key={i} href={t.href} x={cx + t.x} y={cy + t.y} width={t.s} height={t.s} preserveAspectRatio="none" style={{ imageRendering: "auto" }} /> : null)}</g>;
 }
 function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow, onOpenPost, wx, onOpenCast }) {   // 14.38: wx e BeeCast per il pannello sotto il disco
   const [rg, setRg] = useState(false);   // 14.39: menu del Raggio
