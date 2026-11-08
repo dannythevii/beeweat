@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.76";
+const APP_VERSION = "14.77";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2682,6 +2682,11 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null);
   const [streaming, setStreaming] = useState(false), [captured, setCaptured] = useState(null);
   const [caption, setCaption] = useState(""), [cond, setCond] = useState(() => (modelCond && CONDITIONS.includes(modelCond)) ? modelCond : CONDITIONS[0]);   // 14.62: parte dal modello
+  const condByBee = useRef(false);   // 14.77: l'ape ha scelto (tocco sulla condizione o parola nella descrizione): gli occhi AI non la cambiano
+  const pickCond = c => { condByBee.current = true; setCond(c); };
+  const suggestCond = c => { if (!condByBee.current && CONDITIONS.includes(c)) setCond(c); };
+  const CAPTION_COND = [[/piov|pioggia|acquazzon|rovesc|scrosc|diluvi|grandin/i, "🌧️ Pioggia"], [/temporal|tuon|fulmin|lamp[io]|saett/i, "⛈️ Temporale"], [/\bnev[ea]|nevic|fiocch/i, "❄️ Neve"], [/nebbia|foschia|caligine/i, "🌫️ Nebbia"], [/\bvent[oi]|raffic|bufera|libeccio|maestral|tramontan|scirocc|grecal|ponent/i, "🌬️ Ventoso"], [/arcobalen/i, "🌈 Arcobaleno"]];
+  const condFromCaption = t => { for (const [re, c] of CAPTION_COND) if (re.test(t || "")) return c; return null; };
   const [err, setErr] = useState(null), [facing, setFacing] = useState("environment"), [posting, setPosting] = useState(false);
   // ── fotocamera pro: zoom (hardware o digitale), torcia, griglia ──
   const [zoom, setZoom] = useState(1);
@@ -2822,7 +2827,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           return;
         }
         setAi(v);
-        if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest);
+        if (!v.block && v.suggest) suggestCond(v.suggest);
         return;
       }
       setAi({ ...v, checking: true, secondOpinion: true });
@@ -2837,7 +2842,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         if (!verdict) {
           const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
           if (v.conflict && !soft) { setAi({ block: true, reason: `Questa sembra una scena d'interni (rilevato: ${v.conflictWhat || "ambiente chiuso"}). Inquadra il cielo vero. 🌤️`, cls: "not_sky" }); return; }
-          setAi({ ...v, conflict: false }); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); return;   // giudice muto, dubbio lieve: vale l'occhio locale
+          setAi({ ...v, conflict: false }); if (!v.block && v.suggest) suggestCond(v.suggest); return;   // giudice muto, dubbio lieve: vale l'occhio locale
         }
         if (verdict.persone_in_primo_piano)
           setAi({ block: true, reason: "Bee-Eye 👁️: c'è una persona in primo piano. Inquadra il cielo, non le persone.", cls: "person" });
@@ -2850,7 +2855,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         else if (verdict.cielo_visibile || verdict.esterno) {
           const cls = CLOUD_MAP[verdict.condizione] || v.cls || "⛅ Poco nuvoloso";
           setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
-          if (CONDITIONS.includes(cls)) setCond(cls);
+          suggestCond(cls);
           if (verdict.mare_visibile && verdict.stato_mare) setCaption(c => c || `Mare ${verdict.stato_mare}`);   // l'occhio che legge le onde
         } else
           setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. Alza l'obiettivo. 🌤️"), cls: "not_sky" });
@@ -2858,7 +2863,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         if (aiSeqRef.current === my) {
           const soft = v.conflict && /luci artificiali|colore-pelle/.test(v.conflictWhat || "");
           if (v.conflict && !soft) setAi({ block: true, reason: "Questa sembra una scena d'interni. Inquadra il cielo vero. 🌤️", cls: "not_sky" });
-          else { setAi({ ...v, conflict: false }); if (!v.block && v.suggest && CONDITIONS.includes(v.suggest)) setCond(v.suggest); }
+          else { setAi({ ...v, conflict: false }); if (!v.block && v.suggest) suggestCond(v.suggest); }
         }
       }
     }).catch(async e => {
@@ -2883,7 +2888,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             else if (verdict.cielo_visibile || verdict.esterno) {
               const cls = CLOUD_MAP[verdict.condizione] || "⛅ Poco nuvoloso";
               setAi({ block: false, reason: null, cls, score: verdict.fiducia || 0.7, suggest: cls, byCloud: true });
-              if (CONDITIONS.includes(cls)) setCond(cls);
+              suggestCond(cls);
               if (verdict.mare_visibile && verdict.stato_mare) setCaption(cc => cc || `Mare ${verdict.stato_mare}`);
             } else
               setAi({ block: true, reason: "Bee-Eye 👁️: " + (verdict.motivo || "non vedo cielo nell'inquadratura. 🌤️"), cls: "not_sky" });
@@ -2964,9 +2969,11 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const [step, setStep] = useState(0);
   const publish = () => {
     if (!canPublish) return;
+    let c = cond;
+    if (!condByBee.current) { const fc = condFromCaption(caption); if (fc) { c = fc; pickCond(fc); } }   // 14.77: «piove» nella descrizione → Pioggia
     setPosting(true); setArmed(true); setStep(1);
     setTimeout(() => setStep(2), 120); setTimeout(() => setStep(3), 240);
-    setTimeout(() => { setStep(4); runAI({ model: modelCond, caption, cond }); }, 360);   // 14.64: passi più rapidi, la foto è già analizzata
+    setTimeout(() => { setStep(4); runAI({ model: modelCond, caption, cond: c }); }, 360);   // 14.64: passi più rapidi, la foto è già analizzata
   };
   useEffect(() => { if (ai?.block && !armed) setAi(null); }, [cond, caption]);   // 14.62: ritenta dopo una modifica
   useEffect(() => {
@@ -3073,7 +3080,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
             <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 8 }}>Che cielo è</div>
             <div role="radiogroup" aria-label="Condizione" style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -14px 14px", padding: "2px 14px", scrollbarWidth: "none" }}>
               {CONDITIONS.map(c => { const on = cond === c; return (
-                <button key={c} role="radio" aria-checked={on} onClick={() => setCond(c)} style={{ flex: "0 0 auto", height: 38, padding: "0 13px", borderRadius: 999, border: on ? "none" : `1px solid ${LINE}`, background: on ? HONEY : NIGHT3, color: on ? INK : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}><NavIcon name={skyIcon(c)} size={15} color={on ? INK : TXT2} sw={2} />{skyLabel(c)}</button>
+                <button key={c} role="radio" aria-checked={on} onClick={() => pickCond(c)} style={{ flex: "0 0 auto", height: 38, padding: "0 13px", borderRadius: 999, border: on ? "none" : `1px solid ${LINE}`, background: on ? HONEY : NIGHT3, color: on ? INK : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}><NavIcon name={skyIcon(c)} size={15} color={on ? INK : TXT2} sw={2} />{skyLabel(c)}</button>
               ); })}
             </div>
             <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
