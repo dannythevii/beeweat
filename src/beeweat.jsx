@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.77";
+const APP_VERSION = "14.78";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2081,7 +2081,92 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 }
 
 // ─── VICINI (mappa radar) ───────────────────────────────────────────────────
-function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow, onOpenPost, wx, onOpenCast }) {   // 14.38: wx e BeeCast per il pannello sotto il disco
+// ── 14.78: strati meteo veri sul disco del Radar: pioggia (radar RainViewer, animata), nuvole (modello Open-Meteo,
+//    prossime ore), satellite (Meteosat via EUMETView, ultime 2 ore). Tutto in scala con il raggio scelto. ───────────
+const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
+const EUMET_WMS = "https://view.eumetsat.int/geoserver/wms";
+const SAT_LAYERS = { day: ["mtg_fd:rgb_truecolour", "msg_fes:rgb_naturalenhncd", "msg_fes:rgb_naturalcolor"], night: ["mtg_fd:ir105", "msg_fes:ir108", "msg_fes:rgb_naturalenhncd"] };
+const _mercPx = (lat, lng, z) => { const n = 256 * Math.pow(2, z), r = lat * Math.PI / 180; return { x: (lng + 180) / 360 * n, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n }; };
+const _hhmm = t => new Date(t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+const _bbox = (geo, km) => { const dLat = km / 111.32, dLng = km / (111.32 * Math.max(0.2, Math.cos(geo.lat * Math.PI / 180))); return { lat0: geo.lat - dLat, lat1: geo.lat + dLat, lng0: geo.lng - dLng, lng1: geo.lng + dLng }; };
+
+// Pioggia: le piastrelle RainViewer che coprono il disco, in scala; 10 fotogrammi (70 min passati + 30 min previsti)
+async function rvFrames(geo, km, R) {
+  const d = await (await fetch(RV_API)).json();
+  const list = [...(d.radar?.past || []).slice(-7), ...(d.radar?.nowcast || []).slice(0, 3)];
+  if (!list.length) return [];
+  const want = (2 * km * 1000) / 600;   // metri per pixel desiderati: il disco ≈ 600 px
+  const z = Math.max(3, Math.min(10, Math.round(Math.log2(156543.03 * Math.cos(geo.lat * Math.PI / 180) / want))));
+  const mpp = 156543.03 * Math.cos(geo.lat * Math.PI / 180) / Math.pow(2, z);
+  const c = _mercPx(geo.lat, geo.lng, z), rpx = km * 1000 / mpp, k = R / rpx, n = Math.pow(2, z);
+  const tx0 = Math.floor((c.x - rpx) / 256), tx1 = Math.floor((c.x + rpx) / 256), ty0 = Math.max(0, Math.floor((c.y - rpx) / 256)), ty1 = Math.min(n - 1, Math.floor((c.y + rpx) / 256));
+  const tiles = []; for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) tiles.push({ tx: ((tx % n) + n) % n, ty, x: (tx * 256 - c.x) * k, y: (ty * 256 - c.y) * k, s: 256 * k });
+  if (tiles.length > 36) return [];   // raggio enorme: non ha senso
+  return list.map(f => ({ time: f.time * 1000, nowcast: (d.radar?.nowcast || []).includes(f), imgs: tiles.map(t => ({ ...t, href: `${d.host}${f.path}/256/${z}/${t.tx}/${t.ty}/2/1_1.png` })) }));
+}
+// Nuvole: copertura nuvolosa del modello su una griglia 9×9 dentro il disco, ora dopo ora (1 h passata + 6 future)
+async function cloudFrames(geo, km, R) {
+  const b = _bbox(geo, km), N = 9, lats = [], lngs = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { lats.push((b.lat1 - (b.lat1 - b.lat0) * j / (N - 1)).toFixed(3)); lngs.push((b.lng0 + (b.lng1 - b.lng0) * i / (N - 1)).toFixed(3)); }
+  const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats.join(",")}&longitude=${lngs.join(",")}&hourly=cloud_cover&past_hours=1&forecast_hours=6&timezone=auto`);
+  if (!r.ok) throw new Error("Open-Meteo " + r.status);
+  const d = await r.json(), arr = Array.isArray(d) ? d : [d]; if (!arr[0]?.hourly) return [];
+  const times = arr[0].hourly.time, out = [];
+  for (let h = 0; h < times.length; h++) {
+    const c = document.createElement("canvas"); c.width = c.height = N; const img = c.getContext("2d").createImageData(N, N);
+    for (let k = 0; k < N * N; k++) { const cc = arr[k]?.hourly?.cloud_cover?.[h] || 0, o = k * 4; img.data[o] = 255; img.data[o + 1] = 255; img.data[o + 2] = 255; img.data[o + 3] = Math.round(Math.max(0, cc - 15) / 85 * 210); }
+    c.getContext("2d").putImageData(img, 0, 0);
+    const big = document.createElement("canvas"); big.width = big.height = 256; const bx = big.getContext("2d"); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = "high"; bx.drawImage(c, -256 / (N - 1) / 2, -256 / (N - 1) / 2, 256 * N / (N - 1), 256 * N / (N - 1));
+    out.push({ time: new Date(times[h]).getTime(), model: true, imgs: [{ x: -R, y: -R, s: 2 * R, href: big.toDataURL("image/png") }] });
+  }
+  return out;
+}
+// Satellite: Meteosat (EUMETView WMS), un'immagine quadrata in chilometri sul disco; ultime 2 ore a passi di 15 min
+function satFrames(geo, km, R, isDay) {
+  const b = _bbox(geo, km), layers = isDay === false ? SAT_LAYERS.night : SAT_LAYERS.day;
+  const url = (layer, t) => `${EUMET_WMS}?service=WMS&version=1.3.0&request=GetMap&layers=${encodeURIComponent(layer)}&styles=&crs=EPSG:4326&bbox=${b.lat0.toFixed(4)},${b.lng0.toFixed(4)},${b.lat1.toFixed(4)},${b.lng1.toFixed(4)}&width=512&height=512&format=image/png&transparent=true${t ? "&time=" + encodeURIComponent(new Date(t).toISOString().replace(/\.\d{3}Z$/, ".000Z")) : ""}`;
+  const now = Date.now(), q = 15 * 60000, last = Math.floor((now - 20 * 60000) / q) * q;   // l'ultima immagine disponibile è di ~20 min fa
+  const times = []; for (let i = 7; i >= 0; i--) times.push(last - i * q);
+  return { layers, frames: times.map(t => ({ time: t, sat: true, imgs: [{ x: -R, y: -R, s: 2 * R, href: null, urls: layers.map(l => url(l, t)) }] })) };
+}
+function useRadarLayers(geo, km, R, on, isDay) {
+  const [data, setData] = useState({ rain: [], clouds: [], sat: [], err: {} });
+  const [idx, setIdx] = useState(0), [playing, setPlaying] = useState(true);
+  const key = `${geo?.lat?.toFixed(3)},${geo?.lng?.toFixed(3)},${km}`;
+  useEffect(() => {
+    if (!geo || !(on.rain || on.clouds || on.sat)) return;
+    let dead = false;
+    const put = (k, v) => { if (!dead) setData(d => ({ ...d, [k]: v })); };
+    const fail = (k, e) => { if (!dead) setData(d => ({ ...d, [k]: [], err: { ...d.err, [k]: e?.message || "non disponibile" } })); };
+    if (on.rain) rvFrames(geo, km, R).then(f => put("rain", f)).catch(e => fail("rain", e));
+    if (on.clouds) cloudFrames(geo, km, R).then(f => put("clouds", f)).catch(e => fail("clouds", e));
+    if (on.sat) {
+      const { frames } = satFrames(geo, km, R, isDay);
+      // provo gli strati in ordine sul fotogramma più recente: il primo che carica vale per tutti
+      (async () => {
+        const f0 = frames[frames.length - 1].imgs[0];
+        let li = -1;
+        for (let i = 0; i < f0.urls.length && li < 0; i++) { const ok = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth > 1); im.onerror = () => res(false); im.src = f0.urls[i]; }); if (ok) li = i; }
+        if (li < 0) return fail("sat", new Error("satellite non raggiungibile"));
+        const good = [];
+        for (const fr of frames) { const u = fr.imgs[0].urls[li]; const ok = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth > 1); im.onerror = () => res(false); im.src = u; }); if (ok) good.push({ ...fr, imgs: [{ ...fr.imgs[0], href: u }] }); }
+        if (!good.length) return fail("sat", new Error("nessuna immagine satellite"));
+        put("sat", good);
+      })();
+    }
+    return () => { dead = true; };
+  }, [key, on.rain, on.clouds, on.sat]);
+  const n = Math.max(on.rain ? data.rain.length : 0, on.clouds ? data.clouds.length : 0, on.sat ? data.sat.length : 0);
+  useEffect(() => { if (!playing || n < 2) return; const t = setInterval(() => setIdx(i => (i + 1) % n), 650); return () => clearInterval(t); }, [playing, n]);
+  useEffect(() => { setIdx(0); }, [key]);
+  const pick = (arr) => arr.length ? arr[Math.min(arr.length - 1, Math.round(idx / Math.max(1, n - 1) * (arr.length - 1)))] : null;
+  return { rain: on.rain ? pick(data.rain) : null, clouds: on.clouds ? pick(data.clouds) : null, sat: on.sat ? pick(data.sat) : null, err: data.err, idx, n, playing, setPlaying, has: { rain: data.rain.length, clouds: data.clouds.length, sat: data.sat.length } };
+}
+function RadarLayerImgs({ frame, cx, cy, opacity }) {
+  if (!frame) return null;
+  return <g opacity={opacity} style={{ pointerEvents: "none" }}>{frame.imgs.map((t, i) => t.href ? <image key={i} href={t.href} x={cx + t.x} y={cy + t.y} width={t.s} height={t.s} preserveAspectRatio="none" /> : null)}</g>;
+}
+function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUser, following, onFollow, onOpenPost, wx, onOpenCast }) {   // 14.38: wx e BeeCast per il pannello sotto il disco
   const [rg, setRg] = useState(false);   // 14.39: menu del Raggio
   const [sel, setSel] = useState(null);
   const [vb, setVb] = useState({ x: 0, y: 0, w: 320, h: 320 });
@@ -2150,6 +2235,12 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
   const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
   const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
   const R = 150, cx = 160, cy = 160;
+  const [lay, setLay] = useState(() => { try { return { rain: true, clouds: false, sat: false, ...JSON.parse(localStorage.getItem("bw_radar_layers") || "{}") }; } catch (_) { return { rain: true, clouds: false, sat: false }; } });   // 14.78
+  const toggleLay = k => setLay(v => { const n = { ...v, [k]: !v[k] }; try { localStorage.setItem("bw_radar_layers", JSON.stringify(n)); } catch (_) {} return n; });
+  const hourNowR = new Date().getHours();
+  const LY = useRadarLayers(geo, km, R, lay, hourNowR >= 7 && hourNowR <= 17);
+  const layFrame = LY.sat || LY.rain || LY.clouds;
+  const layLabel = !(lay.rain || lay.clouds || lay.sat) ? null : !layFrame ? "carico…" : (layFrame.nowcast ? "previsto · " : layFrame.model ? "modello · " : layFrame.sat ? "satellite · " : "radar · ") + _hhmm(layFrame.time);
   // 14.24: spille nello stesso punto (coordinate arrotondate a ~1 km) → un gruppo con "×N"
   const wxGroups = (() => {
     const gs = [];
@@ -2193,8 +2284,14 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
         <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", display: "block", touchAction: "none", cursor: zoomed ? "grab" : "default" }}>
           <defs>
             <radialGradient id="bwsweep" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#2457D6" stopOpacity=".55" /><stop offset="100%" stopColor="#2457D6" stopOpacity="0" /></radialGradient>
+            <clipPath id="bwdisk"><circle cx={cx} cy={cy} r={R} /></clipPath>
           </defs>
           <circle cx={cx} cy={cy} r={R} fill="url(#bwsweep)" />
+          <g clipPath="url(#bwdisk)">{/* 14.78: satellite sotto, poi nuvole del modello, poi la pioggia del radar */}
+            <RadarLayerImgs frame={LY.sat} cx={cx} cy={cy} opacity={0.85} />
+            <RadarLayerImgs frame={LY.clouds} cx={cx} cy={cy} opacity={0.7} />
+            <RadarLayerImgs frame={LY.rain} cx={cx} cy={cy} opacity={0.9} />
+          </g>
           <path d={`M${cx} ${cy}L${cx} ${cy - R}A${R} ${R} 0 0 1 ${(cx + R * Math.sin(Math.PI / 4)).toFixed(1)} ${(cy - R * Math.cos(Math.PI / 4)).toFixed(1)}z`} fill={HONEY} opacity=".12" />
           {[0.33, 0.66, 1].map((f, i) => <circle key={i} cx={cx} cy={cy} r={R * f} fill="none" stroke="rgba(255,255,255,.22)" strokeWidth={f === 1 ? 1.2 : 1} strokeDasharray={f === 1 ? undefined : "4 5"} />)}
           <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke="rgba(255,255,255,.1)" strokeWidth="1" />
@@ -2253,6 +2350,18 @@ function ViciniScreen({ posts, events, km, setKm, onChat, onEvent, onOpenUser, f
         </div>
         <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} aria-label={zoomed ? "Torna alla vista intera" : "Ingrandisci il radar"} style={{ position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, border: `1px solid ${LINE}`, background: MIST, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Inter',sans-serif" }}>{zoomed ? "−" : "+"}</button>
       </div>
+      {/* 14.78: strati meteo sul disco */}
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        {[["rain", "Pioggia", "rain"], ["clouds", "Nuvole", "cloud"], ["sat", "Satellite", "globe"]].map(([k, l, ic]) => (
+          <button key={k} onClick={() => toggleLay(k)} aria-pressed={!!lay[k]} title={LY.err[k] ? LY.err[k] : l} style={{ height: 34, padding: "0 11px", borderRadius: 17, border: lay[k] ? "none" : `1px solid ${LINE}`, background: lay[k] ? HONEY : "transparent", color: lay[k] ? INK : TXT, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", opacity: lay[k] && LY.err[k] ? .55 : 1 }}>
+            <NavIcon name={ic} size={15} color={lay[k] ? INK : TXT} sw={2} />{l}{lay[k] && LY.err[k] ? " ✗" : ""}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {layLabel && <span style={{ fontSize: 12, color: TXT2, fontWeight: 600, whiteSpace: "nowrap" }}>{layLabel}</span>}
+        {LY.n > 1 && <button onClick={() => LY.setPlaying(p => !p)} aria-label={LY.playing ? "Pausa" : "Riproduci"} title={LY.playing ? "Pausa" : "Riproduci"} style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${LINE}`, background: MIST, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 13 }}>{LY.playing ? "❚❚" : "▶"}</button>}
+      </div>
+      {lay.sat && km < 25 && <div style={{ marginTop: 6, fontSize: 12, color: TXT2 }}>Il satellite vede a ~4 km per pixel: con un raggio sotto i 25 km mostra poco. Allarga il raggio per vederlo bene.</div>}
       {/* 14.38: il pannello "adesso" e la pioggia delle prossime 6 ore */}
       {wx && (
         <div style={{ marginTop: 12, background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 22, padding: "14px 14px 12px" }}>
@@ -6016,7 +6125,7 @@ function AppInner() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
         {tab === "feed" && <FeedScreen onRetry={() => flushRef.current && flushRef.current()} homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
-        {tab === "vicini" && <ViciniScreen wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
+        {tab === "vicini" && <ViciniScreen geo={geo} wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
         {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen setKm={setKm} onOpenRadar={() => setTab("vicini")} onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
