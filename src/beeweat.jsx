@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.79";
+const APP_VERSION = "14.80";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
