@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.80";
+const APP_VERSION = "14.81";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -134,6 +134,9 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     undo: <><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" {...p} /></>,
     motion: <><rect x="3" y="6" width="13" height="12" rx="2.5" {...p} /><path d="M16 10.5l5-2.5v8l-5-2.5" {...p} /></>,   // 14.80: cielo in movimento (videocamera a tratto)
     play: <><path d="M8 5.5v13l10-6.5z" {...p} /></>,
+    block: <><circle cx="12" cy="12" r="8.5" {...p} /><line x1="6" y1="6" x2="18" y2="18" {...p} /></>,   // 14.81: blocca utente
+    shield: <><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z" {...p} /><path d="M9.5 12l1.8 1.8L15 10" {...p} /></>,
+    doc: <><path d="M7 3h7l5 5v13H7z" {...p} /><path d="M14 3v5h5M10 13h6M10 17h6" {...p} /></>,
     gear:<><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
@@ -1209,10 +1212,11 @@ function useDialog(onClose, label, active = true) {
 
 // ─── SEGNALAZIONE CONTENUTO ───────────────────────────────────────────────────
 const REPORT_REASONS = ["Contenuto inappropriato", "Persone in primo piano", "Spam o pubblicità", "Foto non meteo", "Altro"];
-function ReportModal({ post, onSubmit, onClose }) {
+function ReportModal({ post, onSubmit, onClose, canBlock }) {
   const dlg = useDialog(onClose, "Segnala contenuto");
   const [reason, setReason] = useState(null);
   const [sent, setSent] = useState(false);
+  const [alsoBlock, setAlsoBlock] = useState(false);   // 14.81: blocca anche l'autore
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(20,40,65,.5)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
       <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px 24px" }}>
@@ -1227,13 +1231,17 @@ function ReportModal({ post, onSubmit, onClose }) {
                 </button>
               ))}
             </div>
-            <button onClick={() => { if (reason) { onSubmit(post, reason); setSent(true); } }} disabled={!reason} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: reason ? 1 : .5 }}>Invia segnalazione</button>
+            {canBlock && <button onClick={() => setAlsoBlock(b => !b)} role="checkbox" aria-checked={alsoBlock} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", marginBottom: 12, borderRadius: 12, border: `1px solid ${alsoBlock ? RED + "88" : LINE}`, background: alsoBlock ? "rgba(240,86,91,.12)" : NIGHT3, color: TXT, cursor: "pointer", textAlign: "left", fontFamily: "'Inter',sans-serif", fontSize: 13 }}>
+              <span style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${alsoBlock ? "#FFB4B6" : LINE}`, background: alsoBlock ? RED : "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{alsoBlock && <NavIcon name="check" size={13} color="#fff" sw={3} />}</span>
+              <span><b>Blocca anche {post.user}</b><span style={{ color: TXT2 }}> — non vedrai più i suoi cieli e messaggi, e non potrà scriverti.</span></span>
+            </button>}{/* 14.81 */}
+            <button onClick={() => { if (reason) { onSubmit(post, reason, alsoBlock); setSent(true); } }} disabled={!reason} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: `${HBLUE}`, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: reason ? 1 : .5 }}>Invia segnalazione</button>
           </>
         ) : (
           <div style={{ textAlign: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div>
             <div style={{ fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 6 }}>Segnalazione inviata</div>
-            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.</div>
+            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.{alsoBlock && <> <b>{post.user}</b> è stata bloccata: la sblocchi dal suo profilo quando vuoi.</>}</div>
             <button onClick={onClose} style={{ width: "100%", padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Chiudi</button>
           </div>
         )}
@@ -3469,7 +3477,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView, onAllSkies }) {
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView, onAllSkies, isBlocked, onBlock }) {   // 14.81: isBlocked/onBlock
   // 14.40: come il tuo Profilo — copertina, avatar, grado, statistiche, Scrivi · Segui, griglia dei cieli
   const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
   const nPosts = profile.postsCount ?? mine.length;
@@ -3517,10 +3525,19 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             </div>
           ))}
         </div>
+        {isBlocked ? (   // 14.81: ape bloccata — niente Scrivi/Segui, solo la via per sbloccare
+          <div style={{ margin: "10px 16px 0", padding: "12px 14px", borderRadius: 14, background: "rgba(240,86,91,.12)", border: `1px solid ${RED}55`, display: "flex", alignItems: "center", gap: 10 }}>
+            <NavIcon name="block" size={18} color="#FFB4B6" sw={2.2} />
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: TXT, lineHeight: 1.4 }}><b>Hai bloccato questa ape.</b> Non vedi i suoi cieli e i suoi messaggi, e lei non può scriverti.</div>
+            <button onClick={() => onBlock && onBlock(profile, false)} style={{ height: 36, padding: "0 12px", borderRadius: 10, border: `1px solid ${LINE}`, background: NIGHT3, color: TXT, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif", flexShrink: 0 }}>Sblocca</button>
+          </div>
+        ) : (
         <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
           <Btn onClick={() => onChat(profile)} honey><NavIcon name="comment" size={16} color={INK} sw={2.2} />Scrivi</Btn>
           <Btn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</Btn>
+          {onBlock && profile.uid && <button onClick={() => { if (confirm(`Bloccare ${profile.name}?\n\nNon vedrai più i suoi cieli, commenti e messaggi, e lei non potrà scriverti. Puoi sbloccarla quando vuoi da questa pagina.`)) onBlock(profile, true); }} aria-label={`Blocca ${profile.name}`} title="Blocca" style={{ width: 44, height: 44, borderRadius: 14, border: `1px solid ${RED}66`, background: NIGHT3, color: "#FFB4B6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="block" size={18} color="#FFB4B6" sw={2.2} /></button>}{/* 14.81 */}
         </div>
+        )}
         {isAdmin && <div style={{ display: "flex", gap: 8, margin: "8px 16px 0" }}>
           <Btn onClick={() => onAdminEdit && onAdminEdit(profile)} outline><NavIcon name="edit" size={15} color="#fff" sw={2} />Correggi</Btn>
           <Btn onClick={() => onBan && onBan(profile)} outline danger>Sospendi</Btn>
@@ -4306,7 +4323,7 @@ function SupportView({ admins, onPick, onClose }) {
     </div>
   );
 }
-function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted, onHelp, onSupport, onIntro }) {
+function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted, onHelp, onSupport, onIntro, onLegal }) {   // 14.81: onLegal
   const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const set = (k, v) => onChange({ ...settings, [k]: v });
   const enableMaster = async v => {
@@ -4375,7 +4392,9 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
         <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, marginBottom: 20 }}>
           {[["❓", "Come possiamo aiutarti", "Le risposte alle domande più frequenti", onHelp],
             ["💬", "Chat con gli amministratori", "Scrivi a chi tiene in piedi l'alveare", onSupport],
-            ["🚀", "Inizia", "Come funziona Beeweat, in sei passi", onIntro]].map(([e, t, d, fn]) => (
+            ["🚀", "Inizia", "Come funziona Beeweat, in sei passi", onIntro],
+            ["🔒", "Informativa sulla Privacy", "Quali dati usa Beeweat e perché", () => onLegal && onLegal("privacy")],
+            ["📄", "Termini di Servizio", "Le regole dell'alveare", () => onLegal && onLegal("terms")]].map(([e, t, d, fn]) => (
             <button key={t} onClick={fn} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", borderBottom: `1px solid ${LINE}`, cursor: "pointer", textAlign: "left", fontFamily: "'Inter',sans-serif" }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{e}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -4607,7 +4626,24 @@ function AppInner() {
   const [following, setFollowing] = useState([]);
   const [reported, setReported] = useState([]);
   const [reportTarget, setReportTarget] = useState(null);
-  const reportPost = (post, reason) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); if (sb?.isConfigured && sb.createReport && typeof post.id === "string" && !/^(ob_|tx_|d\d)/.test(post.id)) sb.createReport(post.id, reason).catch(e => console.warn("segnalazione:", e?.message || e)); };   // 14.66
+  const [legalDoc, setLegalDoc] = useState(null);   // 14.81: "privacy" | "terms" aperti dalle Impostazioni
+  const reportPost = (post, reason, alsoBlock) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); if (sb?.isConfigured && sb.createReport && typeof post.id === "string" && !/^(ob_|tx_|d\d)/.test(post.id)) sb.createReport(post.id, reason).catch(e => console.warn("segnalazione:", e?.message || e)); if (alsoBlock && post.uid) toggleBlock({ uid: post.uid, name: post.user }, true); };   // 14.66 · 14.81: blocca anche
+  // ── 14.81: «Blocca utente» — le api che ho bloccato (id); spariscono cieli, commenti, messaggi; nessuno dei due scrive all'altro (guardia anche sul server)
+  const [blocked, setBlocked] = useState(() => new Set());
+  const blockedRef = useRef(blocked); blockedRef.current = blocked;
+  useEffect(() => {
+    if (!sb?.isConfigured || !user || !sb.getMyBlocks) { setBlocked(new Set()); return; }
+    let stop = false;
+    sb.getMyBlocks().then(ids => { if (!stop) setBlocked(new Set(ids || [])); }).catch(e => console.warn("blocchi:", e?.message || e));
+    return () => { stop = true; };
+  }, [sb, user]);
+  const toggleBlock = (who, on) => {
+    const uid = who?.uid || who?.id; if (!uid) { alert("Utente non identificabile."); return; }
+    setBlocked(b => { const n = new Set(b); on ? n.add(uid) : n.delete(uid); return n; });
+    if (on) { setFollowing(f => f.filter(n => n !== who.name)); setFollowingIds(ids => ids.filter(x => x !== uid)); setFollowerIds(ids => ids.filter(x => x !== uid)); setThreads(th => { const n = { ...th }; delete n[uid]; return n; }); setAlerts(a => a.filter(n => n.from_user_id !== uid)); }
+    if (sb?.isConfigured && sb.setBlock) sb.setBlock(uid, on).then(() => { if (on) setNotifToast({ kind: "block", text: `${who.name || "L'ape"} è stata bloccata. La sblocchi dal suo profilo quando vuoi.` }); setSocialTick(t => t + 1); }).catch(e => { setBlocked(b => { const n = new Set(b); on ? n.delete(uid) : n.add(uid); return n; }); failAlert(on ? "Blocco non riuscito" : "Sblocco non riuscito", e); });
+  };
+  const notBlocked = list => (list || []).filter(p => !p?.uid || !blocked.has(p.uid));
   const [followingIds, setFollowingIds] = useState([]);
   const [followerIds, setFollowerIds] = useState([]);
   const [socialTick, setSocialTick] = useState(0);
@@ -4676,10 +4712,10 @@ function AppInner() {
     (async () => { try {
       const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const rows = await sb.getGroupMessages(g.id);
-      setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+      setThreads(th => ({ ...th, [id]: (rows || []).filter(r => !blockedRef.current.has(r.from_user_id)).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
       if (chatUnsubRef.current) chatUnsubRef.current();
       chatUnsubRef.current = await sb.subscribeGroupChat(g.id, async m => {
-        if (au && m.from_user_id === au.id) return;
+        if (au && m.from_user_id === au.id) return; if (blockedRef.current.has(m.from_user_id)) return;   /* 14.81 */
         let who = "Utente";
         try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
         setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
@@ -4694,10 +4730,10 @@ function AppInner() {
       (async () => { try {
         const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
         const rows = await sb.getPlaceMessages(place.name);
-        setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+        setThreads(th => ({ ...th, [id]: (rows || []).filter(r => !blockedRef.current.has(r.from_user_id)).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
         if (chatUnsubRef.current) chatUnsubRef.current();
         chatUnsubRef.current = await sb.subscribePlaceChat(place.name, async m => {
-          if (au && m.from_user_id === au.id) return;
+          if (au && m.from_user_id === au.id) return; if (blockedRef.current.has(m.from_user_id)) return;   /* 14.81 */
           let who = "Utente";
           try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
           setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
@@ -5314,8 +5350,8 @@ function AppInner() {
   // vista unificata: feed vicino + post caricati a lungo raggio (senza doppioni)
   const allPosts = useMemo(() => {
     const ids = new Set(posts.map(p => p.id));
-    return [...posts, ...extraPosts.filter(p => !ids.has(p.id))];
-  }, [posts, extraPosts]);
+    return notBlocked([...posts, ...extraPosts.filter(p => !ids.has(p.id))]);   // 14.81
+  }, [posts, extraPosts, blocked]);
   const [eventsTick, setEventsTick] = useState(0);
   // Eventi reali dal database (persistenti e condivisi)
   useEffect(() => {
@@ -5421,8 +5457,8 @@ function AppInner() {
     if (focusPost && !base.some(p => p.id === focusPost.id)) base = [focusPost, ...base];   // il faro non si spegne
     if (award?.post && awardShow) base = [{ ...award.post, awarded: true, awardMsg: award.award.message || "" }, ...base.filter(p => p.id !== award.post.id)];   // la premiata in cima, per 20 secondi
     else if (award?.post) base = withAward(base);                                        // poi resta solo il nastro, dove il post compare
-    return base;
-  }, [feedWorld, feedFollowed, followedPosts, posts, worldFeedPosts, focusPost, award, awardShow]);
+    return notBlocked(base);   // 14.81: le api bloccate non compaiono
+  }, [feedWorld, feedFollowed, followedPosts, posts, worldFeedPosts, focusPost, award, awardShow, blocked]);
   useEffect(() => { if (tab !== "feed" && focusPost) { setFocusPost(null); setFocusPostId(null); } }, [tab]);
   // "Mondo" nei Contatti: attivo finché resti nella scheda, si spegne quando esci
   const [contactsWorld, setContactsWorld] = useState(false);
@@ -5572,10 +5608,11 @@ function AppInner() {
       const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       const profs = await sb.getProfiles();
       setContacts(profs
+        .filter(p => !blockedRef.current.has(p.id))   // 14.81
         .map(p => ({ id: p.id, name: p.name || "Utente Bee", city: p.city || "", ava: p.avatar_url || null, me: !!au && p.id === au.id, postsCount: p.posts_count || 0 }))
         .sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0)));
     } catch (e) { console.warn("contatti:", e?.message || e); } })();
-  }, [sb, user, socialTick]);
+  }, [sb, user, socialTick, blocked]);
   // Chat dirette: apertura con storico dal database
   const deleteDirectMsg = (cid, m) => {
     setThreads(th => ({ ...th, [cid]: (th[cid] || []).filter(x => x.id !== m.id) }));
@@ -5587,6 +5624,7 @@ function AppInner() {
   };
   const openDirectChat = c => {
     if (c?.me) { setOverlay("profile"); return; }
+    if (c?.id && blocked.has(c.id)) { alert(`Hai bloccato ${c.name || "questa ape"}: per scriverle, sbloccala prima dal suo profilo.`); return; }   // 14.81
     const real = sb?.isConfigured && typeof c.id === "string" && c.id.includes("-");
     setOverlay({ chat: c });
     if (!real) return;
@@ -5937,10 +5975,10 @@ function AppInner() {
       (async () => { try {
         const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
         const rows = await sb.getPostMessages(post.id);
-        setThreads(th => ({ ...th, [id]: (rows || []).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
+        setThreads(th => ({ ...th, [id]: (rows || []).filter(r => !blockedRef.current.has(r.from_user_id)).map(r => ({ id: r.id, me: !!au && r.from_user_id === au.id, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) })) }));
         if (chatUnsubRef.current) chatUnsubRef.current();
         chatUnsubRef.current = await sb.subscribePostChat(post.id, async m => {
-          if (au && m.from_user_id === au.id) return; // i miei li aggiungo già all'invio
+          if (au && m.from_user_id === au.id) return; if (blockedRef.current.has(m.from_user_id)) return;   /* 14.81 */ // i miei li aggiungo già all'invio
           let who = "Utente";
           try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
           setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
@@ -6120,12 +6158,12 @@ function AppInner() {
     </div>
   );
   if (overlay === "notif") return wrap(<NotifSettingsView settings={notif} onChange={saveNotif} onClose={() => setOverlay("profile")} pushState={pushState} onEnablePush={enablePush} onGeoGranted={c => { setGeo(c); setGeoReal(true); }}
-    onHelp={() => setOverlay("help")} onIntro={() => setOverlay("intro")}
+    onHelp={() => setOverlay("help")} onIntro={() => setOverlay("intro")} onLegal={k => setLegalDoc(k)}
     onSupport={() => { setAdmins(null); setOverlay("support"); if (sb?.isConfigured && sb.getAdmins) sb.getAdmins().then(setAdmins).catch(() => setAdmins([])); else setAdmins([]); }} />);
   if (overlay === "help") return wrap(<HelpView onClose={() => setOverlay("notif")} />);
   if (overlay === "intro") return wrap(<IntroView onClose={() => setOverlay("notif")} />);
   if (overlay === "support") return wrap(<SupportView admins={admins} onClose={() => setOverlay("notif")} onPick={a => openDirectChat({ id: a.id, name: a.name, ava: a.avatar_url || null, city: a.city || "" })} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} isBlocked={!!overlay.user.uid && blocked.has(overlay.user.uid)} onBlock={toggleBlock} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
     onOpenPhoto={openPhoto} onStar={onStar} onView={onView} onAllSkies={sb?.isConfigured && overlay.user.uid ? () => openArchive(overlay.user.uid, { user: overlay.user, back: overlay.back }, overlay.user.name) : undefined}
     onAdminEdit={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
@@ -6201,7 +6239,9 @@ function AppInner() {
 
   function wrap(content) {
     return <Frame>{content}
-      {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {reportTarget && <ReportModal post={reportTarget} canBlock={!!reportTarget.uid && !reportTarget.mine} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {legalDoc === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Come Beeweat tratta i tuoi dati personali." sections={PRIVACY} onClose={() => setLegalDoc(null)} />}{/* 14.81: leggibili anche dopo l'accesso */}
+      {legalDoc === "terms" && <LegalDoc title="Termini di Servizio" intro="Le regole che valgono per tutte le api dell'alveare." sections={TERMS} onClose={() => setLegalDoc(null)} />}
       {delAsk && user && <DeleteAccountSheet user={user} onConfirm={deleteMyAccount} onClose={() => setDelAsk(false)} />}
       {adminInvite && !splash && <PermissionInvite sheet emoji="👑" title="Vuoi diventare amministratore?"
         lines={[["1", `${adminInvite.from_name} ti propone di entrare tra gli amministratori dell'alveare.`],
@@ -6258,7 +6298,9 @@ function AppInner() {
 
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
-      {reportTarget && <ReportModal post={reportTarget} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {reportTarget && <ReportModal post={reportTarget} canBlock={!!reportTarget.uid && !reportTarget.mine} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {legalDoc === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Come Beeweat tratta i tuoi dati personali." sections={PRIVACY} onClose={() => setLegalDoc(null)} />}{/* 14.81: leggibili anche dopo l'accesso */}
+      {legalDoc === "terms" && <LegalDoc title="Termini di Servizio" intro="Le regole che valgono per tutte le api dell'alveare." sections={TERMS} onClose={() => setLegalDoc(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} initialKind={evView} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}
       {editEventTarget && <EditEventModal ev={editEventTarget} onSave={saveEventEdit} onDelete={doDeleteEvent} onClose={() => setEditEventTarget(null)} geo={geo} onGeocode={cloudGeocode} />}
       {editTarget && <EditPostModal post={editTarget} onSave={saveEdit} onClose={() => setEditTarget(null)} onDelete={() => { const p = editTarget; setEditTarget(null); doDeletePost(p); }} onAward={isAdmin && sb?.isConfigured && typeof editTarget.id === "string" && editTarget.id.includes("-") ? async msg => { try { await sb.createAward(editTarget.id, msg); setEditTarget(null); alert("🏅 Foto premiata! Tutte le api vedranno l'annuncio alla prossima apertura dell'app."); } catch (e) { failAlert("Premio non riuscito", e); } } : undefined} />}

@@ -104,12 +104,17 @@ export async function getWorldCount() {
   return count || 0;
 }
 // ── Amministrazione: correzione nome/città di un'ape ─────────────────────────
+// 14.81: passa dalla funzione del server (controllo del ruolo lato database); se l'SQL 14.81 non è ancora stato lanciato, aggiornamento diretto come prima
+const rpcMissing = e => /function .* does not exist|Could not find the function|PGRST202/i.test(String(e?.message || e?.code || e));
 export async function adminUpdateProfile(userId, { name, city }) {
+  const { error } = await supabase.rpc("admin_update_profile", { p_user: userId, p_name: name ?? null, p_city: city ?? null });
+  if (!error) return;
+  if (!rpcMissing(error)) throw error;
   const patch = {};
   if (name !== undefined) patch.name = name;
   if (city !== undefined) patch.city = city;
-  const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
-  if (error) throw error;
+  const { error: e2 } = await supabase.from("profiles").update(patch).eq("id", userId);
+  if (e2) throw e2;
 }
 // ── Gli amministratori (per il Centro assistenza) ────────────────────────────
 export async function getAdmins() {
@@ -278,9 +283,34 @@ export async function deleteNotification(id) {
 
 // ── Amministrazione: ban/sblocco utenti ──────────────────────────────────────
 export async function banUser(userId, until, reason) {
-  const { error } = await supabase.from("profiles")
+  const { error } = await supabase.rpc("admin_ban_user", { p_user: userId, p_until: until, p_reason: reason });   // 14.81: sul server
+  if (!error) return;
+  if (!rpcMissing(error)) throw error;
+  const { error: e2 } = await supabase.from("profiles")
     .update({ banned_until: until, ban_reason: reason }).eq("id", userId);
-  if (error) throw error;
+  if (e2) throw e2;
+}
+
+// ── 14.81: «Blocca utente» — chi blocco non vedo più (cieli, commenti, messaggi) e nessuno dei due scrive all'altro ──
+export async function getMyBlocks() {
+  const { data: { user } } = await authUser();
+  if (!user) return [];
+  const { data, error } = await supabase.from("blocks").select("blocked_id").eq("blocker_id", user.id);
+  if (error) { if (/relation .*blocks.* does not exist|PGRST205/i.test(error.message || "")) return []; throw error; }   // SQL 14.81 non ancora lanciato
+  return (data || []).map(r => r.blocked_id);
+}
+export async function setBlock(userId, on) {
+  const { data: { user } } = await authUser();
+  if (!user) throw new Error("Utente non autenticato");
+  if (!userId || userId === user.id) throw new Error("Utente non valido");
+  if (on) {
+    const { error } = await supabase.from("blocks").upsert({ blocker_id: user.id, blocked_id: userId }, { onConflict: "blocker_id,blocked_id" });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("blocks").delete().eq("blocker_id", user.id).eq("blocked_id", userId);
+    if (error) throw error;
+  }
+  return !!on;
 }
 
 // ── Visualizzazioni dei post (una per utente) ────────────────────────────────
@@ -827,6 +857,7 @@ export async function createReport(postId, reason, note) {
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const { error } = await supabase.from("reports").insert({ post_id: postId, reporter_id: user.id, reason: reason || null, note: note || null });
+  if (error && /reports_one_per_bee|duplicate key/i.test(error.message || "")) return;   // 14.81: già segnalato da questa ape: va bene così
   if (error) throw error;
 }
 export async function adminReports(status = "open", limit = 300) {

@@ -29,6 +29,15 @@ const DICT = {
   "Cambia": "Change", "Correggi": "Fix", "Elimina": "Delete", "Esci": "Log out", "Logout": "Log out", "Entra": "Sign in", "Accedi": "Sign in",
   "Registrati": "Sign up", "Inizia": "Start", "Attiva": "Turn on", "Consenti": "Allow", "Richiedi": "Request", "Chiedi": "Ask",
   "Più tardi": "Later", "No, grazie": "No, thanks", "Accetto": "I accept", "Gestisci": "Manage", "Sospendi": "Suspend", "Rifai": "Retake",
+  // 14.81: blocca utente, privacy e termini
+  "Blocca": "Block", "Sblocca": "Unblock", "Hai bloccato questa ape.": "You blocked this bee.",
+  "Non vedi i suoi cieli e i suoi messaggi, e lei non può scriverti.": "You don't see their skies or messages, and they can't write to you.",
+  "non vedrai più i suoi cieli e messaggi, e non potrà scriverti.": "you won't see their skies and messages any more, and they won't be able to write to you.",
+  "è stata bloccata: la sblocchi dal suo profilo quando vuoi.": "has been blocked: you can unblock them from their profile any time.",
+  "Informativa sulla Privacy": "Privacy Policy", "Quali dati usa Beeweat e perché": "Which data Beeweat uses and why",
+  "Termini di Servizio": "Terms of Service", "Le regole dell'alveare": "The rules of the hive",
+  "Come Beeweat tratta i tuoi dati personali.": "How Beeweat handles your personal data.", "Le regole che valgono per tutte le api dell'alveare.": "The rules that apply to every bee in the hive.",
+  "Blocco non riuscito": "Block failed", "Sblocco non riuscito": "Unblock failed",
   // 14.80: cielo in movimento
   "Movimento": "Motion", "Foto": "Photo", "Foto o movimento": "Photo or motion", "Movimento · 5 s": "Motion · 5 s", "Cielo in movimento": "Sky in motion",
   "Cielo in movimento · 5 secondi": "Sky in motion · 5 seconds", "5 secondi di cielo in movimento · senza audio": "5 seconds of sky in motion · no sound",
@@ -398,6 +407,12 @@ const cond = c => trPiece(c);
 
 // ─── REGOLE per i testi con numeri o nomi dentro ───────────────────────────────────────────────
 const RULES = [
+  // 14.81: blocco utente
+  [/^Blocca anche (.+)$/, m => `Also block ${m[1]}`],
+  [/^Blocca (.+)$/, m => `Block ${m[1]}`],
+  [/^Bloccare (.+)\?$/, m => `Block ${m[1]}?`],
+  [/^(.+) è stata bloccata\. La sblocchi dal suo profilo quando vuoi\.$/, m => `${m[1]} has been blocked. You can unblock them from their profile any time.`],
+  [/^Hai bloccato (.+): per scriverle, sbloccala prima dal suo profilo\.$/, m => `You blocked ${m[1]}: unblock them from their profile first to write to them.`],
   [/^(\d[\d.,]*) km da te$/, m => `${m[1]} km from you`],
   [/^A (\d[\d.,]*) km da te$/, m => `${m[1]} km from you`],
   [/^(\d[\d.,]*) (km|m) da te$/, m => `${m[1]} ${m[2]} from you`],
