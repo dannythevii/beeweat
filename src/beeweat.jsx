@@ -3224,7 +3224,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       </div>
       <input ref={shotRef} type="file" accept="image/*" capture="environment" onChange={onNativeShot} style={{ display: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
-      {hint && <div role="status" onClick={() => setHint(false)} className="fade-up" style={{ position: "absolute", left: 18, right: 18, bottom: "calc(150px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "rgba(10,16,40,.86)", border: `1px solid rgba(255,255,255,.16)`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, color: "#fff", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>{/* 14.47: in basso, 20 secondi */}
+      {hint && <div role="status" onClick={() => setHint(false)} className="fade-up" style={{ position: "absolute", left: 18, right: 18, bottom: "calc(206px + env(safe-area-inset-bottom, 0px))", zIndex: 40, background: "rgba(10,16,40,.86)", border: `1px solid rgba(255,255,255,.16)`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, color: "#fff", boxShadow: "0 10px 30px rgba(0,0,0,.35)" }}>{/* 14.47: in basso, 20 secondi */}
         <span style={{ width: 36, height: 36, borderRadius: 11, background: "rgba(245,184,46,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="eye" size={18} color={HONEY2} sw={2} /></span>
         <span style={{ fontSize: 12.5, lineHeight: 1.35 }}><b style={{ display: "block", fontSize: 13.5 }}>Solo natura, cielo e mare</b><span style={{ color: "rgba(255,255,255,.75)" }}>Scattato adesso, dal vivo. Le foto con persone in primo piano vengono scartate dagli occhi dell'alveare.</span></span>
       </div>}
@@ -4549,7 +4549,10 @@ function AppInner() {
     document.body.appendChild(inp); shotInputRef.current = inp;
     return () => { inp.remove(); shotInputRef.current = null; };
   }, []);
-  const openCamera = () => { try { shotInputRef.current?.click(); } catch (_) {} setOverlay("post"); };
+  // 14.80: dove esiste il «Movimento» si apre prima il mirino con la scelta Foto · Movimento; la fotocamera del telefono parte dal tasto Foto.
+  // Dove il browser non registra video resta la via rapida della 14.47 (fotocamera subito, nello stesso tocco).
+  const canVideoHere = (() => { try { return typeof MediaRecorder !== "undefined" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.self === window.top; } catch (_) { return false; } })();
+  const openCamera = () => { if (!canVideoHere) { try { shotInputRef.current?.click(); } catch (_) {} } setOverlay("post"); };
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts, gender: user.gender || null })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
