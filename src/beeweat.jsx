@@ -1752,7 +1752,7 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
           </div>
         </div>
         <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-          {curTemp ? <><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{curPost.city || "qui"}{curPost.precision === "city" ? " ≈" : ""}<span>·</span>allo scatto{curPost.time && curPost.time !== "adesso" ? ` · ${curPost.time} fa` : ""}</> : <>max {wx?.hi} · min {wx?.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</>}
+          {curTemp ? <><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{curPost.city || "qui"}{curPost.precision === "city" ? " ≈" : ""}<span>·</span>allo scatto{curPost.time && curPost.time !== "adesso" ? ` · ${curPost.time}` : ""}</> : <>max {wx?.hi} · min {wx?.lo}{placeName ? <><span>·</span><NavIcon name="pin" size={11} color="rgba(255,255,255,.75)" sw={2.4} />{placeName}{placeExact ? "" : " ≈"}</> : null}</>}
         </div>
       </>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: wx ? 8 : 0, textShadow: "none" }}>
