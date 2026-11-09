@@ -432,7 +432,7 @@ function Reels({ toast }) {
     {award && <Confirm title="Foto premiata" text="Il cielo sale in cima al feed con la coccarda e il tuo messaggio." label="Premia" onClose={() => setAward(null)} onOk={() => act(async () => { await sb.createAward(award.id, award.message || null); setAward(null); }, "Cielo premiato")}>
       <input value={award.message} onChange={e => setAward({ ...award, message: e.target.value })} placeholder="Messaggio (facoltativo), es. «Che luce!»" style={{ width: "100%" }} />
     </Confirm>}
-    {del && <Confirm title="Elimina il cielo" text={`Il cielo di ${del.profiles?.name || "—"} sparisce da feed, radar e profilo, con la foto.`} label="Elimina" danger onClose={() => setDel(null)} onOk={() => act(async () => { await sb.deletePost({ id: del.id, image_url: del.image_url }); setDel(null); }, "Cielo eliminato")} />}
+    {del && <Confirm title="Elimina il cielo" text={`Il cielo di ${del.profiles?.name || "—"} sparisce da feed, radar e profilo, con la foto.`} label="Elimina" danger onClose={() => setDel(null)} onOk={() => act(async () => { await sb.deletePost({ id: del.id, image_url: del.image_url, video_url: del.video_url || null }); setDel(null); }, "Cielo eliminato")} />}
   </>;
 }
 

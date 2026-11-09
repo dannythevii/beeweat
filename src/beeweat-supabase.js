@@ -225,6 +225,10 @@ export async function deletePost(post) {
     const m = String(post.img || post.image_url || "").split("/object/public/posts/")[1];
     if (m) await supabase.storage.from("posts").remove([decodeURIComponent(m)]);
   } catch (_) {}
+  try {   // 14.80: anche il video, se c'era
+    const v = String(post.video || post.video_url || "").split("/object/public/videos/")[1];
+    if (v) await supabase.storage.from("videos").remove([decodeURIComponent(v)]);
+  } catch (_) {}
 }
 
 // ── Push (Web Push VAPID) e posizione per le allerte ─────────────────────────
@@ -631,21 +635,48 @@ export async function uploadPhoto(file) {
 }
 
 // ============================================================================
+// VIDEO (Storage) — 14.80: i 5 secondi di «cielo in movimento» nel bucket "videos", separato dalle foto
+// ============================================================================
+export const VIDEO_MAX_BYTES = 20 * 1024 * 1024;
+export async function uploadVideo(blob) {
+  const { data: { user } } = await authUser();
+  if (!user) throw new Error("Utente non autenticato");
+  if (!blob || !blob.size) throw new Error("Video vuoto");
+  if (blob.size > VIDEO_MAX_BYTES) throw new Error("Video troppo pesante (oltre 20 MB)");
+  // iPhone a volte consegna il file senza tipo dichiarato: qui si assegna sempre, altrimenti lo storage lo rifiuta
+  const type = (blob.type || "").split(";")[0] || "video/mp4";
+  const ext = /webm/.test(type) ? "webm" : /quicktime/.test(type) ? "mov" : "mp4";
+  const path = `${user.id}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("videos").upload(path, blob, { contentType: type, upsert: false, cacheControl: "31536000" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("videos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ============================================================================
 // POST
 // ============================================================================
 
-// Crea un post: prima carica la foto, poi salva il record
-export async function createPost({ file, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
+// Crea un post: prima carica la foto (e il video, se c'è), poi salva il record
+export async function createPost({ file, video, caption, condition, lat, lng, camDeg, camDir, city, aiClass, aiScore, temp, precision, createdAt }) {
   const { data: { user } } = await authUser();
   if (!user) throw new Error("Utente non autenticato");
   const image_url = await uploadPhoto(file);
+  let video_url = null;
+  if (video) {   // 14.80: il movimento è un arricchimento — se il video non sale, il cielo parte comunque come foto
+    try { video_url = await uploadVideo(video); } catch (e) { console.warn("video:", e?.message || e); }
+  }
   const row = {
-    user_id: user.id, image_url, caption, condition, lat, lng, is_live: true,
+    user_id: user.id, image_url, video_url, caption, condition, lat, lng, is_live: true,
     cam_deg: camDeg ?? null, cam_dir: camDir ?? null, city: city ?? null, ai_class: aiClass ?? null, ai_score: aiScore ?? null, temp: (temp === null || temp === undefined || temp === "") ? null : Number(temp),
     precision: precision ?? null,                       // "gps" | "city" (beeweat-privacy-posizione.sql)
   };
   if (createdAt) row.created_at = createdAt;            // 14.29: zaino → ora dello scatto, non della spedizione
   let { data, error } = await supabase.from("posts").insert(row).select().single();
+  if (error && /video_url/i.test(error.message || "")) {   // 14.80: SQL del video non ancora lanciato: il cielo parte come foto
+    delete row.video_url;
+    ({ data, error } = await supabase.from("posts").insert(row).select().single());
+  }
   if (error && /precision/i.test(error.message || "")) {   // colonna non ancora creata: si pubblica lo stesso, senza il dato
     delete row.precision;
     ({ data, error } = await supabase.from("posts").insert(row).select().single());

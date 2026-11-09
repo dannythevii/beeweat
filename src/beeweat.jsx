@@ -132,7 +132,9 @@ const NavIcon = ({ name, size = 24, color = WHITE, sw = 1.9 }) => {
     thermo: <><path d="M14 14.8V4a2 2 0 10-4 0v10.8a4.5 4.5 0 104 0z" {...p} /><line x1="12" y1="9" x2="12" y2="15" {...p} /></>,
     download: <><path d="M12 3v12M7 10l5 5 5-5M4 21h16" {...p} /></>,
     undo: <><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" {...p} /></>,
-    gear: <><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
+    motion: <><rect x="3" y="6" width="13" height="12" rx="2.5" {...p} /><path d="M16 10.5l5-2.5v8l-5-2.5" {...p} /></>,   // 14.80: cielo in movimento (videocamera a tratto)
+    play: <><path d="M8 5.5v13l10-6.5z" {...p} /></>,
+    gear:<><circle cx="12" cy="12" r="3.2" {...p} /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" {...p} /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>{paths[name]}</svg>;
 };
@@ -1474,7 +1476,9 @@ function PhotoViewer({ src: src0, caption: caption0, onClose, items, index = 0 }
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {list.map((it, i) => (
           <div key={it.id || i} style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", contain: "strict" }}>
-            {Math.abs(i - cur) <= 1 && <img src={it.src} alt="" decoding="async" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />}
+            {Math.abs(i - cur) <= 1 && (it.video && i === cur
+              ? <video src={it.video} poster={it.src} muted loop playsInline autoPlay preload="auto" disablePictureInPicture onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />   // 14.80: il cielo in movimento si rivede qui
+              : <img src={it.src} alt="" decoding="async" onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />)}
           </div>
         ))}
       </div>
@@ -1521,7 +1525,7 @@ async function shareCard(post, line) {
   return new File([blob], "beeweat-cielo.jpg", { type: "image/jpeg" });
 }
 // 14.44: la scheda si ridisegna solo se cambiano i dati che mostra (i callback arrivano stabili da FeedScreen)
-const POST_KEYS = ["id", "img", "thumb", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
+const POST_KEYS = ["id", "img", "thumb", "video", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
 const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
 const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active);
 function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active, onRetry }) {
@@ -1556,10 +1560,23 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
     </button>
   );
   const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };   // 14.44: niente sfocatura (costa sullo scorrimento)
+  // 14.80: cielo in movimento — il video (5 s, muto, a ciclo) parte da solo solo quando la scheda è a schermo; altrove resta la foto
+  const vidRef = useRef(null);
+  useEffect(() => {
+    const v = vidRef.current; if (!v) return;
+    if (active && !document.hidden) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+    else { try { v.pause(); } catch (_) {} }
+  }, [active, post.video]);
+  useEffect(() => {   // in secondo piano il video si ferma (batteria e dati)
+    if (!post.video) return;
+    const onVis = () => { const v = vidRef.current; if (!v) return; if (document.hidden) { try { v.pause(); } catch (_) {} } else if (active) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [active, post.video]);
   return (
     <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, contain: "layout paint", boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
       <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchpriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
+      {post.video && active && <video ref={vidRef} src={post.video} poster={post.img} muted loop playsInline autoPlay preload="auto" disablePictureInPicture onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", background: "transparent", cursor: onOpenPhoto ? "zoom-in" : "default" }} />}      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
         {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
@@ -1591,7 +1608,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
           {post.stars_rank > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: HONEY2, background: "rgba(245,184,46,.16)", padding: "2px 7px", borderRadius: 999 }}>{beeRank(post.stars_rank * STAR_STEP)}</span>}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.8)" }}><NavIcon name="starFill" size={12} />{post.stars}<span style={{ margin: "0 2px" }}>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.8)" sw={2} />{post.views}</span>{/* 14.42: accanto al nome */}
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.aiClass && <span title={r ? `Verificato dagli occhi dell'alveare · ${skyLabel(r.cls)} · ${Math.round(r.agree * 100)}% ${r.reliability}` : "Verificato dagli occhi dell'alveare"} aria-label="Cielo verificato" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: HONEY, marginLeft: 2 }}><NavIcon name="check" size={10} color={INK} sw={3} /></span>}</div>{/* 14.44: una spunta al posto delle due etichette */}
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.video && <span title="Cielo in movimento · 5 secondi" aria-label="Cielo in movimento" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 2, color: HONEY2 }}><NavIcon name="motion" size={13} color={HONEY2} sw={2.2} />5 s</span>}{post.aiClass && <span title={r ? `Verificato dagli occhi dell'alveare · ${skyLabel(r.cls)} · ${Math.round(r.agree * 100)}% ${r.reliability}` : "Verificato dagli occhi dell'alveare"} aria-label="Cielo verificato" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: HONEY, marginLeft: 2 }}><NavIcon name="check" size={10} color={INK} sw={3} /></span>}</div>{/* 14.44: una spunta al posto delle due etichette */}
         {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
       </div>
     </div>
@@ -2897,6 +2914,74 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   useEffect(() => { return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); }; }, []);   // fotocamera nativa: nessun flusso video in pagina
   const acceptCamInvite = () => setCamInvite(false);
   const [flash, setFlash] = useState(false);
+  // ── 14.80: CIELO IN MOVIMENTO — 5 secondi di video, muto, registrato nel mirino dell'app ──
+  // La foto resta la base del cielo (copertina = primo fotogramma, stessa verifica degli occhi dell'alveare); il video è un arricchimento.
+  // Dove il browser non registra (vecchi browser, app dentro la cornice di beeweat.com) la pillola «Movimento» non compare.
+  const canVideo = useMemo(() => { try { return typeof MediaRecorder !== "undefined" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.self === window.top; } catch (_) { return false; } }, []);
+  const [mode, setMode] = useState("photo");          // photo | video
+  const [recording, setRecording] = useState(false);
+  const [recMs, setRecMs] = useState(0);              // avanzamento 0‥5000 per l'anello attorno allo scatto
+  const [videoBlob, setVideoBlob] = useState(null), [videoUrl, setVideoUrl] = useState(null);
+  const recRef = useRef(null), chunksRef = useRef([]), recTickRef = useRef(null), recSafetyRef = useRef(null), recCoverRef = useRef(null);
+  const VIDEO_MS = 5000;
+  const pickMime = () => ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (_) { return false; } }) || "";
+  const clearRecTimers = () => { if (recTickRef.current) { clearInterval(recTickRef.current); recTickRef.current = null; } if (recSafetyRef.current) { clearTimeout(recSafetyRef.current); recSafetyRef.current = null; } };
+  const stopRec = () => { const rec = recRef.current; if (rec && rec.state !== "inactive") { try { rec.stop(); } catch (_) {} } };
+  const dropVideo = () => { setVideoBlob(null); setVideoUrl(u => { if (u) { try { URL.revokeObjectURL(u); } catch (_) {} } return null; }); };
+  const startRec = () => {
+    const s = streamRef.current, v = videoRef.current, c = canvasRef.current;
+    if (!s || !v || !c || recording || !v.videoWidth) { if (!s) start(); return; }
+    // copertina: il primo istante, nel canvas che gli occhi dell'alveare analizzano
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    recCoverRef.current = c.toDataURL("image/jpeg", .85);
+    try {   // 14.64/14.76: occhi al lavoro subito, in sordina
+      const key = c.width + "x" + c.height + ":" + Date.now(); c.__bwKey = key;
+      preRef.current = { key, p: new Promise((res, rej) => setTimeout(() => withTimeout(analyzePhoto(c), 12000).then(res, rej), 400)) };
+      preRef.current.p.catch(() => {});
+    } catch (_) { preRef.current = null; }
+    const mime = pickMime();
+    let rec = null;
+    try { rec = new MediaRecorder(s, mime ? { mimeType: mime, videoBitsPerSecond: 4500000 } : { videoBitsPerSecond: 4500000 }); }
+    catch (_) { try { rec = new MediaRecorder(s); } catch (e2) { setErr({ kind: "rec", msg: "Questo telefono non registra video dal browser: scatta una foto." }); setMode("photo"); return; } }
+    chunksRef.current = []; recRef.current = rec;
+    let t0 = 0;
+    const begin = () => {   // il conto alla rovescia parte dal via vero del registratore, non dal tocco
+      if (t0) return; t0 = Date.now(); setRecording(true); setRecMs(0);
+      recTickRef.current = setInterval(() => { const ms = Date.now() - t0; setRecMs(Math.min(VIDEO_MS, ms)); if (ms >= VIDEO_MS) stopRec(); }, 50);
+    };
+    rec.onstart = begin;
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
+    rec.onerror = () => stopRec();
+    rec.onstop = () => {
+      clearRecTimers();
+      const type = ((rec.mimeType || mime || "video/mp4").split(";")[0] || "video/mp4").trim();   // iPhone a volte non dichiara il tipo: si assegna qui (era il «non caricava»)
+      const blob = new Blob(chunksRef.current, { type });
+      chunksRef.current = []; recRef.current = null;
+      setRecording(false); setRecMs(0);
+      if (blob.size < 15000) { setErr({ kind: "rec", msg: "La registrazione è venuta vuota: tocca di nuovo il tasto e tieni il telefono fermo per 5 secondi." }); return; }
+      streamRef.current?.getTracks().forEach(t => t.stop()); setStreaming(false);
+      let rm = false; try { rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
+      if (!rm) { setFlash(true); setTimeout(() => setFlash(false), 140); }
+      setVideoBlob(blob); setVideoUrl(URL.createObjectURL(blob));
+      setCaptured(recCoverRef.current); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
+      try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
+    };
+    try { rec.start(); } catch (_) { setErr({ kind: "rec", msg: "Registrazione non avviabile: riprova." }); recRef.current = null; return; }
+    setErr(null);
+    if (rec.state === "recording") begin();                                   // browser che non emettono «start»
+    recSafetyRef.current = setTimeout(() => { if (recRef.current === rec) stopRec(); }, VIDEO_MS + 2500);   // paracadute: in ogni caso si chiude
+  };
+  const onShutterVideo = () => {
+    if (recording) { if (recMs >= 1000) stopRec(); return; }   // un secondo tocco dopo almeno 1 s chiude prima
+    startRec();
+  };
+  useEffect(() => {   // il mirino dal vivo serve solo per il movimento; per la foto resta la fotocamera del telefono
+    if (mode === "video" && !captured) { start(); }
+    else if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; setStreaming(false); }
+    return () => { clearRecTimers(); };
+  }, [mode, captured, facing]);
+  useEffect(() => () => { clearRecTimers(); if (videoUrl) { try { URL.revokeObjectURL(videoUrl); } catch (_) {} } }, []);
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
     let rm = false; try { rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
     if (!rm) { setFlash(true); setTimeout(() => setFlash(false), 140); }   // 14.21: niente lampo bianco se l'utente chiede meno movimento
@@ -3033,7 +3118,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     im.onerror = () => { URL.revokeObjectURL(url); alert("Foto non leggibile.\nScatta di nuovo."); };
     im.src = url;
   };
-  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); setTimeout(() => shotRef.current?.click(), 50); };
+  const retake = () => { aiSeqRef.current++; setCaptured(null); setAi(null); setArmed(false); setStep(0); setPosting(false); dropVideo(); if (mode !== "video") setTimeout(() => shotRef.current?.click(), 50); };
   useEffect(() => { if (pendingShot) { onNativeShot({ target: { files: [pendingShot], value: "" } }); onShotConsumed && onShotConsumed(); } }, [pendingShot]);   // 14.47: scatto già fatto dal tocco su «Scatta»
   const [hint, setHint] = useState(true);   // 14.47: l'avviso resta 20 secondi, poi sparisce
   useEffect(() => { const t = setTimeout(() => setHint(false), 20000); return () => clearTimeout(t); }, []);
@@ -3045,8 +3130,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   const [saved, setSaved] = useState(false);
   const savePhoto = async () => {
     try {
-      const blob = await (await fetch(captured)).blob();
-      const file = new File([blob], `beeweat_${Date.now()}.jpg`, { type: "image/jpeg" });
+      const blob = videoBlob || await (await fetch(captured)).blob();   // 14.80: con il movimento si salva il video
+      const file = videoBlob ? new File([blob], `beeweat_${Date.now()}.${/webm/.test(blob.type) ? "webm" : "mp4"}`, { type: blob.type || "video/mp4" }) : new File([blob], `beeweat_${Date.now()}.jpg`, { type: "image/jpeg" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: "Beeweat" });   // iOS/Android: "Salva immagine" → galleria
       } else {
@@ -3091,7 +3176,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     if (ai.block) { setPosting(false); return; }          // bocciato: resta qui, con il motivo
     const ok = !ai.error && !ai.offline;
     const tn = temp === "" ? null : Number(temp);
-    onPost({ img: captured, caption, cond, dir: shotDir, aiClass: ok ? (ai.cls || null) : null, aiScore: ok ? (ai.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !ok });
+    onPost({ img: captured, video: videoBlob || null, caption, cond, dir: shotDir, aiClass: ok ? (ai.cls || null) : null, aiScore: ok ? (ai.score || null) : null, temp: Number.isFinite(tn) && tn > -60 && tn < 60 ? tn : null, deferred: !ok });
   }, [ai, armed]);
   // 14.36: chip di stato sul tema notte (un'icona a tratto, niente emoji)
   const Chip = ({ icon, tone, onClick, children }) => {
@@ -3145,8 +3230,11 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       </div>}
       {!captured ? (
         /* ── PRIMA DELLO SCATTO: il mirino di Beeweat ── */
-        <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "linear-gradient(180deg,#1E4FA8 0%,#5C9BE3 42%,#F6C98B 86%,#F08A5D 100%)", display: "flex", flexDirection: "column" }}>
+        <div onTouchStart={mode === "video" ? onPinchStart : undefined} onTouchMove={mode === "video" ? onPinchMove : undefined} onTouchEnd={mode === "video" ? onPinchEnd : undefined} style={{ flex: 1, position: "relative", overflow: "hidden", background: "linear-gradient(180deg,#1E4FA8 0%,#5C9BE3 42%,#F6C98B 86%,#F08A5D 100%)", display: "flex", flexDirection: "column" }}>
+          {mode === "video" && <video ref={videoRef} autoPlay muted playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000", transform: zoomCaps ? "none" : `scale(${zoom})`, transformOrigin: "center" }} />}{/* 14.80: mirino dal vivo per il movimento */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(5,10,30,.45), rgba(5,10,30,0) 30%, rgba(5,10,30,0) 55%, rgba(5,10,30,.9))" }} />
+          {mode === "video" && streaming && <Compass h={heading} />}
+          {mode === "video" && recording && <div role="status" style={{ position: "absolute", top: 22, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 13, fontWeight: 700, borderRadius: 999, padding: "6px 12px" }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#F0565B", boxShadow: "0 0 0 3px rgba(240,86,91,.35)" }} />{(Math.max(0, VIDEO_MS - recMs) / 1000).toFixed(1)} s</div>}
           <div style={{ position: "absolute", left: 18, top: 22, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,.35)" }}>
             <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 72, fontWeight: 300, letterSpacing: "-4px", lineHeight: 1 }}>{temp !== "" ? `${Math.round(+temp)}°` : "—"}</div>
             <div style={{ marginTop: 6, fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><NavIcon name="pin" size={14} color="#fff" sw={2.2} />{locName || "La tua zona"}</div>
@@ -3154,13 +3242,28 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
           </div>
           <div style={{ marginTop: "auto", padding: "0 18px 22px", position: "relative", zIndex: 1 }}>
             {err && <Chip icon="warn" tone="bad">{err.msg}</Chip>}
-            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>Si apre la fotocamera del telefono · mai dall'archivio</div>
+            {canVideo && !recording && <div role="radiogroup" aria-label="Foto o movimento" style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 12 }}>{/* 14.80: selettore Foto · Movimento */}
+              {[["photo", "camera", "Foto"], ["video", "motion", "Movimento"]].map(([k, ic, lb]) => { const on = mode === k; return (
+                <button key={k} role="radio" aria-checked={on} onClick={() => { setErr(null); setMode(k); }} style={{ height: 34, padding: "0 14px", borderRadius: 999, border: on ? "none" : "1px solid rgba(255,255,255,.28)", background: on ? HONEY : "rgba(0,0,0,.35)", color: on ? INK : "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}><NavIcon name={ic} size={15} color={on ? INK : "#fff"} sw={2.1} />{lb}</button>
+              ); })}
+            </div>}
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.75)", marginBottom: 12 }}>{mode === "video" ? (recording ? "Tieni il telefono fermo: si ferma da solo a 5 secondi" : "5 secondi di cielo in movimento · senza audio") : "Si apre la fotocamera del telefono · mai dall'archivio"}</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px" }}>
               <button onClick={onBack} aria-label="Annulla" title="Annulla" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="close" size={20} color="#fff" sw={2} /></button>
-              <button onClick={() => shotRef.current?.click()} aria-label="Scatta il cielo" title="Scatta" style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%,#FFE08A,#F5B82E 60%,#E89A1C)", boxShadow: "0 10px 30px rgba(245,184,46,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={26} color={INK} sw={2.2} /></span>
-              </button>
-              <span style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Lo zaino: le foto in attesa partono da sole"><NavIcon name="bag" size={20} color="#fff" sw={2} /></span>
+              {mode === "video" ? (
+                <button onClick={onShutterVideo} disabled={!streaming} aria-label={recording ? "Ferma la registrazione" : "Registra 5 secondi di cielo"} title={recording ? "Ferma" : "Registra"} style={{ position: "relative", width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: streaming ? "pointer" : "wait", display: "flex", alignItems: "center", justifyContent: "center", opacity: streaming ? 1 : .6 }}>
+                  {/* anello di avanzamento: si riempie in 5 secondi */}
+                  <svg width="84" height="84" viewBox="0 0 84 84" style={{ position: "absolute", inset: -4, pointerEvents: "none", transform: "rotate(-90deg)" }}><circle cx="42" cy="42" r="40" fill="none" stroke={HONEY} strokeWidth="4" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 40}`} strokeDashoffset={`${2 * Math.PI * 40 * (1 - recMs / VIDEO_MS)}`} style={{ transition: recording ? "stroke-dashoffset .06s linear" : "none", opacity: recording ? 1 : 0 }} /></svg>
+                  <span style={{ width: recording ? 34 : 64, height: recording ? 34 : 64, borderRadius: recording ? 9 : "50%", background: recording ? "#F0565B" : "radial-gradient(circle at 35% 30%,#FFE08A,#F5B82E 60%,#E89A1C)", boxShadow: recording ? "0 0 0 6px rgba(240,86,91,.25)" : "0 10px 30px rgba(245,184,46,.5)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s ease" }}>{!recording && <NavIcon name="motion" size={26} color={INK} sw={2.2} />}</span>
+                </button>
+              ) : (
+                <button onClick={() => shotRef.current?.click()} aria-label="Scatta il cielo" title="Scatta" style={{ width: 84, height: 84, borderRadius: "50%", border: "4px solid rgba(255,255,255,.9)", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%,#FFE08A,#F5B82E 60%,#E89A1C)", boxShadow: "0 10px 30px rgba(245,184,46,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="camera" size={26} color={INK} sw={2.2} /></span>
+                </button>
+              )}
+              {mode === "video" && streaming && !recording
+                ? <button onClick={() => setFacing(f => f === "environment" ? "user" : "environment")} aria-label="Gira la fotocamera" title="Gira la fotocamera" style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="flip" size={20} color="#fff" sw={2} /></button>
+                : <span style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,.14)", border: "1px solid rgba(255,255,255,.16)", display: "flex", alignItems: "center", justifyContent: "center" }} title="Lo zaino: le foto in attesa partono da sole"><NavIcon name="bag" size={20} color="#fff" sw={2} /></span>}
             </div>
           </div>
         </div>
@@ -3168,8 +3271,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         /* ── DOPO LO SCATTO: anteprima e pubblicazione ── */
         <div data-scroll="1" style={{ flex: 1, overflowY: "auto", background: BODY }}>
           <div style={{ margin: "12px 14px 0", borderRadius: 24, overflow: "hidden", background: NIGHT3, position: "relative", aspectRatio: "4 / 5", boxShadow: "0 14px 36px rgba(0,0,0,.4)" }}>
-            <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            {videoUrl ? <video src={videoUrl} poster={captured} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      : <img src={captured} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 60%, rgba(5,10,30,.8))" }} />
+            {videoUrl && <div style={{ position: "absolute", top: 12, left: 14, display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}><NavIcon name="motion" size={13} color="#fff" sw={2.2} />Movimento · 5 s</div>}
             {typeof captured === "string" && captured.startsWith("http") && <div style={{ position: "absolute", top: 12, left: 14, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".1em", borderRadius: 20, padding: "4px 10px" }}>DEMO</div>}
             <div style={{ position: "absolute", top: 14, right: 14, textAlign: "right", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.45)" }}>
               <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 44, fontWeight: 300, letterSpacing: "-2px", lineHeight: 1 }}>{temp !== "" ? `${Math.round(+temp)}°` : ""}</div>
@@ -4899,6 +5004,9 @@ function AppInner() {
     const geo = geoRef.current;
     try {
       const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
+      if (rows && rows.length && !("video_url" in rows[0])) {   // 14.80: se feed_nearby non restituisce ancora video_url, lo si recupera a parte (una sola query leggera)
+        try { const { data: vids } = await sb.supabase.from("posts").select("id,video_url").in("id", rows.map(r => r.id)).not("video_url", "is", null); const vm = Object.fromEntries((vids || []).map(v => [v.id, v.video_url])); rows.forEach(r => { r.video_url = vm[r.id] || null; }); } catch (_) {}
+      }
       const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
       let myStars = new Set();
       if (au) { const { data: st } = await sb.supabase.from("stars").select("post_id").eq("user_id", au.id); myStars = new Set((st || []).map(x => x.post_id)); }
@@ -4914,7 +5022,7 @@ function AppInner() {
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined,
           cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: myStars.has(r.id), aiClass: r.ai_class || null, aiScore: r.ai_score ?? null,   // 14.28
           comments: r.comments_count || 0, views: r.views_count || 0,
-          img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
+          img: r.image_url, thumb: r.thumb_url || null, video: r.video_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!au && r.user_id === au.id, uid: r.user_id };
       }));
       try { const cache = (rows || []).slice(0, 40).map(r => ({ ...r, profiles: undefined, _pr: pmap[r.user_id] || null, _star: myStars.has(r.id) })); localStorage.setItem("bw_feed_cache", JSON.stringify({ at: Date.now(), au: au?.id || null, rows: cache })); } catch (_) {}   // 14.64
     } catch (e) { console.warn("feed:", e?.message || e); }
@@ -4954,7 +5062,7 @@ function AppInner() {
       const cards = j.rows.map(r => { const pr = r._pr || {}; const pt = { lat: r.lat, lng: r.lng };
         return { id: r.id, user: pr.name || "Utente Bee", ava: pr.avatar_url || null, time: fmtPostTime(r.created_at), ts: r.created_at, city: titleCase(r.city || pr.city || ""), precision: r.precision || null, dist: g && r.lat != null ? +kmDist(g, pt).toFixed(1) : 0, bearing: g && r.lat != null ? Math.round(bearingTo(g, pt)) : 0,
           dir: r.cam_dir ? { label: r.cam_dir, deg: r.cam_deg } : undefined, cond: r.condition || "☀️ Sereno", stars: r.stars_count || 0, starred: !!r._star, aiClass: r.ai_class || null, aiScore: r.ai_score ?? null, comments: r.comments_count || 0, views: r.views_count || 0,
-          img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!j.au && r.user_id === j.au, uid: r.user_id, cached: true }; });
+          img: r.image_url, thumb: r.thumb_url || null, video: r.video_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), mine: !!j.au && r.user_id === j.au, uid: r.user_id, cached: true }; });
       setPosts(ps => ps.some(p => !p.pending) ? ps : [...ps.filter(p => p.pending), ...cards]);
       setFeedReady(true);
     } catch (_) {}
@@ -5174,7 +5282,7 @@ function AppInner() {
       city: titleCase(r.city || pr.city || ""),
       dist: Math.round(dist * 10) / 10,
       bearing: geo && r.lat != null ? bearingDeg(geo, { lat: r.lat, lng: r.lng }) : 0,
-      img: r.image_url, thumb: r.thumb_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), cond: r.condition || "☀️ Sereno",
+      img: r.image_url, thumb: r.thumb_url || null, video: r.video_url || null, archivedAt: r.archived_at || null, caption: r.caption || "", temp: (r.temp === null || r.temp === undefined) ? null : Number(r.temp), cond: r.condition || "☀️ Sereno",
       stars: r.stars_count || 0, starred: !!r.starred_by_me, comments: r.comments_count || 0, views: r.views_count || 0,
       camDir: r.cam_dir || null,
     };
@@ -5678,7 +5786,7 @@ function AppInner() {
         }
         if (it.temp == null && it.lat != null) { try { it.temp = await fetchTempAt(it.lat, it.lng, it.ts || null); } catch (_) {} }   // 14.29: la temperatura dell'ORA DELLO SCATTO
         const itCity = it.city || await cityForPost(it.lat, it.lng);                       // zaino: il nome del posto si decide alla partenza
-        await sb.createPost({ file: dataURLtoBlob(it.img), caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, createdAt: it.ts ? new Date(it.ts).toISOString() : undefined, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
+        await sb.createPost({ file: dataURLtoBlob(it.img), video: (typeof Blob !== "undefined" && it.video instanceof Blob) ? it.video : null, caption: it.caption, condition: it.cond, lat: it.lat, lng: it.lng, precision: it.precision || null, camDeg: it.camDeg, camDir: it.camDir, city: itCity, createdAt: it.ts ? new Date(it.ts).toISOString() : undefined, aiClass: it.aiClass, aiScore: it.aiScore, temp: it.temp ?? null });
         sent++;
       } catch (e) {
         if (sessionLost(e)) { remain.push(it); break; }
@@ -5708,7 +5816,7 @@ function AppInner() {
     loadOutbox().then(box => { if (stop || !box.length) return;
     setPosts(ps => {
       const have = new Set(ps.filter(p => p.pending).map(p => p.id));
-      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city || locName || user.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
+      const cards = box.filter(it => !have.has("ob_" + it.ts)).map(it => ({ id: "ob_" + it.ts, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(it.ts)), ts: new Date(it.ts).toISOString(), city: it.city || locName || user.city, dist: 0, bearing: 0, dir: { deg: it.camDeg, label: it.camDir }, cond: it.cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img: it.img, video: (typeof Blob !== "undefined" && it.video instanceof Blob) ? URL.createObjectURL(it.video) : null, caption: it.caption, mine: true, pending: true, checking: !!it.needsCheck && navigator.onLine }));
       return cards.length ? [...cards, ...ps] : ps;
     }); });
     return () => { stop = true; };
@@ -5748,15 +5856,16 @@ function AppInner() {
     };
     setTimeout(() => alert(`⭐ Complimenti, sei ${BEE_RANKS[st]}!\n\n${frasi[st]}`), 700);
   };
-  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false }) => {
+  const onPost = ({ img, caption, cond, dir, aiClass, aiScore, temp = null, deferred = false, video = null }) => {   // 14.80: video = Blob dei 5 s di movimento, se c'è
+    const videoUrl = video ? URL.createObjectURL(video) : null;                 // per la scheda provvisoria
     const precision = "gps";                                                   // 14.65: solo posizione precisa
     const gp = precision === "gps" ? blurCoords(geo.lat, geo.lng)              // sul server va la zona (~1 km), mai il punto esatto
       : { lat: Math.round(geo.lat * 20) / 20, lng: Math.round(geo.lng * 20) / 20 };   // 14.45: senza posizione precisa, solo la zona della città (~5 km)
-    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(pendTs)), ts: new Date(pendTs).toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
+    const localAdd = pending => { setPosts(ps => [{ id: pending ? "ob_" + pendTs : nextId, user: user.name, ava: user.avatar, time: fmtPostTime(new Date(pendTs)), ts: new Date(pendTs).toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, video: videoUrl, caption, mine: true, pending: !!pending, checking: !!pending && !aiClass && navigator.onLine }, ...ps]); if (!pending) setNextId(n => n + 1); };
     const pendTs = Date.now();
     const toOutbox = async () => {
       const box = await loadOutbox();
-      box.push({ ts: pendTs, img, caption, cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });
+      box.push({ ts: pendTs, img, video: video || null, caption, cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: locName || "", aiClass, aiScore, temp, tries: 0, needsCheck: !aiClass });   // 14.80: il video (Blob) vive in IndexedDB; nel ripiego localStorage si perde e il cielo parte come foto
       if (!(await saveOutbox(box))) { alert("Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete."); return; }
       localAdd(true);
       if (navigator.onLine) setTimeout(() => flushOutbox(), 400);   // rete c'è: il controllo in coda parte subito
@@ -5766,14 +5875,14 @@ function AppInner() {
       if (!navigator.onLine || deferred) { toOutbox(); }   // senza rete, o senza verdetto: in coda con controllo prima della partenza
       else (async () => {
         // la card appare SUBITO: l'utente vede il post nascere, il viaggio avviene dietro le quinte
-        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, caption, mine: true, sending: true }, ...ps]);
+        setPosts(ps => [{ id: "tx_" + pendTs, user: user.name, ava: user.avatar, time: fmtPostTime(new Date()), ts: new Date().toISOString(), city: locName || user.city, precision, dist: 0, bearing: 0, dir, cond, temp, stars: 0, starred: false, comments: 0, views: 0, shares: 0, img, video: videoUrl, caption, mine: true, sending: true }, ...ps]);
         const clearTemp = () => setPosts(ps => ps.filter(p => p.id !== "tx_" + pendTs));
         try {
           const [file, postCity] = await Promise.all([                                   // valigia e indirizzo in parallelo
             img.startsWith("data:") ? shrinkImage(img) : (await fetch(img)).blob(),
             cityForPost(geo.lat, geo.lng),
           ]);
-          await sb.createPost({ file, caption, condition: cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
+          await sb.createPost({ file, video, caption, condition: cond, lat: gp.lat, lng: gp.lng, precision, camDeg: dir?.deg, camDir: dir?.label, city: postCity, aiClass, aiScore, temp });
           // la tempesta si autodenuncia: allerta pubblica per le api nel raggio
           if (/temporale|tempesta/i.test(cond || "")) {
             try {
@@ -5929,7 +6038,7 @@ function AppInner() {
   if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
   const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
-    const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, caption: tileCap(q) })) : [{ id: p.id, src: p.img, caption: p.caption }];
+    const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, video: q.video || null, caption: tileCap(q) })) : [{ id: p.id, src: p.img, video: p.video || null, caption: p.caption }];
     const index = Math.max(0, items.findIndex(q => q.id === p.id));
     return { photo: { src: p.img, caption: p.caption, items, index }, back: o };
   });
