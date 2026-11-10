@@ -399,12 +399,13 @@ function Bees({ me, toast, openChat, go }) {
 // ── Cieli (reel) ──────────────────────────────────────────────────────────────
 function Reels({ toast }) {
   const [rows, setRows] = useState(null), [err, setErr] = useState(null), [q, setQ] = useState(""), [edit, setEdit] = useState(null), [del, setDel] = useState(null), [award, setAward] = useState(null), [big, setBig] = useState(null);
-  const load = () => sb.adminPosts(300).then(setRows).catch(setErr);
-  useEffect(() => { load(); }, []);
+  const [pending, setPending] = useState(false);   // 14.85: vista «in attesa di verifica» (cieli nati senza verdetto, archiviati dal gate del server)
+  const load = () => (pending ? sb.adminPendingPosts(300) : sb.adminPosts(300)).then(r => { setRows(r); setErr(null); }).catch(setErr);
+  useEffect(() => { setRows(null); load(); }, [pending]);
   const list = useMemo(() => (rows || []).filter(p => !q || ((p.profiles?.name || "") + " " + (p.city || "") + " " + (p.caption || "") + " " + (p.condition || "")).toLowerCase().includes(q.toLowerCase())), [rows, q]);
   const act = async (fn, msg) => { try { await fn(); toast(msg); load(); } catch (e) { alert("Errore: " + (e?.message || e)); } };
   return <>
-    <H title="Cieli" sub={rows ? `Ultimi ${rows.length} cieli pubblicati (anche archiviati)` : "Carico…"} right={<input placeholder="Cerca ape, città, testo…" value={q} onChange={e => setQ(e.target.value)} style={{ width: 260 }} />} />
+    <H title="Cieli" sub={rows ? (pending ? `${rows.length} cieli in attesa di verifica (nati senza verdetto degli occhi AI)` : `Ultimi ${rows.length} cieli pubblicati (anche archiviati)`) : "Carico…"} right={<div style={{ display: "flex", gap: 8, alignItems: "center" }}><button className={"btn s" + (pending ? "" : " p")} onClick={() => setPending(false)}>Tutti</button><button className={"btn s" + (pending ? " p" : "")} onClick={() => setPending(true)}>In attesa di verifica</button><input placeholder="Cerca ape, città, testo…" value={q} onChange={e => setQ(e.target.value)} style={{ width: 220 }} /></div>} />
     <Err e={err} />
     <div className="card" style={{ overflow: "auto", maxHeight: "calc(100vh - 170px)" }}><table>
       <thead><tr><th></th><th>Ape</th><th>Cielo</th><th>Dove</th><th>Quando</th><th><Icon n="star" size={14} /></th><th><Icon n="eye" size={14} /></th><th><Icon n="comment" size={14} /></th><th>AI</th><th></th></tr></thead>
@@ -419,6 +420,7 @@ function Reels({ toast }) {
         <td style={{ whiteSpace: "nowrap" }}>
           <button className="btn s" onClick={() => setEdit({ id: p.id, caption: p.caption || "", condition: p.condition || CONDITIONS[0], city: p.city || "", img: p.image_url })}>Correggi</button>{" "}
           <button className="btn s" onClick={() => setAward({ id: p.id, message: "" })}>Premia</button>{" "}
+          {sb.adminSetArchived && (p.archived_at ? <button className="btn s" title="Torna visibile nel feed e nel radar" onClick={() => act(() => sb.adminSetArchived(p.id, false), "Cielo riattivato")}>Riattiva</button> : <button className="btn s" title="Esce da feed e radar, resta nello storico dell'ape" onClick={() => act(() => sb.adminSetArchived(p.id, true), "Cielo archiviato")}>Archivia</button>)}{" "}
           <button className="btn s d" onClick={() => setDel(p)}>Elimina</button>
         </td>
       </tr>)}</tbody>

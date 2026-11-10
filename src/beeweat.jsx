@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.84";
+const APP_VERSION = "14.85";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -271,6 +271,8 @@ const haversine = (a, b) => {
 };
 // 14.83: un evento è vivo finché non è passata la sua scadenza; una scadenza scritta come sola data vale fino alla fine di quel giorno (ora locale)
 const eventAlive = e => { if (!e || !e.ends) return true; const end = /^\d{4}-\d{2}-\d{2}$/.test(e.ends) ? new Date(e.ends + "T23:59:59") : new Date(e.ends); return isNaN(end) ? true : end.getTime() >= Date.now(); };
+// 14.85: i seguiti sono {uid, name}: si confronta per id quando c'è, per nome solo come ripiego (dati senza id)
+const isFol = (list, who) => { if (!list || !who) return false; const uid = who.uid || who.id || null, name = who.user || who.name || null; return list.some(f => (uid && f.uid === uid) || (!uid && name && f.name === name) || (!f.uid && name && f.name === name)); };
 const bearingDeg = (a, b) => {
   const R = Math.PI / 180;
   const y = Math.sin((b.lng - a.lng) * R) * Math.cos(b.lat * R);
@@ -1282,6 +1284,41 @@ function ReportModal({ post, onSubmit, onClose, canBlock }) {
 // ─── POST CARD ────────────────────────────────────────────────────────────────
 // ── Il pre-invito: spiega con calore PERCHÉ serve un permesso, prima della finestra fredda del sistema ──
 // 14.74: «Elimina account» — spiega cosa sparisce, chiede di scrivere ELIMINA, poi cancella tutto sul server
+// 14.85: foglio di immissione al posto di window.prompt (che nelle app native può non comparire): titolo, testo, uno o più campi, Annulla/Conferma
+function InputSheet({ title, text, fields, confirmLabel = "Conferma", danger, onConfirm, onClose }) {
+  const dlg = useDialog(onClose, title);
+  const [vals, setVals] = useState(() => Object.fromEntries((fields || []).map(f => [f.k, f.value ?? ""])));
+  const [err, setErr] = useState(null);
+  const firstRef = useRef(null);
+  useEffect(() => { const t = setTimeout(() => { try { firstRef.current?.focus(); } catch (_) {} }, 80); return () => clearTimeout(t); }, []);
+  const submit = () => {
+    for (const f of fields || []) { const v = String(vals[f.k] ?? "").trim(); if (f.required && !v) { setErr(f.requiredMsg || "Campo obbligatorio."); return; } if (f.min && v.length < f.min) { setErr(f.minMsg || `Almeno ${f.min} caratteri.`); return; } }
+    onConfirm(Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])));
+  };
+  const inputStyle = { width: "100%", background: NIGHT3, border: `1px solid ${LINE}`, borderRadius: 12, padding: "12px 14px", fontSize: 15, color: TXT, outline: "none", fontFamily: "'Inter',sans-serif", boxSizing: "border-box" };
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(8,14,24,.6)", display: "flex", alignItems: "flex-end", zIndex: 70 }}>
+      <div ref={dlg} onClick={e => e.stopPropagation()} className="fade-up" style={{ width: "100%", background: CARD, borderRadius: "20px 20px 0 0", padding: "20px 16px calc(20px + env(safe-area-inset-bottom, 0px))" }}>
+        <div style={{ fontWeight: 700, fontSize: 18, color: TXT, marginBottom: 4 }}>{title}</div>
+        {text && <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.45, marginBottom: 14, whiteSpace: "pre-line" }}>{text}</div>}
+        {(fields || []).map((f, i) => (
+          <label key={f.k} style={{ display: "block", marginBottom: 12 }}>
+            {f.label && <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 6 }}>{f.label}</span>}
+            {f.type === "textarea"
+              ? <textarea ref={i === 0 ? firstRef : undefined} rows={f.rows || 3} value={vals[f.k]} placeholder={f.placeholder || ""} onChange={e => { setVals(v => ({ ...v, [f.k]: e.target.value })); setErr(null); }} onFocus={e => keepInView(e.target)} style={{ ...inputStyle, resize: "none", lineHeight: 1.45 }} />
+              : <input ref={i === 0 ? firstRef : undefined} type={f.type || "text"} inputMode={f.inputMode} value={vals[f.k]} placeholder={f.placeholder || ""} autoComplete={f.type === "password" ? "new-password" : "off"} onChange={e => { setVals(v => ({ ...v, [f.k]: e.target.value })); setErr(null); }} onFocus={e => keepInView(e.target)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submit(); } }} style={inputStyle} />}
+            {f.hint && <span data-notr={f.hintNotr ? "1" : undefined} style={{ display: "block", fontSize: 12, color: TXT2, marginTop: 5, lineHeight: 1.4 }}>{f.hint}</span>}
+          </label>
+        ))}
+        {err && <div role="alert" style={{ fontSize: 13, color: "#FFB4B6", marginBottom: 10 }}>{err}</div>}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: "none", color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Annulla</button>
+          <button onClick={submit} style={{ flex: 1.4, padding: 13, borderRadius: 12, border: "none", background: danger ? RED : HONEY, color: danger ? "#fff" : INK, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function DeleteAccountSheet({ user, onConfirm, onClose }) {
   const dlg = useDialog(onClose, "Elimina account");
   const [txt, setTxt] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState(null);
@@ -1626,7 +1663,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
       <div style={{ position: "absolute", right: 10, bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>{/* 14.40: sopra la barra */}
         <button onClick={() => onOpenUser && !post.mine && onOpenUser(post)} aria-label={post.mine ? "Il tuo cielo" : `Profilo di ${post.user}`} style={{ position: "relative", width: 52, height: 52, borderRadius: "50%", padding: 2.5, background: `linear-gradient(135deg, ${HONEY}, #FF7A59)`, border: "none", cursor: onOpenUser && !post.mine ? "pointer" : "default", marginBottom: 6 }}>
           <span style={{ display: "block", width: "100%", height: "100%", borderRadius: "50%", border: `2.5px solid ${NIGHT}`, overflow: "hidden", background: NIGHT3 }}><UserAvatar src={post.ava} size={42} ring={false} /></span>
-          {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow(post.user); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguito" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -12, transform: "translateX(-50%)", width: 28, height: 28, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={14} color={INK} sw={3} /></span>}
+          {onFollow && !post.mine && <span onClick={e => { e.stopPropagation(); onFollow({ uid: post.uid, name: post.user }); }} role="button" aria-label={isFollowing ? "Smetti di seguire" : "Segui"} title={isFollowing ? "Seguito" : "Segui"} style={{ position: "absolute", left: "50%", bottom: -12, transform: "translateX(-50%)", width: 28, height: 28, borderRadius: "50%", background: isFollowing ? "#4ADE80" : HONEY, border: `2px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={isFollowing ? "check" : "plus"} size={14} color={INK} sw={3} /></span>}
         </button>
         <Rail onClick={post.mine ? undefined : like} title={post.mine ? "Le stelle ricevute" : post.starred ? "Togli la stella" : "Metti una stella"} pressed={post.mine ? undefined : !!post.starred} label={post.stars} style={post.mine ? {} : { background: post.starred ? HONEY : "rgba(0,0,0,.35)", border: post.starred ? "none" : "1px solid rgba(255,255,255,.3)", boxShadow: post.starred ? `0 8px 22px ${HONEY}66` : "none" }}>
           <span className={anim ? "star-pop" : ""} style={{ display: "flex" }}><NavIcon name="starSolid" size={22} color={post.starred ? INK : "#fff"} /></span>
@@ -1758,7 +1795,7 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
   const [slow, setSlow] = useState(false);
   useEffect(() => { if (!loading) { setSlow(false); return; } const t = setTimeout(() => setSlow(true), 150); return () => clearTimeout(t); }, [loading]);
   const [rg, setRg] = useState(false);
-  const visible = useMemo(() => (worldOn || followedOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || p.followed || (following || []).includes(p.user)), [posts, worldOn, km, focusId, followedOn, following]);   // 14.48: Seguiti senza raggio   // faro e premiata entrano anche fuori raggio
+  const visible = useMemo(() => (worldOn || followedOn ? posts : posts.filter(p => p.dist <= km || p.id === focusId || p.awarded)).filter(p => !followedOn || p.mine || p.followed || isFol(following, p)), [posts, worldOn, km, focusId, followedOn, following]);   // 14.48: Seguiti senza raggio   // faro e premiata entrano anche fuori raggio
   // 14.44: i callback passano da un ref, così le schede restano memoizzate e ricevono sempre la funzione più recente
   const H = useRef({}); H.current = { onStar, onChat, onOpenUser, onFollow, onReport, onView, onOpenPhoto, onDelete, onEdit, onRetry };
   const S = useMemo(() => Object.fromEntries(Object.keys(H.current).map(k => [k, (...a) => H.current[k] && H.current[k](...a)])), []);
@@ -1824,7 +1861,7 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
     <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
       {pills}
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
-        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onRetry={S.onRetry} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={!!following?.includes(p.user)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
+        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onRetry={S.onRetry} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={isFol(following, p)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
       </div>
       {menu}
     </div>
@@ -2483,7 +2520,7 @@ function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid,
           {!inf && <button onClick={() => setInf(true)} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
         </div>
       )}
-      {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || e.user === userName || (myUid && e.uid === myUid))} onEdit={onEditEnds} /> : (
+      {visible.map(e => view === "social" ? <SocialEventCard key={e.id} e={e} onOpen={onOpen} focused={e.id === focusId} canEdit={!!(isAdmin || (e.uid ? (myUid && e.uid === myUid) : e.user === userName))} onEdit={onEditEnds} /> : (
         <div key={e.id} id={"event-" + e.id} className="fade-up" onClick={() => onOpen(e)} style={{ background: NIGHT2, borderRadius: 22, padding: 12, marginBottom: 10, border: `1px solid ${e.id === focusId ? "rgba(79,139,255,.7)" : LINE}`, boxShadow: e.id === focusId ? "0 0 0 3px rgba(79,139,255,.18), 0 14px 34px rgba(79,139,255,.15)" : "none", cursor: "pointer", transition: "box-shadow .3s" }}>{/* 14.38: card meteo */}
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ width: 54, alignSelf: "stretch", minHeight: 72, borderRadius: 16, background: "rgba(36,87,214,.22)", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, flexShrink: 0, border: `1px solid ${sevColor[e.sev] ? sevColor[e.sev] + "66" : "rgba(79,139,255,.3)"}` }}>
@@ -2504,7 +2541,7 @@ function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid,
             <NavIcon name="bee" size={14} color={HONEY2} sw={1.8} />
             <span style={{ flex: 1, fontSize: 12, color: TXT2 }}>segnalato da <b style={{ color: TXT }}>{e.user}</b></span>
             <ShareBtn e={e} />
-            {(isAdmin || e.user === userName || (myUid && e.uid === myUid)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: MIST, border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={TXT} sw={1.9} /></button>}
+            {(isAdmin || (e.uid ? (myUid && e.uid === myUid) : e.user === userName)) && <button onClick={ev => { ev.stopPropagation(); onEditEnds(e); }} title="Modifica evento" style={{ background: MIST, border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex" }}><NavIcon name="edit" size={16} color={TXT} sw={1.9} /></button>}
           </div>
         </div>
       ))}
@@ -2530,11 +2567,11 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
     : nearShown)
     .slice().sort((a, b) => inf ? a.name.localeCompare(b.name, "it") : a.dist - b.dist);
   const fmt = d => (d % 1 === 0 ? String(d) : String(d).replace(".", ",")) + " km";
-  const favList = (people || []).filter(p => (following || []).includes(p.name));
+  const favList = (people || []).filter(p => isFol(following, p));
   const followedPlaces = (placeFavs || []).map(nm =>
     (nearPlaces || []).find(x => x.name === nm) || (worldPlaces || []).find(x => x.name === nm) || { name: nm, dist: null });
   const FavRow = ({ p }) => {
-    const on = (following || []).includes(p.name);
+    const on = isFol(following, p);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
         <div onClick={() => onOpenUser && onOpenUser(p)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
@@ -2544,7 +2581,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> <span data-notr="1">{p.city}</span></div>
           </div>
         </div>
-        <button onClick={() => onFollowUser && onFollowUser(p.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
+        <button onClick={() => onFollowUser && onFollowUser(p)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
       </div>
     );
   };
@@ -2650,14 +2687,14 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
               {!inf && onToggleWorld && <button onClick={onToggleWorld} style={{ height: 44, padding: "0 18px", borderRadius: 22, border: "none", background: HBLUE, color: "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Mostra tutto il mondo</button>}
             </div>
           </div>
-        : <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>{list.map(c => { const st = beeStars(c.postsCount); const on = (following || []).includes(c.name); return (
+        : <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>{list.map(c => { const st = beeStars(c.postsCount); const on = isFol(following, c); return (
           <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 20, background: NIGHT2, cursor: "pointer", border: `1px solid ${c.me ? HONEY + "88" : LINE}` }}>{/* 14.38 */}
             <span style={{ borderRadius: "50%", padding: 2, background: on ? `linear-gradient(135deg, ${HONEY}, #FF7A59)` : "transparent" }}><UserAvatar src={c.ava} size={46} stars={0} ring={!on} /></span>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span data-notr="1" style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span data-notr="1">{c.name}</span></span>{st > 0 && <span style={{ fontSize: 12, color: HONEY2, letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
             </div>
-            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 22, border: on ? `1px solid ${LINE}` : "none", background: on ? "transparent" : HONEY, color: on ? TXT : INK, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
+            {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c); }} aria-pressed={isFol(following, c)} style={{ height: 44, padding: "0 14px", borderRadius: 22, border: on ? `1px solid ${LINE}` : "none", background: on ? "transparent" : HONEY, color: on ? TXT : INK, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
             {!c.me && <button onClick={e => { e.stopPropagation(); onChat(c); }} title="Chat" aria-label={`Scrivi a ${c.name}`} style={{ width: 44, height: 44, borderRadius: 22, background: MIST, border: `1px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="comment" size={18} color={TXT} sw={2} /></button>}
             {c.me && <NavIcon name="chevron" size={18} color={TXT2} sw={2.2} />}
           </div>
@@ -3448,7 +3485,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
                     <div data-notr="1" style={{ fontWeight: 600, fontSize: 14, color: TXT }}><span data-notr="1">{c.name}</span></div>
                     {c.city && <div data-notr="1" style={{ fontSize: 12, color: TXT2 }}><span data-notr="1">{c.city}</span></div>}
                   </div>
-                  {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: following?.includes(c.name) ? `1px solid ${LINE}` : "none", background: following?.includes(c.name) ? "transparent" : HONEY, color: following?.includes(c.name) ? TXT : INK }}>{following?.includes(c.name) ? "Seguito" : "Segui"}</button>}
+                  {onFollow && <button onClick={() => onFollow(c)} style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: isFol(following, c) ? `1px solid ${LINE}` : "none", background: isFol(following, c) ? "transparent" : HONEY, color: isFol(following, c) ? TXT : INK }}>{isFol(following, c) ? "Seguito" : "Segui"}</button>}
                 </div>
               ))}
           </div>
@@ -3522,7 +3559,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
   const mine = posts.filter(p => (profile.uid && p.uid) ? p.uid === profile.uid : p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));   // 14.83: per id, gli omonimi non si mescolano
   const nPosts = profile.postsCount ?? mine.length;
   const rank = beeStars(nPosts);
-  const myEvents = (events || []).filter(e => e.user === profile.name);
+  const myEvents = (events || []).filter(e => (profile.uid && e.uid) ? e.uid === profile.uid : e.user === profile.name);   // 14.85: per id
   const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
   const cover = mine[0]?.img || null;
   return (
@@ -3561,7 +3598,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
         ) : (
         <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
           <UserBtn onClick={() => onChat(profile)} honey><NavIcon name="comment" size={16} color={INK} sw={2.2} />Scrivi</UserBtn>
-          <UserBtn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</UserBtn>
+          <UserBtn onClick={() => onFollow(profile)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</UserBtn>
           {onBlock && profile.uid && <button onClick={() => { if (confirm(`Bloccare ${profile.name}?\n\nNon vedrai più i suoi cieli, commenti e messaggi, e lei non potrà scriverti. Puoi sbloccarla quando vuoi da questa pagina.`)) onBlock(profile, true); }} aria-label={`Blocca ${profile.name}`} title="Blocca" style={{ width: 44, height: 44, borderRadius: 14, border: `1px solid ${RED}66`, background: NIGHT3, color: "#FFB4B6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="block" size={18} color="#FFB4B6" sw={2.2} /></button>}{/* 14.81 */}
         </div>
         )}
@@ -4019,7 +4056,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
         <div style={{ padding: "8px 14px 0" }}>
           {placePosts.length === 0
             ? <div style={{ background: CARD, borderRadius: 12, padding: "26px 20px", textAlign: "center", color: TXT2, fontSize: 13.5, border: `1px solid ${LINE}` }}>Ancora nessun post da {place.name}. Sii il primo a condividere il meteo!</div>
-            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={following?.includes(p.user)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
+            : placePosts.map(p => <PostCard key={p.id} post={p} onStar={onStar} onChat={onPostChat} onOpenUser={onOpenUser} isFollowing={isFol(following, p)} onFollow={onFollow} onReport={onReport} reported={reported?.includes(p.id)} canDelete={p.mine || isAdmin} onEdit={onEdit} onOpenPhoto={onOpenPhoto} onView={onView} />)}
         </div>
 
         {/* utenti collegati al luogo */}
@@ -4656,6 +4693,9 @@ function AppInner() {
   const [reported, setReported] = useState([]);
   const [reportTarget, setReportTarget] = useState(null);
   const [legalDoc, setLegalDoc] = useState(null);   // 14.81: "privacy" | "terms" aperti dalle Impostazioni
+  const [sheet, setSheet] = useState(null);           // 14.85: foglio di immissione (al posto di window.prompt)
+  const ask = cfg => new Promise(res => setSheet({ ...cfg, res }));   // → valori, oppure null se annullato
+  const sheetEl = sheet ? <InputSheet title={sheet.title} text={sheet.text} fields={sheet.fields} confirmLabel={sheet.confirmLabel} danger={sheet.danger} onConfirm={v => { const r = sheet.res; setSheet(null); r(v); }} onClose={() => { const r = sheet.res; setSheet(null); r(null); }} /> : null;
   const reportPost = (post, reason, alsoBlock) => { setReported(r => r.includes(post.id) ? r : [...r, post.id]); if (sb?.isConfigured && sb.createReport && typeof post.id === "string" && !/^(ob_|tx_|d\d)/.test(post.id)) sb.createReport(post.id, reason).catch(e => console.warn("segnalazione:", e?.message || e)); if (alsoBlock && post.uid) toggleBlock({ uid: post.uid, name: post.user }, true); };   // 14.66 · 14.81: blocca anche
   // ── 14.81: «Blocca utente» — le api che ho bloccato (id); spariscono cieli, commenti, messaggi; nessuno dei due scrive all'altro (guardia anche sul server)
   const [blocked, setBlocked] = useState(() => new Set());
@@ -4669,7 +4709,7 @@ function AppInner() {
   const toggleBlock = (who, on) => {
     const uid = who?.uid || who?.id; if (!uid) { alert("Utente non identificabile."); return; }
     setBlocked(b => { const n = new Set(b); on ? n.add(uid) : n.delete(uid); return n; });
-    if (on) { setFollowing(f => f.filter(n => n !== who.name)); setFollowingIds(ids => ids.filter(x => x !== uid)); setFollowerIds(ids => ids.filter(x => x !== uid)); setThreads(th => { const n = { ...th }; delete n[uid]; return n; }); setAlerts(a => a.filter(n => n.from_user_id !== uid)); }
+    if (on) { setFollowing(f => f.filter(x => x.uid !== uid && x.name !== who.name)); setFollowingIds(ids => ids.filter(x => x !== uid)); setFollowerIds(ids => ids.filter(x => x !== uid)); setThreads(th => { const n = { ...th }; delete n[uid]; return n; }); setAlerts(a => a.filter(n => n.from_user_id !== uid)); }
     if (sb?.isConfigured && sb.setBlock) sb.setBlock(uid, on).then(() => { if (on) setNotifToast({ kind: "block", text: `${who.name || "L'ape"} è stata bloccata. La sblocchi dal suo profilo quando vuoi.` }); setSocialTick(t => t + 1); }).catch(e => { setBlocked(b => { const n = new Set(b); on ? n.delete(uid) : n.add(uid); return n; }); failAlert(on ? "Blocco non riuscito" : "Sblocco non riuscito", e); });
   };
   const notBlocked = list => (list || []).filter(p => !p?.uid || !blocked.has(p.uid));
@@ -4681,7 +4721,7 @@ function AppInner() {
     (async () => { try {
       const ids = await sb.getMyFollows();
       setFollowingIds(ids);
-      setFollowing(contacts.filter(c => ids.includes(c.id)).map(c => c.name));
+      setFollowing(contacts.filter(c => ids.includes(c.id)).map(c => ({ uid: c.id, name: c.name })));   // 14.85: per id
       setFollowerIds(await sb.getMyFollowers());
     } catch (e) { console.warn("follow:", e?.message || e); } })();
   }, [sb, user, contacts, socialTick]);
@@ -4697,15 +4737,18 @@ function AppInner() {
       })));
     } catch (e) { console.warn("gruppi:", e?.message || e); } })();
   }, [sb, user, socialTick]);
-  const toggleFollow = name => {
-    const on = !following.includes(name);
-    setFollowing(f => on ? [...f, name] : f.filter(x => x !== name));
-    const c = contacts.find(x => x.name === name);
-    if (sb?.isConfigured && c) {
-      setFollowingIds(ids => on ? [...ids, c.id] : ids.filter(i => i !== c.id));
-      sb.setFollow(c.id, on).catch(e => {
-        setFollowing(f => on ? f.filter(x => x !== name) : [...f, name]);
-        setFollowingIds(ids => on ? ids.filter(i => i !== c.id) : [...ids, c.id]);
+  const toggleFollow = who => {   // 14.85: who = { uid, name } (o un nome, per i dati vecchi): si segue l'identità, non il nome
+    const w = typeof who === "string" ? { uid: (contacts.find(x => x.name === who) || {}).id || null, name: who } : { uid: who.uid || who.id || null, name: who.name || who.user || "" };
+    if (!w.uid) { const c = contacts.find(x => x.name === w.name); if (c) w.uid = c.id; }
+    if (w.uid && blocked.has(w.uid)) { alert("Hai bloccato questa ape: sbloccala dal suo profilo prima di seguirla."); return; }
+    const on = !isFol(following, w);
+    const same = x => (w.uid && x.uid === w.uid) || (!w.uid && x.name === w.name);
+    setFollowing(f => on ? [...f.filter(x => !same(x)), w] : f.filter(x => !same(x)));
+    if (sb?.isConfigured && w.uid) {
+      setFollowingIds(ids => on ? [...new Set([...ids, w.uid])] : ids.filter(i => i !== w.uid));
+      sb.setFollow(w.uid, on).catch(e => {
+        setFollowing(f => on ? f.filter(x => !same(x)) : [...f, w]);
+        setFollowingIds(ids => on ? ids.filter(i => i !== w.uid) : [...ids, w.uid]);
         alert("Segui non salvato: " + (e?.message || e));
       });
     }
@@ -5214,12 +5257,16 @@ function AppInner() {
   useEffect(() => {
     if (!sb?.isConfigured) return;
     const { data: sub } = sb.supabase.auth.onAuthStateChange(ev => {
-      if (ev === "PASSWORD_RECOVERY") {
-        const p = window.prompt("Link di reimpostazione riconosciuto 🐝\nScegli la NUOVA password (minimo 6 caratteri):");
-        if (p && p.length >= 6) sb.supabase.auth.updateUser({ password: p })
-          .then(() => alert("Password aggiornata ✓ D'ora in poi accedi con quella nuova."))
-          .catch(e => failAlert("Aggiornamento non riuscito", e));
-        else if (p !== null) alert("Password troppo corta: riapri il link e riprova.");
+      if (ev === "PASSWORD_RECOVERY") {   // 14.85: foglio con conferma, 8 caratteri come alla registrazione
+        (async () => {
+          const v = await ask({ title: "Nuova password", text: "Link di reimpostazione riconosciuto 🐝 Scegli la nuova password.", confirmLabel: "Salva la password",
+            fields: [{ k: "p1", label: "Nuova password", type: "password", min: 8, minMsg: "La password deve avere almeno 8 caratteri." }, { k: "p2", label: "Ripeti la password", type: "password" }] });
+          if (!v) return;
+          if (v.p1 !== v.p2) { alert("Le due password non coincidono: riapri il link e riprova."); return; }
+          sb.supabase.auth.updateUser({ password: v.p1 })
+            .then(() => alert("Password aggiornata ✓ D'ora in poi accedi con quella nuova."))
+            .catch(e => failAlert("Aggiornamento non riuscito", e));
+        })();
       }
     });
     return () => sub?.subscription?.unsubscribe();
@@ -5310,17 +5357,15 @@ function AppInner() {
   }, [overlayOpen, tab]);
   const banUser = profile => {
     if (!profile?.uid) { alert("Utente non identificabile."); return; }
-    const d = window.prompt(`Ban per "${profile.name}"\nGiorni di sospensione (0 = rimuovi il ban):`, "10");
-    if (d === null) return;
-    const days = Math.max(0, parseInt(d, 10) || 0);
-    if (days === 0) {
-      sb.banUser(profile.uid, null, null).then(() => alert(`${profile.name} è stato sbloccato.`)).catch(e => alert("Errore: " + (e?.message || e)));
-      return;
-    }
-    const reason = window.prompt("Messaggio per l'utente:", `Sei stato bannato per ${days} giorni per condotta scorretta.`);
-    if (reason === null) return;
-    const until = new Date(Date.now() + days * 86400000).toISOString();
-    sb.banUser(profile.uid, until, reason).then(() => alert(`${profile.name} è stato bannato per ${days} giorni.`)).catch(e => alert("Errore: " + (e?.message || e)));
+    (async () => {   // 14.85: un foglio solo, giorni + messaggio
+      const v = await ask({ title: `Sospendi ${profile.name}`, text: "0 giorni toglie la sospensione.", confirmLabel: "Sospendi", danger: true,
+        fields: [{ k: "days", label: "Giorni di sospensione", type: "number", inputMode: "numeric", value: "10" }, { k: "reason", label: "Messaggio per l'ape", type: "textarea", value: "Sei stato sospeso per condotta scorretta." }] });
+      if (!v) return;
+      const days = Math.max(0, parseInt(v.days, 10) || 0);
+      if (days === 0) { sb.banUser(profile.uid, null, null).then(() => alert(`${profile.name} è stato riattivato.`)).catch(e => failAlert("Operazione non riuscita", e)); return; }
+      const until = new Date(Date.now() + days * 86400000).toISOString();
+      sb.banUser(profile.uid, until, v.reason || null).then(() => alert(`${profile.name} è stato sospeso per ${days} giorni.`)).catch(e => failAlert("Operazione non riuscita", e));
+    })();
   };
   // Post a lungo raggio (profili altrui e luoghi fuori dal feed)
   const [extraPosts, setExtraPosts] = useState([]);
@@ -6115,10 +6160,9 @@ function AppInner() {
   if (overlay === "archive") return wrap(<ArchiveView posts={archive.posts} loading={archive.loading} who={archive.who} onBack={() => setOverlay(archive.back || "profile")} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} onOpenPhoto={openPhoto} onView={onView} />);
   if (overlay === "profile") return wrap(<ProfileView km={km} setKm={setKm} user={user} posts={withAward(allPosts)} postsCount={myPostCount} onlineCount={onlineCount} geoPrecise={true} onToggleGeo={null} onArchive={sb?.isConfigured && sb.getArchivedPosts ? openArchive : undefined} onDeleteAccount={sb?.isConfigured ? () => setDelAsk(true) : undefined} onLogout={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); try { localStorage.removeItem("bw_profile"); } catch (_) {} setUser(null); setTab("feed"); setOverlay(null); }} onBack={() => setOverlay(null)} onAvatar={saveAvatar} onOpenNotif={() => setOverlay("notif")} notif={notif} onDelete={deletePost} onEdit={p => setEditTarget(p)} onOpenPhoto={openPhoto}
     onRename={async () => {
-      const v = window.prompt("Il tuo nome su Beeweat:", user.name);
-      if (v === null) return;
-      const name = v.trim();
-      if (name.length < 2) { alert("Il nome è troppo corto."); return; }
+      const r = await ask({ title: "Il tuo nome", text: "È il nome che le altre api vedono sui tuoi cieli.", confirmLabel: "Salva", fields: [{ k: "name", label: "Nome su Beeweat", value: user.name, min: 2, minMsg: "Il nome è troppo corto." }] });   // 14.85
+      if (!r) return;
+      const name = r.name;
       const old = user.name;
       setUser(u => u ? { ...u, name } : u);
       setPosts(ps => ps.map(p => p.mine ? { ...p, user: name } : p));
@@ -6128,10 +6172,9 @@ function AppInner() {
       }
     }}
     onRenameCity={async () => {
-      const v = window.prompt("La tua città su Beeweat:", user.city || "");
-      if (v === null) return;
-      const city = v.trim();
-      if (!city) { alert("La città non può essere vuota."); return; }
+      const r = await ask({ title: "La tua città", confirmLabel: "Salva", fields: [{ k: "city", label: "Città", value: user.city || "", required: true, requiredMsg: "La città non può essere vuota." }] });   // 14.85
+      if (!r) return;
+      const city = r.city;
       try { localStorage.setItem("bw_city_manual", "1"); } catch (_) {}
       setUser(u => u ? { ...u, city } : u);
       if (sb?.isConfigured && myUid) {
@@ -6148,9 +6191,9 @@ function AppInner() {
       try { await sb.setReadReceipts(on); } catch (e) { failAlert("Impostazione non salvata", e); }
     } : undefined}
     onBroadcast={async () => {
-      const text = window.prompt("📣 Messaggio a TUTTE le api dell'alveare:");
-      if (text === null || !text.trim()) return;
-      if (!window.confirm(`Inviare a tutti gli utenti Beeweat?\n\n«${text.trim()}»`)) return;
+      const r = await ask({ title: "Megafono", text: "Il messaggio arriva a TUTTE le api dell'alveare, come avviso di servizio.", confirmLabel: "Invia a tutti", danger: true, fields: [{ k: "text", label: "Messaggio", type: "textarea", rows: 4, required: true }] });   // 14.85
+      if (!r) return;
+      const text = r.text;
       try {
         const n = await sb.adminBroadcast(text.trim());
         alert(`📣 Messaggio consegnato a ${n} api dell'alveare ✓`);
@@ -6192,12 +6235,13 @@ function AppInner() {
   if (overlay === "help") return wrap(<HelpView onClose={() => setOverlay("notif")} />);
   if (overlay === "intro") return wrap(<IntroView onClose={() => setOverlay("notif")} />);
   if (overlay === "support") return wrap(<SupportView admins={admins} onClose={() => setOverlay("notif")} onPick={a => openDirectChat({ id: a.id, name: a.name, ava: a.avatar_url || null, city: a.city || "" })} />);
-  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} isBlocked={!!overlay.user.uid && blocked.has(overlay.user.uid)} onBlock={toggleBlock} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={following.includes(overlay.user.name)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
+  if (overlay?.user) return wrap(<UserProfileView profile={overlay.user} posts={withAward(allPosts)} events={events} isAdmin={isAdmin} onBan={banUser} isBlocked={!!overlay.user.uid && blocked.has(overlay.user.uid)} onBlock={toggleBlock} onOpenEvent={e => setOverlay({ eventMap: e, back: { user: overlay.user, back: overlay.back } })} isFollowing={isFol(following, overlay.user)} onFollow={toggleFollow} onBack={() => setOverlay(overlay.back || null)} onChat={u => { if (u.uid) { openDirectChat({ id: u.uid, name: u.name, ava: u.ava }); setOverlay(o => ({ ...o, back: { user: overlay.user, back: overlay.back } })); } else setOverlay({ chat: { id: "u_" + u.name, name: u.name, ava: u.ava }, back: { user: overlay.user, back: overlay.back } }); }} onPostChat={p => openChatFromPost(p, { user: overlay.user, back: overlay.back })} onEdit={p => setEditTarget(p)}
     onOpenPhoto={openPhoto} onStar={onStar} onView={onView} onAllSkies={sb?.isConfigured && overlay.user.uid ? () => openArchive(overlay.user.uid, { user: overlay.user, back: overlay.back }, overlay.user.name) : undefined}
     onAdminEdit={async u => {
       if (!u.uid) { alert("Identificativo utente mancante."); return; }
-      const name = window.prompt("Nome dell'ape:", u.name); if (name === null) return;
-      const city = window.prompt("Città dell'ape:", u.city || ""); if (city === null) return;
+      const r = await ask({ title: `Correggi ${u.name}`, confirmLabel: "Salva", fields: [{ k: "name", label: "Nome dell'ape", value: u.name, min: 2 }, { k: "city", label: "Città", value: u.city || "" }] });   // 14.85
+      if (!r) return;
+      const name = r.name, city = r.city;
       try {
         await sb.adminUpdateProfile(u.uid, { name: name.trim() || u.name, city: city.trim() });
         alert("Profilo aggiornato ✓"); setSocialTick(t => t + 1);
@@ -6269,6 +6313,7 @@ function AppInner() {
   function wrap(content) {
     return <Frame>{content}
       {reportTarget && <ReportModal post={reportTarget} canBlock={!!reportTarget.uid && !reportTarget.mine} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {sheetEl}
       {legalDoc === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Come Beeweat tratta i tuoi dati personali." sections={PRIVACY} onClose={() => setLegalDoc(null)} />}{/* 14.81: leggibili anche dopo l'accesso */}
       {legalDoc === "terms" && <LegalDoc title="Termini di Servizio" intro="Le regole che valgono per tutte le api dell'alveare." sections={termsFor()} onClose={() => setLegalDoc(null)} />}
       {delAsk && user && <DeleteAccountSheet user={user} onConfirm={deleteMyAccount} onClose={() => setDelAsk(false)} />}
@@ -6311,8 +6356,9 @@ function AppInner() {
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen setKm={setKm} onOpenRadar={() => setTab("vicini")} onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
-            const name = window.prompt("Nome del gruppo (lascia VUOTO per eliminarlo):", g.name);
-            if (name === null) return;
+            const r = await ask({ title: "Il gruppo", text: "Lascia il nome vuoto per eliminare il gruppo per tutti i membri.", confirmLabel: "Salva", fields: [{ k: "name", label: "Nome del gruppo", value: g.name }] });   // 14.85
+            if (!r) return;
+            const name = r.name;
             if (name.trim() === "") {
               if (!window.confirm(`Eliminare il gruppo "${g.name}" per tutti i membri?`)) return;
               try { await sb.deleteGroup(g.id); setSocialTick(t => t + 1); } catch (e) { failAlert("Eliminazione non riuscita", e); }
@@ -6328,6 +6374,7 @@ function AppInner() {
       {overlay === "addContact" && <AddContactModal people={[]} contacts={contacts} onAdd={addContact} onClose={() => setOverlay(null)} />}
       {overlay === "createGroup" && <CreateGroupModal contacts={contacts} onCreate={createGroup} onClose={() => setOverlay(null)} />}
       {reportTarget && <ReportModal post={reportTarget} canBlock={!!reportTarget.uid && !reportTarget.mine} onSubmit={reportPost} onClose={() => setReportTarget(null)} />}
+      {sheetEl}
       {legalDoc === "privacy" && <LegalDoc title="Informativa sulla Privacy" intro="Come Beeweat tratta i tuoi dati personali." sections={PRIVACY} onClose={() => setLegalDoc(null)} />}{/* 14.81: leggibili anche dopo l'accesso */}
       {legalDoc === "terms" && <LegalDoc title="Termini di Servizio" intro="Le regole che valgono per tutte le api dell'alveare." sections={termsFor()} onClose={() => setLegalDoc(null)} />}
       {overlay === "addEvent" && <AddEventModal user={user} geo={geo} locName={locName} initialKind={evView} onAdd={addEvent} onClose={() => setOverlay(null)} onGeocode={cloudGeocode} />}

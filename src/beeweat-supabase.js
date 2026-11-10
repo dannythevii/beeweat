@@ -898,6 +898,16 @@ export async function adminPosts(limit = 200) {
   if (error) throw error;
   return attachProfiles(await enrichCounts(data || []));
 }
+// 14.85: cieli nati senza verdetto (gate del server) — in attesa di una decisione dell'amministratore
+export async function adminPendingPosts(limit = 100) {
+  const { data, error } = await supabase.rpc("admin_pending_posts", { p_limit: limit });
+  if (error) { if (rpcMissing(error)) return []; throw error; }
+  return attachProfiles(await enrichCounts(data || []));
+}
+export async function adminSetArchived(postId, archived) {
+  const { error } = await supabase.rpc("admin_set_archived", { p_post: String(postId), p_archived: !!archived });
+  if (error) throw error;
+}
 // Assistenza: tutte le chat dirette tra api e amministratori
 export async function adminSupportMessages() {
   let rows = null, rpcErr = null;

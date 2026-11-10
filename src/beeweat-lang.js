@@ -29,6 +29,16 @@ const DICT = {
   "Cambia": "Change", "Correggi": "Fix", "Elimina": "Delete", "Esci": "Log out", "Logout": "Log out", "Entra": "Sign in", "Accedi": "Sign in",
   "Registrati": "Sign up", "Inizia": "Start", "Attiva": "Turn on", "Consenti": "Allow", "Richiedi": "Request", "Chiedi": "Ask",
   "Più tardi": "Later", "No, grazie": "No, thanks", "Accetto": "I accept", "Gestisci": "Manage", "Sospendi": "Suspend", "Rifai": "Retake",
+  // 14.85: fogli di immissione
+  "Nuova password": "New password", "Ripeti la password": "Repeat the password", "Salva la password": "Save the password",
+  "Link di reimpostazione riconosciuto 🐝 Scegli la nuova password.": "Reset link recognised 🐝 Choose your new password.",
+  "Le due password non coincidono: riapri il link e riprova.": "The two passwords don't match: open the link again and retry.",
+  "Il tuo nome": "Your name", "È il nome che le altre api vedono sui tuoi cieli.": "It's the name other bees see on your skies.", "Nome su Beeweat": "Name on Beeweat",
+  "La tua città": "Your city", "Città": "City", "Megafono": "Megaphone", "Il messaggio arriva a TUTTE le api dell'alveare, come avviso di servizio.": "The message reaches ALL the bees of the hive, as a service notice.",
+  "Invia a tutti": "Send to everyone", "Messaggio": "Message", "Nome dell'ape": "Bee name", "Il gruppo": "The group", "Lascia il nome vuoto per eliminare il gruppo per tutti i membri.": "Leave the name empty to delete the group for all members.",
+  "Nome del gruppo": "Group name", "Giorni di sospensione": "Days of suspension", "Messaggio per l'ape": "Message for the bee", "0 giorni toglie la sospensione.": "0 days lifts the suspension.",
+  "Sei stato sospeso per condotta scorretta.": "You have been suspended for misconduct.", "Campo obbligatorio.": "Required field.", "Conferma": "Confirm",
+  "Hai bloccato questa ape: sbloccala dal suo profilo prima di seguirla.": "You blocked this bee: unblock them from their profile before following.",
   // 14.84: inglese completo — stringhe rimaste in italiano
   "Messaggio per l'utente:": "Message for the user:", "📣 Messaggio a TUTTE le api dell'alveare:": "📣 Message to ALL the bees of the hive:",
   "c'è una persona in primo piano": "there is a person in the foreground",
@@ -422,6 +432,9 @@ const cond = c => trPiece(c);
 
 // ─── REGOLE per i testi con numeri o nomi dentro ───────────────────────────────────────────────
 const RULES = [
+  [/^Almeno (\d+) caratteri\.$/, m => `At least ${m[1]} characters.`],
+  [/^Sospendi (.+)$/, m => `Suspend ${m[1]}`], [/^Correggi (.+)$/, m => `Fix ${m[1]}`],
+  [/^(.+) è stato riattivato\.$/, m => `${m[1]} has been reactivated.`], [/^(.+) è stato sospeso per (\d+) giorni\.$/, m => `${m[1]} has been suspended for ${m[2]} days.`],
   // 14.84: prefissi degli avvisi con dettaglio tecnico in coda
   [/^Nome non salvato: ([\s\S]*)$/, m => `Name not saved: ${m[1]}`],
   [/^Segui non salvato: ([\s\S]*)$/, m => `Follow not saved: ${m[1]}`],
