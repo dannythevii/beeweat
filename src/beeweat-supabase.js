@@ -511,7 +511,7 @@ export async function getProfiles() {
 }
 // Post vivi di una singola ape (per il grado sul profilo)
 export async function getUserPostCount(userId) {
-  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  const { count, error } = await supabase.from("posts").select("id", { count: "exact", head: true }).eq("user_id", userId).is("archived_at", null);   // 14.83: come getProfiles, senza gli archiviati: stesso grado ovunque
   if (error) throw error;
   return count || 0;
 }

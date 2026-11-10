@@ -4,7 +4,7 @@ import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beew
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.82";
+const APP_VERSION = "14.83";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -267,6 +267,8 @@ const haversine = (a, b) => {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin(dLng / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
+// 14.83: un evento è vivo finché non è passata la sua scadenza; una scadenza scritta come sola data vale fino alla fine di quel giorno (ora locale)
+const eventAlive = e => { if (!e || !e.ends) return true; const end = /^\d{4}-\d{2}-\d{2}$/.test(e.ends) ? new Date(e.ends + "T23:59:59") : new Date(e.ends); return isNaN(end) ? true : end.getTime() >= Date.now(); };
 const bearingDeg = (a, b) => {
   const R = Math.PI / 180;
   const y = Math.sin((b.lng - a.lng) * R) * Math.cos(b.lat * R);
@@ -930,6 +932,7 @@ function AuthScreen({ onLogin, sb }) {
   const handleEmail = async () => {
     if (mode === "register" && !accepted) { setWarn(true); return; }
     if (!form.email || !form.password) return;
+    if (mode === "register" && form.password.length < 8) { setAuthErr("La password deve avere almeno 8 caratteri."); return; }   // 14.83: promessi 8, ora controllati
     setAuthErr(null); setInfo(null);
     // Se Supabase è configurato → autenticazione reale; altrimenti demo locale
     if (sb?.isConfigured) {
@@ -937,11 +940,11 @@ function AuthScreen({ onLogin, sb }) {
       const T = (p, ms = 25000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);   // 14.51
       try {
         if (mode === "register") {
-          await T(sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || CITY }));
+          await T(sb.registerEmail({ email: form.email, password: form.password, name: form.name || "Utente Bee", city: form.city || null }));
           // Se la conferma email non è richiesta, si entra subito; altrimenti si mostra l'avviso
           try {
             await T(sb.loginEmail({ email: form.email, password: form.password }));
-            onLogin({ name: form.name || "Utente Bee", city: form.city || CITY });   // 14.70: dentro subito
+            onLogin({ name: form.name || "Utente Bee", city: form.city || "" });   // 14.70: dentro subito
             return;
           } catch (_) {
             setInfo("Registrazione inviata! Controlla la tua email e conferma il link, poi accedi.");
@@ -950,7 +953,7 @@ function AuthScreen({ onLogin, sb }) {
         } else {
           await T(sb.loginEmail({ email: form.email, password: form.password }));
           let cached = null; try { cached = JSON.parse(localStorage.getItem("bw_profile") || "null"); } catch (_) {}   // 14.70: dentro subito, il profilo vero arriva un attimo dopo
-          onLogin({ name: cached?.name || form.name || "Utente Bee", city: cached?.city || form.city || CITY, avatar: cached?.avatar || "🌤️" });
+          onLogin({ name: cached?.name || form.name || "Utente Bee", city: cached?.city || form.city || "", avatar: cached?.avatar || "🌤️" });
         }
       } catch (e) {
         let m = e?.message || e?.error_description || e?.msg || "";
@@ -959,7 +962,7 @@ function AuthScreen({ onLogin, sb }) {
         setAuthErr(m.includes("Invalid login") ? "Email o password errati." : /confirm/i.test(m) ? "Devi prima confermare l'email: controlla la posta." : m.includes("already registered") ? "Email già registrata: prova ad accedere." : /fetch|network/i.test(m) ? "Impossibile raggiungere il server: controlla che il progetto Supabase sia attivo (non in pausa) e l'URL delle chiavi." : "Errore: " + m);
       } finally { setBusy(false); }
     } else {
-      onLogin({ name: form.name || "Utente Bee", city: form.city || CITY });
+      onLogin({ name: form.name || "Utente Bee", city: form.city || "" });
     }
   };
 
@@ -1607,7 +1610,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
   }, [active, post.video]);
   return (
     <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, contain: "layout paint", boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
-      <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchpriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
+      <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchPriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
       {post.video && active && <video ref={vidRef} src={post.video} poster={post.img} muted loop playsInline autoPlay preload="auto" disablePictureInPicture onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", background: "transparent", cursor: onOpenPhoto ? "zoom-in" : "default" }} />}      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
@@ -1896,7 +1899,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
     setAlertOn(true); setToast(true);
     setTimeout(() => setToast(false), 4200);
   };
-  const SEA = { state: "Poco mosso", trend: "in aumento verso mosso in serata", photos: 7, wave: "0,5–1 m", scale: 2 };
+  const SEA = { state: "Dato non disponibile", wave: null, scale: 0 };   // 14.83: senza il modello non si inventa il mare
   const WaveIcon = () => {
     const p = { stroke: "#fff", strokeWidth: 1.7, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" };   // 14.40: bianco
     return (
@@ -1936,16 +1939,12 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
     { kind: "sunrise", label: "Alba", time: wxSky.sunrise || "—" },
     { kind: "sunset", label: "Tramonto", time: wxSky.sunset || "—" },
     { kind: "moon", label: wxSky.moon?.l || "Luna", time: wxSky.moon?.e || "🌙" },
-  ] : [
-    { kind: "sunrise", label: "Alba", time: "05:42" },
-    { kind: "sunset", label: "Tramonto", time: "20:31" },
-    { kind: "moon", label: "Luna", time: "🌙" },
+  ] : [   // 14.83: senza dato, un trattino (prima: orari inventati)
+    { kind: "sunrise", label: "Alba", time: "—" },
+    { kind: "sunset", label: "Tramonto", time: "—" },
+    { kind: "moon", label: "Luna", time: "" },
   ];
-  const HOURS = [
-    { h: "Ora", e: "☀️", t: 24 }, { h: "+1h", e: "☀️", t: 24 }, { h: "+2h", e: "🌤️", t: 23 },
-    { h: "+3h", e: "⛅", t: 22 }, { h: "+4h", e: "⛅", t: 22 }, { h: "+5h", e: "☁️", t: 21 },
-    { h: "+6h", e: "☁️", t: 21 }, { h: "+8h", e: "🌧️", t: 19 }, { h: "+10h", e: "🌧️", t: 18 }, { h: "+12h", e: "⛅", t: 18 },
-  ];
+  // 14.83: niente ore inventate — se il modello non risponde, la striscia lo dice
   return (
     <div className="scr" style={{ flex: 1, overflowY: "auto", background: BODY, padding: "0 16px 16px" }}>{/* 14.9 */}
       {/* riquadro principale: dentro la testata blu */}
@@ -2003,13 +2002,13 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
         </div>
       </div>
 
-      {/* toast: simulazione notifica push in arrivo */}
+      {/* 14.83: conferma dell'avviso armato (prima: una finta notifica push con «0 foto») */}
       {toast && (
         <div className="fade-up" style={{ position: "fixed", left: 12, right: 12, margin: "0 auto", bottom: 96, zIndex: 90, maxWidth: 360, background: "#1E2A3A", color: "#fff", borderRadius: 14, padding: "12px 14px", boxShadow: "0 8px 26px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 11 }}>
           <span style={{ fontSize: 22 }}>{AL.icon}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700 }}>Beeweat · Allerta meteo</div>
-            <div style={{ fontSize: 12, opacity: .9, marginTop: 1 }}>{AL.title} {AL.dir} — {AL.photos} foto</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700 }}>Avviso di maltempo attivo</div>
+            <div style={{ fontSize: 12, opacity: .9, marginTop: 1 }}>Ti avvisiamo se le api nel tuo raggio ({km} km) fotografano pioggia o temporale in avvicinamento.</div>
           </div>
         </div>
       )}
@@ -2037,7 +2036,8 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
       {/* prossime 12 ore */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
       <div style={{ background: CARD, borderRadius: 22, boxShadow: "0 6px 20px rgba(18,60,107,.10)", padding: "12px 6px", display: "flex", overflowX: "auto", gap: 2, scrollbarWidth: "none" }}>
-        {(wxHours || HOURS).map((x, i) => (
+        {!wxHours && <div style={{ flex: 1, textAlign: "center", padding: "10px 6px", fontSize: 12.5, color: TXT2 }}>Previsione oraria non disponibile in questo momento</div>}
+        {(wxHours || []).map((x, i) => (
           <div key={i} style={{ minWidth: 52, textAlign: "center", padding: "4px 2px" }}>
             <div style={{ fontSize: 12, color: TXT2, fontWeight: 600 }}>{x.h}</div>
             <div style={{ fontSize: 22, margin: "4px 0" }}>{x.e}</div>
@@ -2068,16 +2068,16 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
             <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>
               {wxSea
                 ? <>Onda {wxSea.wave} da {wxSea.dir}{wxSea.period ? ` · periodo ${wxSea.period}` : ""}{wxSea.sst ? ` · mare ${wxSea.sst}` : ""}</>
-                : <>Onda {SEA.wave} · {SEA.trend}</>}
+                : <>Il modello del mare non risponde: riprova tra poco</>}
             </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 12, color: TXT2 }}>{wxSea ? <>modello<br />Copernicus</> : <>{SEA.photos} foto<br />della costa</>}</div>
+          <div style={{ textAlign: "right", fontSize: 12, color: TXT2 }}>{wxSea ? <>modello<br />Copernicus</> : <>—</>}</div>
         </div>
         {/* scala Douglas semplificata */}
         <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
           {["Calmo", "Poco mosso", "Mosso", "Molto mosso", "Agitato"].map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ height: 7, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? ACCENT : "#E6EEF6" }} />
+              <div style={{ height: 7, borderRadius: 4, background: i <= (wxSea || SEA).scale - 1 ? ACCENT : "rgba(255,255,255,.12)" }} />
               <div style={{ fontSize: 12, lineHeight: 1.1, color: i === (wxSea || SEA).scale - 1 ? TXT : TXT2, fontWeight: i === (wxSea || SEA).scale - 1 ? 700 : 500, marginTop: 4, textAlign: "center", whiteSpace: "pre-line" }}>{s.replace(" ", "\n")}</div>
             </div>
           ))}
@@ -2279,8 +2279,7 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
   const SIX_H = 6 * 3600 * 1000;
   const nowMs = Date.now();
   const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
-  const nowIso = new Date().toISOString();
-  const allEvents = (events || []).filter(e => e.dist <= km && (!e.ends || e.ends >= nowIso));   // niente allerte scadute sul radar
+  const allEvents = (events || []).filter(e => e.dist <= km && eventAlive(e));   // 14.83: stessa regola di scadenza di Eventi
   const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
   const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
   const R = 150, cx = 160, cy = 160;
@@ -2305,7 +2304,7 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
   const selGroup = sel ? wxGroups.find(g => g.items.some(p => p.id === sel.id)) : null;
   const selIdx = selGroup ? selGroup.items.findIndex(p => p.id === sel.id) : -1;
   const stepSel = d => { if (!selGroup) return; const n = selGroup.items.length; setSel(selGroup.items[(selIdx + d + n) % n]); };
-  const bearingOf = e => (e.bearing != null ? e.bearing : (Math.atan2((e.lng || 0) - BASE_COORDS.lng, (e.lat || 0) - BASE_COORDS.lat) * 180 / Math.PI));
+  const bearingOf = e => (e.bearing != null ? e.bearing : (geo && e.lat != null && e.lng != null ? bearingDeg(geo, { lat: +e.lat, lng: +e.lng }) : 0));   // 14.83: dalla posizione dell'ape (prima: da Sorrento, direzione sbagliata per tutti)
   const dirName = b => { const n = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]; return n[Math.round(((b % 360) + 360) % 360 / 45) % 8]; };
   const agoText = ts => { const m = Math.max(0, Math.round((nowMs - new Date(ts).getTime()) / 60000)); return m < 60 ? `${m} min fa` : `${Math.floor(m / 60)} h fa`; };
   const zoomIn = () => setVb(v => { const w = Math.max(MINW, v.w / 1.6); const c = { x: v.x + v.w / 2, y: v.y + v.h / 2 }; return { x: c.x - w / 2, y: c.y - w / 2, w, h: w }; });
@@ -2454,10 +2453,9 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
 function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid, isAdmin, onEditEnds, focusId, onOpenPhoto, me, view, onView }) {
   const [rg, setRg] = useState(false);   // 14.39
   const sevColor = { Alta: "#FF8A8A", Media: "#FFC46B", Bassa: "#7CE0A9" };   // 14.38: toni leggibili sul notte
-  const today = new Date().toISOString().slice(0, 10);
   const [inf, setInf] = useState(false);
   const setView = v => onView && onView(v);   // Eventi meteo | Eventi social — la vista vive in AppInner (13.9)
-  const alive = events.filter(e => !e.ends || e.ends >= today);
+  const alive = events.filter(eventAlive);   // 14.83: stessa regola del Radar
   const visible = alive.filter(e =>
     (inf || e.dist <= km) &&
     ((view === "social") === ((e.kind || "meteo") === "social")));
@@ -2763,7 +2761,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         {msgs.map((m, mi) => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); askDelete(m); } }}>
             {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: TXT, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "78%", background: m.me ? `linear-gradient(135deg, ${HONEY}, #E89A1C)` : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "18px 18px 6px 18px" : "18px 18px 18px 6px", padding: "10px 13px", fontSize: 15.5, lineHeight: 1.4, fontWeight: m.me ? 500 : 400, overflowWrap: "anywhere" }}>{/* 14.37 */}{m.text}<div style={{ fontSize: 12, opacity: .75, marginTop: 4, display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", fontWeight: 600 }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 700, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? "#7A4A00" : INK, opacity: (m.readAt || m.deliveredAt) ? 1 : .6 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .7, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? INK : TXT2} sw={2} /></button>}</div></div>
+            <div style={{ maxWidth: "78%", background: m.me ? `linear-gradient(135deg, ${HONEY}, #E89A1C)` : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "18px 18px 6px 18px" : "18px 18px 18px 6px", padding: "10px 13px", fontSize: 15.5, lineHeight: 1.4, fontWeight: m.me ? 500 : 400, overflowWrap: "anywhere" }}>{/* 14.37 */}{m.text}<div style={{ fontSize: 12, opacity: .75, marginTop: 4, display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", fontWeight: 600 }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 700, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? "#7A4A00" : INK, opacity: (m.readAt || m.deliveredAt) ? 1 : .6 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && m.me && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .7, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? INK : TXT2} sw={2} /></button>}</div></div>
           </div>
         ))}
         <div ref={ref} />
@@ -2917,7 +2915,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     try {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setErr({ kind: "unsupported", msg: "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri beeweat.vercel.app direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\")." });
+        setErr({ kind: "unsupported", msg: "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri app.beeweat.com direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\")." });
         return;
       }
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
@@ -3231,7 +3229,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     <Chip icon="eye" tone="info">Caso difficile: sto chiedendo il <b>secondo parere</b> a Bee-Eye…</Chip>
   ) : null;
   const AiChip = () => !ai ? null : ai.error ? (
-    <Chip icon="warn" tone="warn" onClick={runAI}>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</Chip>
+    <Chip icon="warn" tone="warn" onClick={() => runAI({ model: modelCond, caption, cond })}>Occhi AI non disponibili in questo momento. <b>Puoi pubblicare lo stesso</b>: il controllo avverrà in coda, dietro le quinte (o tocca qui per riprovare subito).</Chip>
   ) : (
     <Chip icon={ai.checking ? "eye" : ai.block ? "close" : "check"} tone={ai.checking ? "info" : ai.block ? "bad" : "ok"}>{ai.checking ? <>Gli occhi dell'alveare stanno guardando la foto… <b>puoi pubblicare subito</b>: il controllo continua da solo dietro le quinte.</> : ai.block ? ai.reason : `Foto approvata${ai.cls ? ` · sembra ${skyLabel(ai.cls)}` : ""}${ai.score ? ` (${Math.round(ai.score * 100)}%)` : ""}`}</Chip>
   );
@@ -3359,17 +3357,8 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
-function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
-  // 14.37: tavola 4 — copertina con l'ultimo cielo, grado, statistiche, Raggio, griglia
-  const [followTab, setFollowTab] = useState(null);
-  const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
-  const stars = mine.reduce((s, p) => s + p.stars, 0);
-  const rank = beeStars(nMine);
-  const [editing, setEditing] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  const cover = mine[0]?.img || null;
-  const Row = ({ icon, title, sub, onClick, right, border = true, honey, control }) => (
+// 14.83: righe e tessere del Profilo definite fuori dal componente (prima: ricreate a ogni render → il <select> Lingua perdeva il fuoco su iPhone, gli interruttori non animavano, le miniature si ricaricavano)
+const ProfileRow = ({ icon, title, sub, onClick, right, border = true, honey, control }) => (
     <div onClick={control ? undefined : onClick} role={control ? undefined : right === undefined ? "button" : "switch"} tabIndex={control ? undefined : 0} onKeyDown={control || !onClick ? undefined : e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} aria-checked={control || right === undefined ? undefined : !!right} style={{ width: "100%", background: "transparent", border: "none", borderBottom: border ? `1px solid ${LINE}` : "none", padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: control ? "default" : "pointer", fontFamily: "'Inter',sans-serif" }}>
       <div style={{ width: 38, height: 38, borderRadius: 12, background: honey ? "rgba(245,184,46,.16)" : MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{typeof icon === "string" ? <NavIcon name={icon} size={20} color={honey ? HONEY2 : TXT} sw={1.9} /> : icon}</div>
       <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
@@ -3383,7 +3372,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
       )}
     </div>
   );
-  const Tile = ({ p, big, list }) => {
+const ProfileTile = ({ p, big, list, onOpenPhoto }) => {
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, list)} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>   /* 14.43: anche la grande è quadrata */
@@ -3395,6 +3384,17 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
       </button>
     );
   };
+
+function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack, onAvatar, onOpenNotif, notif, onDelete, onEdit, followingList, followersList, onFollow, following, onOpenPhoto, onRename, onRenameCity, isAdmin, onBroadcast, onToggleReceipts, postsCount, onArchive, onlineCount, geoPrecise, onToggleGeo, km, setKm }) {
+  // 14.37: tavola 4 — copertina con l'ultimo cielo, grado, statistiche, Raggio, griglia
+  const [followTab, setFollowTab] = useState(null);
+  const mine = posts.filter(p => p.mine).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  const nMine = (typeof postsCount === "number" && postsCount >= mine.length) ? postsCount : mine.length;   // il conteggio vero dal database
+  const stars = mine.reduce((s, p) => s + p.stars, 0);
+  const rank = beeStars(nMine);
+  const [editing, setEditing] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const cover = mine[0]?.img || null;
   const now = new Date(), thisMonth = mine.filter(p => { const d = new Date(p.ts); return !isNaN(d) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); });
   const shown = thisMonth.slice(0, 8);                    // 14.46: il mese in corso; il resto sta dietro la tessera «+N»
   const rest = Math.max(0, nMine - shown.length);
@@ -3471,7 +3471,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
           {nMine === 0
             ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13, marginBottom: 12 }}>Nessun cielo ancora — scatta il tuo meteo!</div>
             : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6, marginBottom: 12 }}>
-                {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
+                {shown.map((p, k) => <ProfileTile onOpenPhoto={onOpenPhoto} key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
                 {rest > 0 && <button onClick={onArchive} aria-label={`Altri ${rest} cieli: apri tutti i tuoi cieli`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>{/* 14.46: quante ne restano */}
                   <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
@@ -3479,16 +3479,16 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
               </div>}
           {/* IMPOSTAZIONI */}
           <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, overflow: "hidden" }}>
-            <Row icon="bell" title="Configurazione" sub={notif?.enabled ? `Avvisi attivi · entro ${notif.radiusKm} km` : "Avvisi disattivati"} onClick={onOpenNotif} />
-            <Row icon="globe" title="Lingua" sub={(getLangChoice() ? ({ it: "Italiano", en: "English" }[getLangChoice()]) : "Automatica") + " · " + (getLang() === "it" ? "Italiano" : "English")} control={<select value={getLangChoice()} onChange={e => { setLangChoice(e.target.value); setTimeout(() => window.location.reload(), 150); }} aria-label="Lingua" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">Automatica</option><option value="it">Italiano</option><option value="en">English</option></select>} />
-            {onGender && <Row icon="bee" title="Chi sei" sub={({ f: "Donna", m: "Uomo", x: "Altro" }[user.gender] || "Non indicato") + " · facoltativo, serve solo alle statistiche dell'alveare, mai mostrato"} control={<select value={user.gender || ""} onChange={e => onGender(e.target.value || null)} aria-label="Chi sei" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">—</option><option value="f">Donna</option><option value="m">Uomo</option><option value="x">Altro</option></select>} />}
-            {onToggleReceipts && <Row icon={<span style={{ fontSize: 15, fontWeight: 700, color: TXT, letterSpacing: "-1px" }}>✓✓</span>} title="Conferma di lettura" sub={user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"} onClick={() => onToggleReceipts(!(user.readReceipts !== false))} right={user.readReceipts !== false} />}
-            <Row icon="pin" title="Posizione precisa" sub="Sempre attiva · zona di ~1 km, mai la casa. Se il telefono la nega: Impostazioni → Safari → Posizione → Consenti" border={false} />
+            <ProfileRow icon="bell" title="Configurazione" sub={notif?.enabled ? `Avvisi attivi · entro ${notif.radiusKm} km` : "Avvisi disattivati"} onClick={onOpenNotif} />
+            <ProfileRow icon="globe" title="Lingua" sub={(getLangChoice() ? ({ it: "Italiano", en: "English" }[getLangChoice()]) : "Automatica") + " · " + (getLang() === "it" ? "Italiano" : "English")} control={<select value={getLangChoice()} onChange={e => { setLangChoice(e.target.value); setTimeout(() => window.location.reload(), 150); }} aria-label="Lingua" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">Automatica</option><option value="it">Italiano</option><option value="en">English</option></select>} />
+            {onGender && <ProfileRow icon="bee" title="Chi sei" sub={({ f: "Donna", m: "Uomo", x: "Altro" }[user.gender] || "Non indicato") + " · facoltativo, serve solo alle statistiche dell'alveare, mai mostrato"} control={<select value={user.gender || ""} onChange={e => onGender(e.target.value || null)} aria-label="Chi sei" style={{ background: NIGHT3, color: TXT, border: `1px solid ${LINE}`, borderRadius: 10, padding: "6px 8px", fontFamily: "'Inter',sans-serif", fontSize: 13 }}><option value="">—</option><option value="f">Donna</option><option value="m">Uomo</option><option value="x">Altro</option></select>} />}
+            {onToggleReceipts && <ProfileRow icon={<span style={{ fontSize: 15, fontWeight: 700, color: TXT, letterSpacing: "-1px" }}>✓✓</span>} title="Conferma di lettura" sub={user.readReceipts !== false ? "Attiva · chi ti scrive vede quando hai letto" : "Disattivata · nessuna spunta di lettura"} onClick={() => onToggleReceipts(!(user.readReceipts !== false))} right={user.readReceipts !== false} />}
+            <ProfileRow icon="pin" title="Posizione precisa" sub="Sempre attiva · zona di ~1 km, mai la casa. Se il telefono la nega: Impostazioni → Safari → Posizione → Consenti" border={false} />
           </div>
           {isAdmin && onlineCount != null && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: TXT2 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: "#4ADE80", display: "inline-block" }} /> <b style={{ color: TXT }}>{onlineCount}</b> api online adesso</div>}
           {isAdmin && <div style={{ background: NIGHT2, border: `1px solid ${HONEY}55`, borderRadius: 18, overflow: "hidden", marginTop: 10 }}>
-            <Row icon="gear" honey title="Area riservata" sub="Il cruscotto degli amministratori: api, cieli, assistenza, segnalazioni" onClick={() => { try { window.open("/admin.html", "_blank"); } catch (_) { location.href = "/admin.html"; } }} />
-            <Row icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} />
+            <ProfileRow icon="gear" honey title="Area riservata" sub="Il cruscotto degli amministratori: api, cieli, assistenza, segnalazioni" onClick={() => { try { window.open("/admin.html", "_blank"); } catch (_) { location.href = "/admin.html"; } }} />
+            <ProfileRow icon="bell" honey title="Messaggio all'alveare" sub="Invia un avviso a tutte le api (solo admin)" onClick={onBroadcast} border={false} />
           </div>}
           <button onClick={onLogout} style={{ width: "100%", marginTop: 12, padding: 13, minHeight: 46, borderRadius: 14, border: `1px solid ${RED}55`, background: "rgba(240,86,91,.08)", color: "#FFB4B6", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'Inter',sans-serif" }}><NavIcon name="logout" size={16} color="#FFB4B6" /> Logout</button>
           {onDeleteAccount && <button onClick={onDeleteAccount} style={{ width: "100%", marginTop: 10, padding: 12, minHeight: 44, borderRadius: 14, border: "none", background: "none", color: "#FFB4B6", fontWeight: 600, fontSize: 13.5, cursor: "pointer", fontFamily: "'Inter',sans-serif", opacity: .85 }}>Elimina il mio account</button>}{/* 14.74 */}
@@ -3501,15 +3501,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
 }
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
-function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView, onAllSkies, isBlocked, onBlock }) {   // 14.81: isBlocked/onBlock
-  // 14.40: come il tuo Profilo — copertina, avatar, grado, statistiche, Scrivi · Segui, griglia dei cieli
-  const mine = posts.filter(p => p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  const nPosts = profile.postsCount ?? mine.length;
-  const rank = beeStars(nPosts);
-  const myEvents = (events || []).filter(e => e.user === profile.name);
-  const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
-  const cover = mine[0]?.img || null;
-  const Tile = ({ p, big, list }) => {
+const UserTile = ({ p, big, list, onOpenPhoto, onStar }) => {
     const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <div style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: big ? undefined : "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, minHeight: big ? 0 : undefined }}>
@@ -3521,7 +3513,16 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
       </div>
     );
   };
-  const Btn = ({ onClick, children, honey, danger, outline }) => <button onClick={onClick} style={{ flex: 1, minWidth: 0, height: 44, borderRadius: 14, border: outline ? `1px solid ${danger ? RED + "66" : LINE}` : "none", background: honey ? HONEY : danger && !outline ? RED : NIGHT3, color: honey ? INK : danger && outline ? "#FFB4B6" : "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap" }}>{children}</button>;
+const UserBtn = ({ onClick, children, honey, danger, outline }) => <button onClick={onClick} style={{ flex: 1, minWidth: 0, height: 44, borderRadius: 14, border: outline ? `1px solid ${danger ? RED + "66" : LINE}` : "none", background: honey ? HONEY : danger && !outline ? RED : NIGHT3, color: honey ? INK : danger && outline ? "#FFB4B6" : "#fff", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap" }}>{children}</button>;
+
+function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack, onChat, onPostChat, onOpenEvent, isAdmin, onBan, onEdit, onDeleteUser, onOpenPhoto, onStar, onAdminEdit, onView, onAllSkies, isBlocked, onBlock }) {   // 14.81: isBlocked/onBlock
+  // 14.40: come il tuo Profilo — copertina, avatar, grado, statistiche, Scrivi · Segui, griglia dei cieli
+  const mine = posts.filter(p => (profile.uid && p.uid) ? p.uid === profile.uid : p.user === profile.name).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts));   // 14.83: per id, gli omonimi non si mescolano
+  const nPosts = profile.postsCount ?? mine.length;
+  const rank = beeStars(nPosts);
+  const myEvents = (events || []).filter(e => e.user === profile.name);
+  const totStars = mine.reduce((s, p) => s + (p.stars || 0), 0);
+  const cover = mine[0]?.img || null;
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", background: BODY, position: "relative" }}>
@@ -3557,15 +3558,15 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
           </div>
         ) : (
         <div style={{ display: "flex", gap: 8, margin: "10px 16px 0" }}>
-          <Btn onClick={() => onChat(profile)} honey><NavIcon name="comment" size={16} color={INK} sw={2.2} />Scrivi</Btn>
-          <Btn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</Btn>
+          <UserBtn onClick={() => onChat(profile)} honey><NavIcon name="comment" size={16} color={INK} sw={2.2} />Scrivi</UserBtn>
+          <UserBtn onClick={() => onFollow(profile.name)} outline={!!isFollowing}>{isFollowing ? <><NavIcon name="check" size={16} color="#fff" sw={2.4} />Seguito</> : <><NavIcon name="plus" size={16} color="#fff" sw={2.4} />Segui</>}</UserBtn>
           {onBlock && profile.uid && <button onClick={() => { if (confirm(`Bloccare ${profile.name}?\n\nNon vedrai più i suoi cieli, commenti e messaggi, e lei non potrà scriverti. Puoi sbloccarla quando vuoi da questa pagina.`)) onBlock(profile, true); }} aria-label={`Blocca ${profile.name}`} title="Blocca" style={{ width: 44, height: 44, borderRadius: 14, border: `1px solid ${RED}66`, background: NIGHT3, color: "#FFB4B6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="block" size={18} color="#FFB4B6" sw={2.2} /></button>}{/* 14.81 */}
         </div>
         )}
         {isAdmin && <div style={{ display: "flex", gap: 8, margin: "8px 16px 0" }}>
-          <Btn onClick={() => onAdminEdit && onAdminEdit(profile)} outline><NavIcon name="edit" size={15} color="#fff" sw={2} />Correggi</Btn>
-          <Btn onClick={() => onBan && onBan(profile)} outline danger>Sospendi</Btn>
-          <Btn onClick={() => onDeleteUser && onDeleteUser(profile)} danger>Elimina</Btn>
+          <UserBtn onClick={() => onAdminEdit && onAdminEdit(profile)} outline><NavIcon name="edit" size={15} color="#fff" sw={2} />Correggi</UserBtn>
+          <UserBtn onClick={() => onBan && onBan(profile)} outline danger>Sospendi</UserBtn>
+          <UserBtn onClick={() => onDeleteUser && onDeleteUser(profile)} danger>Elimina</UserBtn>
         </div>}
         {myEvents.length > 0 && (
           <div style={{ padding: "16px 16px 0" }}>
@@ -3591,7 +3592,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
               {nPosts === 0 && shown.length === 0
                 ? <div style={{ background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 18, padding: "22px 16px", textAlign: "center", color: TXT2, fontSize: 13 }}>Nessun cielo da mostrare.</div>
                 : <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridAutoRows: "minmax(0, 1fr)", gap: 6 }}>
-                    {shown.map((p, k) => <Tile key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
+                    {shown.map((p, k) => <UserTile onOpenPhoto={onOpenPhoto} onStar={onStar} key={p.id} p={p} big={k === 0 && shown.length > 1} list={shown} />)}
                     {rest > 0 && onAllSkies && <button onClick={onAllSkies} aria-label={`Altri ${rest} cieli: apri tutti i cieli di ${profile.name}`} style={{ aspectRatio: "1 / 1", borderRadius: 14, border: `1px dashed ${HONEY}88`, background: "rgba(245,184,46,.08)", color: HONEY2, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, fontFamily: "'Inter',sans-serif", padding: 0, width: "100%" }}>
                       <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+{rest}</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: TXT2 }}>{shown.length ? "altri cieli" : "tutti i cieli"}</span>
@@ -3677,7 +3678,7 @@ const shareEvent = async e => {
     e.description ? e.description : null,
     e.link ? e.link : null,
     e.contact ? `Contatto: ${e.contact}` : null,
-    "— su Beeweat 🐝 " + (typeof location !== "undefined" ? location.origin : "https://beeweat.vercel.app"),
+    "— su Beeweat 🐝 " + (typeof location !== "undefined" ? location.origin : "https://beeweat.com"),
   ].filter(Boolean);
   const text = lines.join("\n");
   // 14.13: la foto intera dell'evento viaggia insieme al testo (dove il telefono lo permette)
@@ -4239,7 +4240,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
 const HELP_FAQ = [
   { q: "Cosa vede Beeweat della mia posizione?", a: "La zona, mai la tua casa. Beeweat usa la posizione del telefono, che chiede il permesso la prima volta: le coordinate vengono arrotondate sul telefono a circa 1 km prima di partire, e sul server e sulla mappa arriva solo la zona. Senza posizione non si pubblica (feed, Radar e BeeCast lavorano sullo stesso punto). Se l'hai negata: Impostazioni → Safari → Posizione → Consenti." },
   { q: "La posizione non viene rilevata", a: "Beeweat pubblica solo cieli con il loro posto vero. Su iPhone: Impostazioni → Privacy → Localizzazione → Siti web Safari → \"Mentre usi l'app\", poi Impostazioni → Safari → Posizione → Chiedi. Su Android: icona 🔒 nella barra → Posizione → Consenti. Poi ricarica l'app." },
-  { q: "La fotocamera non si apre", a: "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri beeweat.vercel.app in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera)." },
+  { q: "La fotocamera non si apre", a: "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri app.beeweat.com in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera)." },
   { q: "La mia foto è stata respinta", a: "Gli occhi dell'alveare accettano solo cieli veri, scattati dal vivo: niente persone in primo piano, schermi, interni, muri o superfici. Alza l'obiettivo e fai entrare più cielo nell'inquadratura." },
   { q: "Ho pubblicato senza rete, dov'è il post?", a: "È nello zaino 🎒: resta al sicuro sul telefono e parte da solo appena torna la connessione (viene controllato prima di partire). Lo vedi nel feed con l'etichetta \"in attesa di rete\"." },
   { q: "Non ricevo le notifiche", a: "Su iPhone le notifiche push funzionano solo con l'app installata: Condividi ⬆️ → Aggiungi alla schermata Home. Poi Profilo → Configurazione → Push sul telefono → Attiva." },
@@ -4347,6 +4348,17 @@ function SupportView({ admins, onPick, onClose }) {
     </div>
   );
 }
+const SettingsRow = ({ icon, label, desc, children }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
+      {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={TXT} /></div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{label}</div>
+        {desc && <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{desc}</div>}
+      </div>
+      {children}
+    </div>
+  );
+
 function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePush, onGeoGranted, onHelp, onSupport, onIntro, onLegal }) {   // 14.81: onLegal
   const [perm, setPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const set = (k, v) => onChange({ ...settings, [k]: v });
@@ -4357,16 +4369,6 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
     set("enabled", v);
   };
   const pushLabel = { on: "Attive su questo dispositivo ✓", off: "Da attivare su questo dispositivo", denied: "Bloccate dal browser (sbloccale nelle impostazioni del sito)", unsupported: "Non supportate qui (iPhone: aggiungi ad Home)" }[pushState || "off"];
-  const Row = ({ icon, label, desc, children }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
-      {icon && <div style={{ width: 38, height: 38, borderRadius: 11, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={icon} size={19} color={TXT} /></div>}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 14.5, color: TXT }}>{label}</div>
-        {desc && <div style={{ fontSize: 12, color: TXT2, marginTop: 1, lineHeight: 1.4 }}>{desc}</div>}
-      </div>
-      {children}
-    </div>
-  );
   const off = !settings.enabled;
   const permLabel = { granted: "Permesso concesso", denied: "Permesso negato dal browser", default: "Permesso non ancora richiesto", unsupported: "Non supportato in questo contesto" }[perm] || "";
   return (
@@ -4375,7 +4377,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ padding: "16px 16px 6px", fontSize: 12, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Notifiche</div>
         <div style={{ background: CARD }}>
-          <Row icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></Row>
+          <SettingsRow icon="bell" label="Abilita notifiche" desc={permLabel}><Toggle on={settings.enabled} onChange={enableMaster} /></SettingsRow>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${LINE}`, background: HBLUE + "06" }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: ACCENT + "33", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="bell" size={19} color="#8A5A12" /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -4396,19 +4398,19 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
 
         <div style={{ padding: "16px 16px 6px", fontSize: 12, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Cosa notificare</div>
         <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
-          <Row icon="camera" label="Nuovi post" desc="Foto meteo pubblicate vicino a te"><Toggle on={settings.posts} onChange={v => set("posts", v)} /></Row>
-          <Row icon="pin" label="Eventi" desc="Eventi e segnalazioni nella tua zona"><Toggle on={settings.eventi} onChange={v => set("eventi", v)} /></Row>
-          <Row icon="bell" label="Allerte meteo" desc="Temporali, mareggiate e avvisi importanti"><Toggle on={settings.allerte} onChange={v => set("allerte", v)} /></Row>
-          <Row icon="send" label="Messaggi" desc="Chat e messaggi di gruppo"><Toggle on={settings.messaggi} onChange={v => set("messaggi", v)} /></Row>
+          <SettingsRow icon="camera" label="Nuovi post" desc="Foto meteo pubblicate vicino a te"><Toggle on={settings.posts} onChange={v => set("posts", v)} /></SettingsRow>
+          <SettingsRow icon="pin" label="Eventi" desc="Eventi e segnalazioni nella tua zona"><Toggle on={settings.eventi} onChange={v => set("eventi", v)} /></SettingsRow>
+          <SettingsRow icon="bell" label="Allerte meteo" desc="Temporali, mareggiate e avvisi importanti"><Toggle on={settings.allerte} onChange={v => set("allerte", v)} /></SettingsRow>
+          <SettingsRow icon="send" label="Messaggi" desc="Chat e messaggi di gruppo"><Toggle on={settings.messaggi} onChange={v => set("messaggi", v)} /></SettingsRow>
         </div>
 
         <div style={{ padding: "16px 16px 6px", fontSize: 12, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", opacity: off ? .5 : 1 }}>Orari di silenzio</div>
         <div style={{ background: CARD, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, opacity: off ? .5 : 1, pointerEvents: off ? "none" : "auto" }}>
-          <Row label="Non disturbare (22:00 – 8:00)" desc="Nessuna notifica durante la notte"><Toggle on={settings.quiet} onChange={v => set("quiet", v)} /></Row>
+          <SettingsRow label="Non disturbare (22:00 – 8:00)" desc="Nessuna notifica durante la notte"><Toggle on={settings.quiet} onChange={v => set("quiet", v)} /></SettingsRow>
         </div>
 
         <div style={{ padding: "16px", fontSize: 12, color: TXT2, lineHeight: 1.5 }}>
-          Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche push reali funzionano solo con l'app installata dallo store; in anteprima questa è una simulazione delle impostazioni.
+          Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche arrivano con l'app installata (Aggiungi alla schermata Home) o scaricata dallo store.
         </div>
         <PermissionsPanel onGeoGranted={onGeoGranted} />
 
@@ -4480,7 +4482,7 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
         <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{title}</div>
         {sub && <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{sub}</div>}
       </div>
-      <NavIcon name="back" size={15} color={TXT2} sw={2.2} />
+      <NavIcon name="chevron" size={15} color={TXT2} sw={2.2} />
     </button>
   );
   const empty = ql && near.length === 0 && fp.length === 0 && fpl.length === 0 && fe.length === 0;
@@ -4567,6 +4569,7 @@ function Frame({ children }) {
 function AppInner() {
   const [sb, setSb] = useState(null);           // modulo Supabase (se presente e configurato)
   const [myUid, setMyUid] = useState(null);
+  const myUidRef = useRef(null); myUidRef.current = myUid;   // 14.83
   useEffect(() => {
     import("./beeweat-supabase.js")
       .then(async m => {
@@ -4574,7 +4577,7 @@ function AppInner() {
         // 14.46: la sessione è già sul telefono: si entra subito col profilo salvato, il server aggiorna dopo (anche senza rete non si esce)
         let session = null; try { session = (await m.supabase.auth.getSession()).data?.session || null; } catch (_) {}
         if (session) { try { const c = JSON.parse(localStorage.getItem("bw_profile") || "null"); if (c?.name) setUser(u => u || { ...c, mine: true }); } catch (_) {} }
-        const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || CITY, mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false, gender: p.gender || null }); }).catch(() => {});
+        const fromServer = () => m.getCurrentProfile().then(p => { if (p) setUser({ name: p.name, city: p.city || "", mine: true, avatar: p.avatar_url || "🌤️", readReceipts: p.read_receipts !== false, gender: p.gender || null }); }).catch(() => {});
         fromServer();
         // 14.52: mai chiamare Supabase dentro questo evento (tiene un lucchetto: la registrazione restava in attesa) → si rimanda di un giro
         m.supabase.auth.onAuthStateChange((ev, ses) => { if ((ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") && ses) setTimeout(fromServer, 0); if (ev === "SIGNED_OUT") { setUser(null); try { localStorage.removeItem("bw_profile"); } catch (_) {} } });
@@ -5060,10 +5063,11 @@ function AppInner() {
   const geoRef = useRef(geo); geoRef.current = geo;                 // 14.16: la posizione si legge da qui, senza ricreare loadFeed
   const feedKey = geo ? geo.lat.toFixed(2) + "," + geo.lng.toFixed(2) : "";   // 14.16: il feed cambia solo se cambia la zona (~1 km)
   const feedBusy = useRef(false); const feedAgain = useRef(false);   // 14.16: una ricarica alla volta, al massimo una in coda
+  const feedAtRef = useRef(0);                                        // 14.83: quando è partito l'ultimo ricarico
   const loadFeed = useCallback(async () => {
     if (!sb?.isConfigured || !user) return;
     if (feedBusy.current) { feedAgain.current = true; return; }
-    feedBusy.current = true;
+    feedBusy.current = true; feedAtRef.current = Date.now();
     const geo = geoRef.current;
     try {
       const rows = await sb.getFeedNearby({ lat: geo.lat, lng: geo.lng, radiusKm: 100 });
@@ -5135,26 +5139,9 @@ function AppInner() {
   const [notifToast, setNotifToast] = useState(null);
   const toastTimerRef = useRef(null);
   const pendingNotifRef = useRef(null);
-  // Chi segui ti avvisa: ascolto in tempo reale dei nuovi post delle tue api
-  useEffect(() => {
-    if (!sb?.isConfigured || !followingIds.length) return;
-    const ch = sb.supabase.channel("follow-posts")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, payload => {
-        const r = payload?.new;
-        if (!r || r.user_id === myUid || !followingIds.includes(r.user_id)) return;
-        const who = contacts.find(c => c.id === r.user_id);
-        const name = who?.name || "Un'ape che segui";
-        const text = `${name} ha pubblicato un nuovo cielo${r.city ? " da " + r.city : ""} 📸`;
-        setNotifToast({ kind: "followPost", text, from: { uid: r.user_id, name, ava: who?.ava || null, city: who?.city || r.city } });
-        setTimeout(() => setNotifToast(t => (t?.kind === "followPost" && t.text === text) ? null : t), 6500);
-        try {
-          if (document.visibilityState === "hidden" && typeof Notification !== "undefined" && Notification.permission === "granted")
-            new Notification("Beeweat 🐝", { body: text });
-        } catch (_) {}
-        loadFeed();                                                // il cielo nuovo entra subito nel feed
-      }).subscribe();
-    return () => { try { sb.supabase.removeChannel(ch); } catch (_) {} };
-  }, [sb, followingIds, myUid, contacts]);
+  // 14.83: l'avviso «un'ape che segui ha pubblicato» viaggia sul canale unico dei cieli (vedi «Aggiornamento automatico del feed»), non più su un canale a parte ricreato a ogni tick
+  const followingIdsRef = useRef(followingIds); followingIdsRef.current = followingIds;
+  const contactsRef = useRef(contacts); contactsRef.current = contacts;
 
   const routeNotifTap = (kind, from) => {
     if (!user) { pendingNotifRef.current = { kind, from }; return; }
@@ -5679,7 +5666,7 @@ function AppInner() {
       });
       if (user?.readReceipts !== false && sb.markDirectRead) sb.markDirectRead(chatOpenId).catch(() => {});
     } catch (_) {} };
-    const iv = setInterval(beat, 2500);          // battito rapido: le spunte cambiano in 2-3 secondi
+    const iv = setInterval(beat, 20000);         // 14.83: il tempo reale porta messaggi e spunte; il battito è solo una rete di sicurezza (era 2,5 s: 24 letture al minuto)
     return () => { alive = false; clearInterval(iv); };
   }, [sb, chatOpenId]);
   // Messaggi diretti in arrivo, in tempo reale (una sola iscrizione globale)
@@ -5730,16 +5717,32 @@ function AppInner() {
   // Aggiornamento automatico del feed: al ritorno sull'app, ogni 60s e in tempo reale
   useEffect(() => {
     if (!sb?.isConfigured || !user) return;
-    const onVis = () => { if (!document.hidden) { loadFeedRef.current(); setSocialTick(t => t + 1); } };
+    const onVis = () => { if (!document.hidden) { if (Date.now() - feedAtRef.current > 8000) loadFeedRef.current(); setSocialTick(t => t + 1); } };   // 14.83: niente doppio ricarico al rientro
     document.addEventListener("visibilitychange", onVis);
     const iv = setInterval(() => { if (document.hidden) return; loadFeedRef.current(); setSocialTick(t => t + 1); }, 60000);   // 14.16: niente ricariche in background
-    let ch = null;
+    let ch = null, feedT = null;
+    const reloadSoon = () => { if (feedT) return; feedT = setTimeout(() => { feedT = null; loadFeedRef.current(); }, 1500); };   // 14.83: più cieli in arrivo = un solo ricarico
     try {
       ch = sb.supabase.channel("posts-feed")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, () => loadFeedRef.current())
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, payload => {   // 14.83: un solo canale per tutti i cieli nuovi
+          const r = payload?.new; if (!r) return;
+          const g = geoRef.current;
+          const near = !!g && r.lat != null && r.lng != null && kmDist(g, { lat: +r.lat, lng: +r.lng }) <= 100;   // fuori dai 100 km il feed non cambia: niente ricarico
+          const mineRow = !!myUidRef.current && r.user_id === myUidRef.current;
+          const followed = !mineRow && followingIdsRef.current.includes(r.user_id);
+          if (followed) {
+            const who = contactsRef.current.find(c => c.id === r.user_id);
+            const name = who?.name || "Un'ape che segui";
+            const text = `${name} ha pubblicato un nuovo cielo${r.city ? " da " + r.city : ""} 📸`;
+            setNotifToast({ kind: "followPost", text, from: { uid: r.user_id, name, ava: who?.ava || null, city: who?.city || r.city } });
+            setTimeout(() => setNotifToast(t => (t?.kind === "followPost" && t.text === text) ? null : t), 6500);
+            try { if (document.visibilityState === "hidden" && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Beeweat 🐝", { body: text }); } catch (_) {}
+          }
+          if (near || followed) reloadSoon();
+        })
         .subscribe();
     } catch (_) {}
-    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(iv); try { if (ch) sb.supabase.removeChannel(ch); } catch (_) {} };
+    return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(iv); if (feedT) clearTimeout(feedT); try { if (ch) sb.supabase.removeChannel(ch); } catch (_) {} };
   }, [sb, user]);   // 14.16: una sola sottoscrizione per sessione (prima si rifaceva a ogni fix GPS)
 
   const totalComments = useMemo(() => posts.reduce((s, p) => s + p.stars, 0), [posts]);

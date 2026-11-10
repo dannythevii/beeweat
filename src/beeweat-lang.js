@@ -29,6 +29,11 @@ const DICT = {
   "Cambia": "Change", "Correggi": "Fix", "Elimina": "Delete", "Esci": "Log out", "Logout": "Log out", "Entra": "Sign in", "Accedi": "Sign in",
   "Registrati": "Sign up", "Inizia": "Start", "Attiva": "Turn on", "Consenti": "Allow", "Richiedi": "Request", "Chiedi": "Ask",
   "Più tardi": "Later", "No, grazie": "No, thanks", "Accetto": "I accept", "Gestisci": "Manage", "Sospendi": "Suspend", "Rifai": "Retake",
+  // 14.83: dati veri o niente
+  "Previsione oraria non disponibile in questo momento": "Hourly forecast not available right now", "Dato non disponibile": "Data not available",
+  "Il modello del mare non risponde: riprova tra poco": "The sea model is not responding: try again shortly",
+  "Avviso di maltempo attivo": "Bad-weather alert on", "La password deve avere almeno 8 caratteri.": "The password must be at least 8 characters long.",
+  "Le notifiche di prossimità usano la tua posizione e richiedono il permesso del dispositivo. Le notifiche arrivano con l'app installata (Aggiungi alla schermata Home) o scaricata dallo store.": "Proximity notifications use your location and need the device's permission. Notifications arrive with the app installed (Add to Home Screen) or downloaded from the store.",
   // 14.81: blocca utente, privacy e termini
   "Blocca": "Block", "Sblocca": "Unblock", "Hai bloccato questa ape.": "You blocked this bee.",
   "Non vedi i suoi cieli e i suoi messaggi, e lei non può scriverti.": "You don't see their skies or messages, and they can't write to you.",
@@ -288,7 +293,7 @@ const DICT = {
   "Nessuna fotocamera trovata su questo dispositivo.": "No camera found on this device.", "La fotocamera è occupata da un'altra app: chiudila e riprova.": "The camera is in use by another app: close it and try again.",
   "Fotocamera non disponibile in questo browser (se sei in WhatsApp/Instagram: apri in Safari o Chrome).": "Camera not available in this browser (if you're in WhatsApp/Instagram: open in Safari or Chrome).",
   "Permesso fotocamera negato (ora o in passato). Riattivalo: icona 🔒 nella barra dell'indirizzo → Autorizzazioni → Fotocamera → Consenti. Su iPhone: Impostazioni → Safari → Fotocamera → Consenti.": "Camera permission denied (now or in the past). Turn it back on: 🔒 icon in the address bar → Permissions → Camera → Allow. On iPhone: Settings → Safari → Camera → Allow.",
-  "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri beeweat.vercel.app direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\").": "This browser doesn't give access to the camera. It happens in the in-app browsers of WhatsApp, Instagram or Facebook: open beeweat.vercel.app directly in Safari or Chrome (tap ⋯ → \"Open in browser\").",
+  "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri app.beeweat.com direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\").": "This browser doesn't give access to the camera. It happens in the in-app browsers of WhatsApp, Instagram or Facebook: open app.beeweat.com directly in Safari or Chrome (tap ⋯ → \"Open in browser\").",
   "Memoria piena: non riesco a conservare il post offline. Riprova quando torna la rete.": "Storage full: I can't keep the post offline. Try again when the connection is back.",
   "📡 Sei senza rete: il post è al sicuro nello zaino e partirà da solo appena torna la connessione. 🎒": "📡 You're offline: the post is safe in the backpack and will leave on its own as soon as the connection is back. 🎒",
   "🎒 Alcuni post nello zaino non riescono a partire (": "🎒 Some posts in the backpack can't leave (", "chiudi del tutto l'app e riaprila": "close the app completely and reopen it",
@@ -327,7 +332,7 @@ const DICT = {
   "La mia foto è stata respinta": "My photo was rejected", "Ho pubblicato senza rete, dov'è il post?": "I published offline, where's the post?", "Non ricevo le notifiche": "I don't get notifications",
   "Cosa sono le stelle sull'avatar?": "What are the stars on the avatar?", "Come funzionano le spunte nelle chat?": "How do the ticks in chats work?", "Come installo Beeweat sul telefono?": "How do I install Beeweat on the phone?",
   "La zona, mai la tua casa. Beeweat usa la posizione del telefono, che chiede il permesso la prima volta: le coordinate vengono arrotondate sul telefono a circa 1 km prima di partire, e sul server e sulla mappa arriva solo la zona. Senza posizione non si pubblica (feed, Radar e BeeCast lavorano sullo stesso punto). Se l'hai negata: Impostazioni → Safari → Posizione → Consenti.": "The area, never your home. Beeweat uses the phone's location, which asks for permission the first time: the coordinates are rounded on the phone to about 1 km before leaving, and only the area reaches the server and the map. Without location you can't publish (feed, Radar and BeeCast work on the same spot). If you denied it: Settings → Safari → Location → Allow.",
-  "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri beeweat.vercel.app in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera).": "From the in-app browser of WhatsApp/Instagram the camera doesn't work: open beeweat.vercel.app in Safari or Chrome. If permission was denied: 🔒 icon in the bar → Camera → Allow (on iPhone: Settings → Safari → Camera).",
+  "Dal browser interno di WhatsApp/Instagram la fotocamera non funziona: apri app.beeweat.com in Safari o Chrome. Se il permesso è stato negato: icona 🔒 nella barra → Fotocamera → Consenti (su iPhone: Impostazioni → Safari → Fotocamera).": "From the in-app browser of WhatsApp/Instagram the camera doesn't work: open app.beeweat.com in Safari or Chrome. If permission was denied: 🔒 icon in the bar → Camera → Allow (on iPhone: Settings → Safari → Camera).",
   "È nello zaino 🎒: resta al sicuro sul telefono e parte da solo appena torna la connessione (viene controllato prima di partire). Lo vedi nel feed con l'etichetta \"in attesa di rete\".": "It's in the backpack 🎒: it stays safe on the phone and leaves on its own as soon as the connection is back (it's checked before leaving). You see it in the feed with the label \"waiting for network\".",
   "Su iPhone le notifiche push funzionano solo con l'app installata: Condividi ⬆️ → Aggiungi alla schermata Home. Poi Profilo → Configurazione → Push sul telefono → Attiva.": "On iPhone push notifications only work with the app installed: Share ⬆️ → Add to Home Screen. Then Profile → Settings → Push on the phone → Turn on.",
   "Sono i gradi dell'alveare: una stella ogni 20 cieli pubblicati. Scout Bee (20), Worker Bee (40), Guard Bee (60), Royal Bee (80), Queen Bee (100+).": "They are the hive's ranks: one star every 20 skies published. Scout Bee (20), Worker Bee (40), Guard Bee (60), Royal Bee (80), Queen Bee (100+).",
@@ -407,6 +412,7 @@ const cond = c => trPiece(c);
 
 // ─── REGOLE per i testi con numeri o nomi dentro ───────────────────────────────────────────────
 const RULES = [
+  [/^Ti avvisiamo se le api nel tuo raggio \((\d+) km\) fotografano pioggia o temporale in avvicinamento\.$/, m => `We'll warn you if bees within your radius (${m[1]} km) photograph rain or a storm approaching.`],
   // 14.81: blocco utente
   [/^Blocca anche (.+)$/, m => `Also block ${m[1]}`],
   [/^Blocca (.+)$/, m => `Block ${m[1]}`],
