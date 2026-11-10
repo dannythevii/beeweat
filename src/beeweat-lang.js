@@ -39,10 +39,10 @@ const DICT = {
   "Come Beeweat tratta i tuoi dati personali.": "How Beeweat handles your personal data.", "Le regole che valgono per tutte le api dell'alveare.": "The rules that apply to every bee in the hive.",
   "Blocco non riuscito": "Block failed", "Sblocco non riuscito": "Unblock failed",
   // 14.80: cielo in movimento
-  "Movimento": "Motion", "Foto": "Photo", "Foto o movimento": "Photo or motion", "Movimento · 5 s": "Motion · 5 s", "Cielo in movimento": "Sky in motion",
-  "Cielo in movimento · 5 secondi": "Sky in motion · 5 seconds", "5 secondi di cielo in movimento · senza audio": "5 seconds of sky in motion · no sound",
+  "Video 5″": "Video 5″", "Foto": "Photo", "Foto o video": "Photo or video", "Video · 5″": "Video · 5″", "Cielo in video": "Sky on video",
+  "Video di 5 secondi": "5-second video", "Video di 5 secondi · senza audio": "5-second video · no sound",
   "Tieni il telefono fermo: si ferma da solo a 5 secondi": "Hold the phone still: it stops by itself at 5 seconds",
-  "Registra 5 secondi di cielo": "Record 5 seconds of sky", "Ferma la registrazione": "Stop recording", "Registra": "Record", "Ferma": "Stop",
+  "Registra un video di 5 secondi": "Record a 5-second video", "Ferma la registrazione": "Stop recording", "Registra": "Record", "Ferma": "Stop",
   "Gira la fotocamera": "Flip the camera",
   "La registrazione è venuta vuota: tocca di nuovo il tasto e tieni il telefono fermo per 5 secondi.": "The recording came out empty: tap the button again and hold the phone still for 5 seconds.",
   "Questo telefono non registra video dal browser: scatta una foto.": "This phone can't record video from the browser: take a photo instead.",
