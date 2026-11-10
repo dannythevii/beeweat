@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { VAPID_PUBLIC_KEY } from "./beeweat-config.js";
 import { installTranslator, getLang, getLangChoice, setLangChoice } from "./beeweat-lang.js";   // 14.75: doppia lingua
+const LOCALE = () => getLang() === "en" ? "en-GB" : "it-IT";   // 14.84: date e ore nella lingua scelta
+const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCALE(), { month: "long" }); return n.charAt(0).toUpperCase() + n.slice(1); };
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.83";
+const APP_VERSION = "14.84";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -223,11 +225,11 @@ const moonPhase = () => {
 // Data+ora dei post: "oggi · 16:37", "ieri · 09:12", "31/07 · 18:45"
 const fmtPostTime = ts => {
   const d = new Date(ts), now = new Date();
-  const time = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" });
   if (d.toDateString() === now.toDateString()) return "oggi · " + time;
   const yest = new Date(now); yest.setDate(now.getDate() - 1);
   if (d.toDateString() === yest.toDateString()) return "ieri · " + time;
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }) + " · " + time;
+  return d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" }) + " · " + time;
 };
 // Rintocco Beeweat per il banner in-app (doppia nota, sintetizzata al volo)
 let _bwAudio = null;
@@ -1074,7 +1076,7 @@ function WeatherPanel({ commentCount, wx, onOpenChat }) {
             <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 40, fontWeight: 700, lineHeight: .9, letterSpacing: "-.03em" }}>{W.temp}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingBottom: 2 }}>
               <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{W.condition.replace(/^[^ ]+ /, "")}</div>
-              <div style={{ fontSize: 12, color: TXT2, whiteSpace: "nowrap" }} title={W.feels != null ? `Temperatura percepita ${W.feels}°` : undefined}>max {W.hi} · min {W.lo}{W.feels != null ? ` · perc. ${W.feels}°` : ` · ${new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</div>
+              <div style={{ fontSize: 12, color: TXT2, whiteSpace: "nowrap" }} title={W.feels != null ? `Temperatura percepita ${W.feels}°` : undefined}>max {W.hi} · min {W.lo}{W.feels != null ? ` · perc. ${W.feels}°` : ` · ${new Date().toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}`}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1268,7 +1270,7 @@ function ReportModal({ post, onSubmit, onClose, canBlock }) {
           <div style={{ textAlign: "center", padding: "10px 0 4px" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#3BA77618", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><NavIcon name="check" size={28} color="#3BA776" sw={2.4} /></div>
             <div style={{ fontWeight: 700, fontSize: 17, color: TXT, marginBottom: 6 }}>Segnalazione inviata</div>
-            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.{alsoBlock && <> <b>{post.user}</b> è stata bloccata: la sblocchi dal suo profilo quando vuoi.</>}</div>
+            <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 16 }}>Grazie. Il contenuto è ora <b>in revisione</b> e verrà controllato dal nostro sistema di moderazione.{alsoBlock && <> <b data-notr="1">{post.user}</b> è stata bloccata: la sblocchi dal suo profilo quando vuoi.</>}</div>
             <button onClick={onClose} style={{ width: "100%", padding: 13, borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Chiudi</button>
           </div>
         )}
@@ -1348,8 +1350,8 @@ function AwardModal({ post, message, onClose, onOpen }) {
         <div style={{ fontSize: 58, lineHeight: 1, filter: "drop-shadow(0 4px 10px rgba(240,185,41,.55))" }}>🏅</div>
         <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: ".14em", color: "#B8860B", marginTop: 10 }}>FOTO PREMIATA</div>
         <div style={{ fontSize: 16.5, color: TXT, lineHeight: 1.45, marginTop: 8 }}>
-          La foto migliore è stata scattata da <b style={{ color: TXT }}>{post.user}</b>
-          {post.city ? <> a <b style={{ color: TXT }}>{post.city}</b></> : null}
+          La foto migliore è stata scattata da <b data-notr="1" style={{ color: TXT }}><span data-notr="1">{post.user}</span></b>
+          {post.city ? <> a <b data-notr="1" style={{ color: TXT }}><span data-notr="1">{post.city}</span></b></> : null}
         </div>
         {message && <div style={{ fontSize: 13.5, color: TXT2, marginTop: 6, fontStyle: "italic" }}>«{message}»</div>}
         <button onClick={onOpen} title="Apri il post premiato" style={{ display: "block", width: "100%", marginTop: 14, padding: 0, border: `3px solid ${ACCENT}`, borderRadius: 16, overflow: "hidden", background: "#000", cursor: "pointer", boxShadow: "0 6px 18px rgba(0,0,0,.25)" }}>
@@ -1519,7 +1521,7 @@ function PhotoViewer({ src: src0, caption: caption0, onClose, items, index = 0 }
       </div>
       <div onClick={e => e.stopPropagation()} style={{ padding: "14px 16px calc(18px + env(safe-area-inset-bottom))" }}>
         {list.length > 1 && <div style={{ color: TXT2, fontSize: 12, fontWeight: 700, textAlign: "center", marginBottom: 6 }}>{cur + 1} / {list.length}</div>}
-        {caption && <div style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
+        {caption && <div data-notr="1" style={{ color: "#C9D8E8", fontSize: 13.5, textAlign: "center", marginBottom: 12 }}>{caption}</div>}
         <button onClick={save} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: saved ? "#3BA776" : NIGHT3, color: saved ? "#fff" : TXT, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>{saved ? "✓ Fatto" : "Condividi"}</button>
       </div>
     </div>
@@ -1639,12 +1641,12 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
       {/* DIDASCALIA */}
       <div style={{ position: "absolute", left: 14, right: 66, bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.5)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 700, fontSize: 16, cursor: onOpenUser && !post.mine ? "pointer" : "default" }}>{post.user}</span>
+          <span onClick={() => onOpenUser && !post.mine && onOpenUser(post)} style={{ fontWeight: 700, fontSize: 16, cursor: onOpenUser && !post.mine ? "pointer" : "default" }}><span data-notr="1">{post.user}</span></span>
           {post.stars_rank > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: HONEY2, background: "rgba(245,184,46,.16)", padding: "2px 7px", borderRadius: 999 }}>{beeRank(post.stars_rank * STAR_STEP)}</span>}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,.8)" }}><NavIcon name="starFill" size={12} />{post.stars}<span style={{ margin: "0 2px" }}>·</span><NavIcon name="eye" size={13} color="rgba(255,255,255,.8)" sw={2} />{post.views}</span>{/* 14.42: accanto al nome */}
         </div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{post.city}{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.video && <span title="Video di 5 secondi" aria-label="Cielo in video" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 2, color: HONEY2 }}><NavIcon name="motion" size={13} color={HONEY2} sw={2.2} />5″</span>}{post.aiClass && <span title={r ? `Verificato dagli occhi dell'alveare · ${skyLabel(r.cls)} · ${Math.round(r.agree * 100)}% ${r.reliability}` : "Verificato dagli occhi dell'alveare"} aria-label="Cielo verificato" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: HONEY, marginLeft: 2 }}><NavIcon name="check" size={10} color={INK} sw={3} /></span>}</div>{/* 14.44: una spunta al posto delle due etichette */}
-        {post.caption && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}>{post.caption}</div>}
+        <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.78)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><span data-notr="1">{post.city}</span>{post.precision === "city" ? " ≈" : ""}{post.time ? ` · ${post.time}` : ""}<span>·</span><NavIcon name={skyIcon(post.cond)} size={12} color="#fff" sw={2.2} />{condLabel}{post.temp != null && Number.isFinite(post.temp) ? ` ${Math.round(post.temp)}°` : ""}{post.video && <span title="Video di 5 secondi" aria-label="Cielo in video" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 2, color: HONEY2 }}><NavIcon name="motion" size={13} color={HONEY2} sw={2.2} />5″</span>}{post.aiClass && <span title={r ? `Verificato dagli occhi dell'alveare · ${skyLabel(r.cls)} · ${Math.round(r.agree * 100)}% ${r.reliability}` : "Verificato dagli occhi dell'alveare"} aria-label="Cielo verificato" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: HONEY, marginLeft: 2 }}><NavIcon name="check" size={10} color={INK} sw={3} /></span>}</div>{/* 14.44: una spunta al posto delle due etichette */}
+        {post.caption && <div data-notr="1" style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.35, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word" }}><span data-notr="1">{post.caption}</span></div>}
       </div>
     </div>
   );
@@ -1832,10 +1834,10 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
 // 14.25: allerte ufficiali, rischio temporali e modelli a confronto — dati Solano (solanometeo.fr)
 function SolanoCard({ solano }) {
-  const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`; };
+  const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}`; };
   const lvColor = l => l >= 4 ? "#C62828" : l === 3 ? "#E8700A" : "#D9A400";
-  const dayLabel = date => { const t = new Date(); const d = new Date(date + "T12:00:00"); const diff = Math.round((d - new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12)) / 86400000); return diff === 0 ? "oggi" : diff === 1 ? "domani" : d.toLocaleDateString("it-IT", { weekday: "short" }); };
-  const peakLocal = iso => { if (!iso) return ""; const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z")); return isNaN(d) ? "" : d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
+  const dayLabel = date => { const t = new Date(); const d = new Date(date + "T12:00:00"); const diff = Math.round((d - new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12)) / 86400000); return diff === 0 ? "oggi" : diff === 1 ? "domani" : d.toLocaleDateString(LOCALE(), { weekday: "short" }); };
+  const peakLocal = iso => { if (!iso) return ""; const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z")); return isNaN(d) ? "" : d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" }); };
   const CARDST = { background: NIGHT2, borderRadius: 22, border: `1px solid ${LINE}`, boxShadow: "0 6px 20px rgba(0,0,0,.25)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 };
   if (solano === undefined) return <div style={CARDST}><div className="bw-skel" style={{ height: 16, width: "60%", borderRadius: 8 }} /><div className="bw-skel" style={{ height: 14, width: "85%", borderRadius: 7 }} /></div>;
   if (!solano) return <div style={{ ...CARDST, color: TXT2, fontSize: 13 }}>Allerte ufficiali non disponibili in questo momento. Riprova tra poco.</div>;
@@ -2093,7 +2095,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
             const d30 = co2.ago30 ? co2.ppm - co2.ago30.ppm : null, d1y = co2.ago365 != null ? co2.ppm - co2.ago365 : null, d10 = co2.ago10y != null ? co2.ppm - co2.ago10y : null;
             const sign = v => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1).replace(".", ",");
             const col = v => v == null ? TXT2 : v > 0 ? "#FFB4B6" : v < 0 ? "#9BE7BF" : TXT2;
-            const when = (() => { const d = new Date(co2.date + "T12:00:00"); return isNaN(d) ? co2.date : d.toLocaleDateString("it-IT", { day: "numeric", month: "long" }); })();
+            const when = (() => { const d = new Date(co2.date + "T12:00:00"); return isNaN(d) ? co2.date : d.toLocaleDateString(LOCALE(), { day: "numeric", month: "long" }); })();
             const Cmp = ({ label, v, base }) => (
               <div style={{ flex: 1, minWidth: 0, background: MIST, borderRadius: 14, padding: "8px 6px", textAlign: "center" }}>
                 <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15, color: col(v) }}>{sign(v)}</div>
@@ -2136,7 +2138,7 @@ const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
 const EUMET_WMS = "https://view.eumetsat.int/geoserver/wms";
 const SAT_LAYERS = { day: ["mtg_fd:rgb_truecolour", "msg_fes:rgb_naturalenhncd", "msg_fes:rgb_naturalcolor"], night: ["mtg_fd:ir105", "msg_fes:ir108", "msg_fes:rgb_naturalenhncd"] };
 const _mercPx = (lat, lng, z) => { const n = 256 * Math.pow(2, z), r = lat * Math.PI / 180; return { x: (lng + 180) / 360 * n, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n }; };
-const _hhmm = t => new Date(t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+const _hhmm = t => new Date(t).toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" });
 const _bbox = (geo, km) => { const dLat = km / 111.32, dLng = km / (111.32 * Math.max(0.2, Math.cos(geo.lat * Math.PI / 180))); return { lat0: geo.lat - dLat, lat1: geo.lat + dLat, lng0: geo.lng - dLng, lng1: geo.lng + dLng }; };
 
 // Pioggia: le piastrelle RainViewer che coprono il disco, in scala; 10 fotogrammi (70 min passati + 30 min previsti)
@@ -2490,9 +2492,9 @@ function EventiScreen({ events, km, setKm, onOpenRadar, onOpen, userName, myUid,
             </div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#9CC1FF", letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat ? e.cat.replace(/^[^ ]+ /, "") : "Segnalazione meteo"}</div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
+              <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}><span data-notr="1">{e.title}</span></div>
               <div style={{ fontSize: 12.5, color: TXT2 }}>{e.time}{e.ends ? ` · fino al ${e.ends.split("-").reverse().join("/")}` : ""}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> <span data-notr="1">{e.place}</span>{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>
             </div>
             {e.img && <button onClick={ev => { ev.stopPropagation(); onOpenPhoto && onOpenPhoto({ img: e.img, caption: `${e.title}${e.place ? " · " + e.place : ""}` }); }} title="Apri la foto" style={{ padding: 0, border: "none", borderRadius: 14, overflow: "hidden", background: "#000", cursor: "pointer", width: 64, height: 84, flexShrink: 0 }}>
               <img src={e.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -2538,8 +2540,8 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
         <div onClick={() => onOpenUser && onOpenUser(p)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, cursor: "pointer" }}>
           <UserAvatar src={p.ava} size={50} stars={beeStars(p.postsCount)} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{p.name}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {p.city}</div>
+            <div data-notr="1" style={{ fontSize: 16, fontWeight: 600, color: TXT }}><span data-notr="1">{p.name}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> <span data-notr="1">{p.city}</span></div>
           </div>
         </div>
         <button onClick={() => onFollowUser && onFollowUser(p.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name={on ? "starFill" : "star"} size={26} color={on ? STAR : TXT2} /></button>
@@ -2583,7 +2585,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
           {followedPlaces.length === 0 ? <div style={{ padding: "4px 16px 14px", color: TXT2, fontSize: 13.5 }}>Nessun luogo seguito — tocca la stella sui luoghi in BeePaper.</div> : followedPlaces.map(pl => (
             <div key={pl.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: `1px solid ${LINE}` }}>
               <div onClick={() => onOpenPlace(pl)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{pl.name}</div>
+                <div data-notr="1" style={{ fontSize: 16, fontWeight: 600, color: TXT }}><span data-notr="1">{pl.name}</span></div>
                 {pl.dist != null && <div style={{ fontSize: 12.5, color: TXT2, display: "flex", alignItems: "center", gap: 4 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} />{pl.dist} km da te</div>}
               </div>
               <button onClick={() => onTogglePlaceFav(pl.name)} style={{ background: "none", border: "none", cursor: "pointer" }}><NavIcon name="starFill" size={24} color={STAR} /></button>
@@ -2603,7 +2605,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
                 <div onClick={() => onOpenGroup(g)} style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, cursor: "pointer", minWidth: 0 }}>
                 <div style={{ width: 50, height: 50, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="groups" size={26} color={TXT} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: TXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</div>
+                  <div data-notr="1" style={{ fontSize: 16, fontWeight: 600, color: TXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><span data-notr="1">{g.name}</span></div>
                   <div style={{ fontSize: 12.5, color: TXT2, marginTop: 1 }}>{g.members.length} membri · {g.members.slice(0, 3).map(id => ((contacts || []).find(c => c.id === id) || {}).name || "").filter(Boolean).join(", ")}{g.members.length > 3 ? "…" : ""}</div>
                 </div>
                 <NavIcon name="chevron" size={18} color={TXT2} sw={2} />
@@ -2625,7 +2627,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
                 <button onClick={e => { e.stopPropagation(); onTogglePlaceFav && onTogglePlaceFav(p.name); }} title="Segui questo luogo" aria-pressed={on} style={{ position: "absolute", top: 4, left: 4, width: 44, height: 44, borderRadius: "50%", background: "rgba(0,0,0,.35)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={on ? "starFill" : "star"} size={14} color={on ? HONEY : "#fff"} sw={2} /></button>
                 {p.dist != null && <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.4)", padding: "3px 7px", borderRadius: 999 }}>{fmt(p.dist)}</span>}
                 <button onClick={e => { e.stopPropagation(); onOpenPlace(p); }} tabIndex={-1} style={{ position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 44, padding: "0 10px 9px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "#fff", fontFamily: "'Inter',sans-serif" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                  <div data-notr="1" style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span data-notr="1">{p.name}</span></div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,.75)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>{p.events > 0 ? <span onClick={ev => { ev.stopPropagation(); onOpenPlaceEvents(p); }} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><NavIcon name="calendar" size={11} color="rgba(255,255,255,.85)" sw={2.2} />{p.events} {p.events === 1 ? "evento" : "eventi"}</span> : "chat del posto"}</div>
                 </button>
               </div>
@@ -2652,7 +2654,7 @@ function ContattiScreen({ contacts, groups, km, setKm, onOpenRadar, onChat, onOp
           <div key={c.id} onClick={() => c.me ? (onOpenSelf && onOpenSelf()) : (onOpenUser && onOpenUser(c))} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 20, background: NIGHT2, cursor: "pointer", border: `1px solid ${c.me ? HONEY + "88" : LINE}` }}>{/* 14.38 */}
             <span style={{ borderRadius: "50%", padding: 2, background: on ? `linear-gradient(135deg, ${HONEY}, #FF7A59)` : "transparent" }}><UserAvatar src={c.ava} size={46} stars={0} ring={!on} /></span>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>{st > 0 && <span style={{ fontSize: 12, color: HONEY2, letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}><span data-notr="1" style={{ fontWeight: 700, fontSize: 15, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span data-notr="1">{c.name}</span></span>{st > 0 && <span style={{ fontSize: 12, color: HONEY2, letterSpacing: ".04em", flexShrink: 0 }}>{"★".repeat(st)}</span>}{c.me && <span style={{ height: 18, padding: "0 7px", borderRadius: 9, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", flexShrink: 0 }}>TU</span>}</div>
               <div style={{ fontSize: 12.5, color: TXT2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleCase(c.city)}{c.postsCount != null ? ` · ${c.postsCount} ${c.postsCount === 1 ? "cielo" : "cieli"}` : ""} · {beeRank(c.postsCount)}</div>
             </div>
             {!c.me && onFollowUser && <button onClick={e => { e.stopPropagation(); onFollowUser(c.name); }} aria-pressed={following?.includes(c.name)} style={{ height: 44, padding: "0 14px", borderRadius: 22, border: on ? `1px solid ${LINE}` : "none", background: on ? "transparent" : HONEY, color: on ? TXT : INK, fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{on ? "Seguito" : "Segui"}</button>}
@@ -2685,7 +2687,7 @@ function CreateGroupModal({ contacts, onCreate, onClose }) {
             return (
               <div key={c.id} onClick={() => toggle(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", cursor: "pointer", borderBottom: `1px solid ${LINE}` }}>
                 <UserAvatar src={c.ava} size={42} />
-                <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                <div style={{ flex: 1 }}><div data-notr="1" style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div data-notr="1" style={{ fontSize: 12, color: TXT2 }}><span data-notr="1">{c.city}</span></div></div>
                 <div style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HONEY : LINE}`, background: on ? HBLUE : NIGHT3, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
               </div>
             );
@@ -2760,8 +2762,8 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
         )}
         {msgs.map((m, mi) => (
           <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start" }} onContextMenu={e => { if (onDeleteMsg) { e.preventDefault(); askDelete(m); } }}>
-            {!m.me && (group || contact.public) && m.who && <span style={{ fontSize: 12, color: TXT, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
-            <div style={{ maxWidth: "78%", background: m.me ? `linear-gradient(135deg, ${HONEY}, #E89A1C)` : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "18px 18px 6px 18px" : "18px 18px 18px 6px", padding: "10px 13px", fontSize: 15.5, lineHeight: 1.4, fontWeight: m.me ? 500 : 400, overflowWrap: "anywhere" }}>{/* 14.37 */}{m.text}<div style={{ fontSize: 12, opacity: .75, marginTop: 4, display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", fontWeight: 600 }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 700, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? "#7A4A00" : INK, opacity: (m.readAt || m.deliveredAt) ? 1 : .6 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && m.me && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .7, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? INK : TXT2} sw={2} /></button>}</div></div>
+            {!m.me && (group || contact.public) && m.who && <span data-notr="1" style={{ fontSize: 12, color: TXT, fontWeight: 600, margin: "0 0 2px 6px" }}>{m.who}</span>}
+            <div style={{ maxWidth: "78%", background: m.me ? `linear-gradient(135deg, ${HONEY}, #E89A1C)` : NIGHT3, color: m.me ? INK : TXT, borderRadius: m.me ? "18px 18px 6px 18px" : "18px 18px 18px 6px", padding: "10px 13px", fontSize: 15.5, lineHeight: 1.4, fontWeight: m.me ? 500 : 400, overflowWrap: "anywhere" }}>{/* 14.37 */}<span data-notr="1">{m.text}</span><div style={{ fontSize: 12, opacity: .75, marginTop: 4, display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", fontWeight: 600 }}>{m.time}{m.me && !group && !contact.public && <span title={m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontWeight: 700, letterSpacing: "-1px", fontSize: 12, color: m.readAt ? "#7A4A00" : INK, opacity: (m.readAt || m.deliveredAt) ? 1 : .6 }}>{(m.readAt || m.deliveredAt) ? "✓✓" : "✓"}</span>{mi === msgs.length - 1 && <span style={{ fontSize: 12, fontWeight: 700 }}>{m.readAt ? "Letto" : m.deliveredAt ? "Consegnato" : "Inviato"}</span>}</span>}{onDeleteMsg && m.me && <button onClick={e => { e.stopPropagation(); askDelete(m); }} aria-label="Elimina il messaggio" title="Elimina" style={{ cursor: "pointer", opacity: .7, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, margin: "-10px -12px -10px -4px", background: "none", border: "none", color: "inherit" }}><NavIcon name="trash" size={13} color={m.me ? INK : TXT2} sw={2} /></button>}</div></div>
           </div>
         ))}
         <div ref={ref} />
@@ -2783,7 +2785,7 @@ function ChatView({ contact, msgs, onSend, onBack, group, contacts, onUpdateGrou
                 return (
                   <button key={c.id} onClick={() => toggleMember(c.id)} role="checkbox" aria-checked={on} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", minHeight: 56, cursor: "pointer", borderBottom: `1px solid ${LINE}`, background: "none", border: "none", textAlign: "left", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
                     <UserAvatar src={c.ava} size={42} />
-                    <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div></div>
+                    <div style={{ flex: 1 }}><div data-notr="1" style={{ fontWeight: 600, color: TXT }}>{c.name}</div><div data-notr="1" style={{ fontSize: 12, color: TXT2 }}><span data-notr="1">{c.city}</span></div></div>
                     <div aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${on ? HONEY : LINE}`, background: on ? HBLUE : NIGHT3, display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <NavIcon name="check" size={14} color="#fff" sw={3} />}</div>
                   </button>
                 );
@@ -3373,7 +3375,7 @@ const ProfileRow = ({ icon, title, sub, onClick, right, border = true, honey, co
     </div>
   );
 const ProfileTile = ({ p, big, list, onOpenPhoto }) => {
-    const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
+    const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, list)} aria-label={`Apri il cielo del ${when.replace(" · ", " alle ")}${p.city ? " a " + p.city : ""}`} style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, cursor: "pointer", border: "none", padding: 0, width: "100%" }}>   /* 14.43: anche la grande è quadrata */
         <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -3418,11 +3420,11 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
           </button>
           <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 24, letterSpacing: "-.6px", color: TXT, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.name}</div>
+              <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 24, letterSpacing: "-.6px", color: TXT, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span data-notr="1">{user.name}</span></div>
               {isAdmin && <span style={{ height: 20, padding: "0 7px", borderRadius: 10, background: MIST, color: TXT, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", letterSpacing: ".06em", flexShrink: 0 }}>ADMIN</span>}
               {onRename && <button onClick={onRename} title="Modifica nome" aria-label="Modifica il nome" style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: MIST, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="edit" size={14} color={TXT} sw={2} /></button>}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 6, fontWeight: 500 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} />{user.city}{onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px 0 -14px -8px" }}><NavIcon name="edit" size={12} color={TXT2} sw={2} /></button>}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 6, fontWeight: 500 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} /><span data-notr="1">{user.city}</span>{onRenameCity && <button onClick={onRenameCity} title="Modifica città" aria-label="Modifica la città" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-14px 0 -14px -8px" }}><NavIcon name="edit" size={12} color={TXT2} sw={2} /></button>}</div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6, fontSize: 12, fontWeight: 700, color: HONEY2, background: "rgba(245,184,46,.14)", padding: "4px 9px", borderRadius: 999 }}><NavIcon name={rank >= 5 ? "crown" : "starFill"} size={12} color={HONEY2} sw={2} />{beeRank(nMine)} · {stars} {stars === 1 ? "stella" : "stelle"}</div>
           </div>
         </div>
@@ -3443,8 +3445,8 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
                 <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
                   <UserAvatar src={c.ava} size={38} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: TXT }}>{c.name}</div>
-                    {c.city && <div style={{ fontSize: 12, color: TXT2 }}>{c.city}</div>}
+                    <div data-notr="1" style={{ fontWeight: 600, fontSize: 14, color: TXT }}><span data-notr="1">{c.name}</span></div>
+                    {c.city && <div data-notr="1" style={{ fontSize: 12, color: TXT2 }}><span data-notr="1">{c.city}</span></div>}
                   </div>
                   {onFollow && <button onClick={() => onFollow(c.name)} style={{ fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif", height: 32, padding: "0 12px", borderRadius: 16, cursor: "pointer", border: following?.includes(c.name) ? `1px solid ${LINE}` : "none", background: following?.includes(c.name) ? "transparent" : HONEY, color: following?.includes(c.name) ? TXT : INK }}>{following?.includes(c.name) ? "Seguito" : "Segui"}</button>}
                 </div>
@@ -3465,7 +3467,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
         {/* I MIEI CIELI */}
         <div style={{ padding: "16px 16px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString("it-IT", { month: "long" })}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I miei cieli · {new Date().toLocaleDateString(LOCALE(), { month: "long" })}</div>
             {onArchive && nMine > 0 && <button onClick={onArchive} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Tutti ({nMine})</button>}
           </div>
           {nMine === 0
@@ -3502,7 +3504,7 @@ function ProfileView({ onDeleteAccount, onGender, user, posts, onLogout, onBack,
 
 // ─── PAGINA PUBBLICA DI UN UTENTE (con i suoi post) ───────────────────────────
 const UserTile = ({ p, big, list, onOpenPhoto, onStar }) => {
-    const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
+    const d = p.ts ? new Date(p.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}` : (p.time || "");
     return (
       <div style={{ position: "relative", gridColumn: big ? "span 2" : undefined, gridRow: big ? "span 2" : undefined, aspectRatio: big ? undefined : "1 / 1", borderRadius: 14, overflow: "hidden", background: NIGHT3, minHeight: big ? 0 : undefined }}>
         <button onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, list)} aria-label={`Apri il cielo del ${when}`} style={{ position: "absolute", inset: 0, border: "none", padding: 0, background: "none", cursor: "pointer" }}><img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></button>
@@ -3537,8 +3539,8 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             <div title={beeRank(nPosts)} style={{ position: "absolute", right: -8, bottom: -8, width: 34, height: 34, borderRadius: "50%", background: HONEY, border: `3px solid ${NIGHT}`, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name={rank >= 5 ? "crown" : "bee"} size={17} color={INK} sw={2} /></div>
           </div>
           <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 24, letterSpacing: "-.6px", color: TXT, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.name}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 6, fontWeight: 500 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} />{profile.city}</div>
+            <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 24, letterSpacing: "-.6px", color: TXT, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span data-notr="1">{profile.name}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2, marginTop: 6, fontWeight: 500 }}><NavIcon name="pin" size={12} color={TXT2} sw={2.2} /><span data-notr="1">{profile.city}</span></div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6, fontSize: 12, fontWeight: 700, color: HONEY2, background: "rgba(245,184,46,.14)", padding: "4px 9px", borderRadius: 999 }}><NavIcon name={rank >= 5 ? "crown" : "starFill"} size={12} color={HONEY2} sw={2} />{beeRank(nPosts)} · {totStars} {totStars === 1 ? "stella" : "stelle"}</div>
           </div>
         </div>
@@ -3574,7 +3576,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             {myEvents.map(e => (
               <button key={e.id} onClick={() => onOpenEvent && onOpenEvent(e)} style={{ width: "100%", textAlign: "left", background: NIGHT2, border: `1px solid ${LINE}`, borderRadius: 16, padding: "11px 12px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontFamily: "'Inter',sans-serif" }}>
                 <span style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(36,87,214,.22)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name={evIcon(e)} size={20} color="#9CC1FF" sw={1.9} /></span>
-                <span style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block", fontWeight: 700, fontSize: 14.5, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span><span style={{ display: "block", fontSize: 12, color: TXT2, marginTop: 1 }}>{e.place}{e.time ? ` · ${e.time}` : ""}</span></span>
+                <span style={{ flex: 1, minWidth: 0 }}><span data-notr="1" style={{ display: "block", fontWeight: 700, fontSize: 14.5, color: TXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span><span style={{ display: "block", fontSize: 12, color: TXT2, marginTop: 1 }}><span data-notr="1">{e.place}</span>{e.time ? ` · ${e.time}` : ""}</span></span>
                 {e.sev && <span style={{ fontSize: 12, fontWeight: 700, color: "#9CC1FF", background: "rgba(36,87,214,.3)", borderRadius: 999, padding: "4px 9px", flexShrink: 0 }}>{e.sev}</span>}
               </button>
             ))}
@@ -3586,7 +3588,7 @@ function UserProfileView({ profile, posts, events, isFollowing, onFollow, onBack
             const shown = month.slice(0, 8), rest = Math.max(0, nPosts - shown.length);
             return <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I suoi cieli · {now.toLocaleDateString("it-IT", { month: "long" })}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: TXT2, letterSpacing: ".06em", textTransform: "uppercase" }}>I suoi cieli · {now.toLocaleDateString(LOCALE(), { month: "long" })}</div>
                 {onAllSkies && nPosts > 0 && <button onClick={onAllSkies} style={{ background: "none", border: "none", padding: "0 4px", minHeight: 36, fontSize: 12, fontWeight: 700, color: HONEY2, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Tutti ({nPosts})</button>}
               </div>
               {nPosts === 0 && shown.length === 0
@@ -3616,7 +3618,7 @@ function AddContactModal({ people, contacts, onAdd, onClose }) {
         {available.length === 0 ? <div style={{ color: TXT2, fontSize: 14, padding: "10px 0" }}>Hai già aggiunto tutti gli utenti disponibili 🎉</div> : available.map(p => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: `1px solid ${LINE}` }}>
             <img src={p.ava} style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover" }} alt="" />
-            <div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: TXT }}>{p.name}</div><div style={{ fontSize: 12, color: TXT2 }}>{p.city}</div></div>
+            <div style={{ flex: 1 }}><div data-notr="1" style={{ fontWeight: 600, color: TXT }}>{p.name}</div><div data-notr="1" style={{ fontSize: 12, color: TXT2 }}><span data-notr="1">{p.city}</span></div></div>
             <button onClick={() => onAdd(p)} style={{ width: 36, height: 36, borderRadius: "50%", background: HBLUE, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="plus" size={18} color="#fff" sw={2.4} /></button>
           </div>
         ))}
@@ -3705,7 +3707,7 @@ const ShareBtn = ({ e, dark }) => (
     <NavIcon name="send" size={15} color={dark ? "#fff" : TXT} sw={2.2} />Condividi
   </button>
 );
-const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }); };
+const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString(LOCALE(), { weekday: "short", day: "numeric", month: "short" }) + " · " + d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" }); };
 function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
   const [more, setMore] = useState(false);
   return (
@@ -3713,21 +3715,21 @@ function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
       <div style={{ display: "flex", gap: 12 }}>
         {e.startsAt
           ? <div style={{ width: 58, alignSelf: "stretch", minHeight: 76, borderRadius: 16, background: ACCENT, color: INK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em" }}>{new Date(e.startsAt).toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "").toUpperCase()}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em" }}>{new Date(e.startsAt).toLocaleDateString(LOCALE(), { weekday: "short" }).replace(".", "").toUpperCase()}</div>
               <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{new Date(e.startsAt).getDate()}</div>
-              <div style={{ fontSize: 12, fontWeight: 600 }}>{new Date(e.startsAt).toLocaleDateString("it-IT", { month: "short" }).replace(".", "").toUpperCase()}</div>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{new Date(e.startsAt).toLocaleDateString(LOCALE(), { month: "short" }).replace(".", "").toUpperCase()}</div>
             </div>
           : <div style={{ width: 58, minHeight: 76, borderRadius: 16, background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{/* 14.38 */}<NavIcon name={evIcon(e)} size={26} color={HONEY2} sw={1.8} /></div>}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
           {e.cat && <div style={{ fontSize: 12, fontWeight: 700, color: TXT, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat}</div>}
-          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}>{e.title}</div>
-          {e.startsAt && <div style={{ fontSize: 12.5, color: TXT2 }}>ore {new Date(e.startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}{(e.address || e.place) ? ` · ${e.address || e.place}` : ""}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
+          <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}><span data-notr="1">{e.title}</span></div>
+          {e.startsAt && <div style={{ fontSize: 12.5, color: TXT2 }}>ore {new Date(e.startsAt).toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}{(e.address || e.place) ? ` · ${e.address || e.place}` : ""}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
           {!e.startsAt && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.address || e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
         </div>
         {e.img && <img src={e.img} alt="" onClick={() => onOpen(e)} style={{ width: 64, height: 84, borderRadius: 14, objectFit: "cover", flexShrink: 0, cursor: "pointer" }} />}
         {canEdit && <button onClick={ev => { ev.stopPropagation(); onEdit && onEdit(e); }} title="Modifica o elimina l'evento" style={{ alignSelf: "flex-start", background: MIST, border: "none", borderRadius: 10, cursor: "pointer", padding: 7, display: "flex", flexShrink: 0 }}><NavIcon name="edit" size={17} color={TXT} sw={1.9} /></button>}
       </div>
-      {e.description && <div onClick={() => setMore(m => !m)} style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 10, whiteSpace: "pre-wrap", cursor: "pointer", ...(more ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{e.description}</div>}
+      {e.description && <div onClick={() => setMore(m => !m)} style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginTop: 10, whiteSpace: "pre-wrap", cursor: "pointer", ...(more ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}><span data-notr="1">{e.description}</span></div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
         <button onClick={() => onOpen(e)} style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${HONEY}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>🗺️ Vedi sulla mappa</button>
         {e.link && <a href={/^https?:/i.test(e.link) ? e.link : "https://" + e.link} target="_blank" rel="noopener" style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 700, fontSize: 12.5, textAlign: "center", textDecoration: "none", fontFamily: "'Inter',sans-serif" }}>🔗 Info</a>}
@@ -4001,7 +4003,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 46, height: 46, borderRadius: "50%", background: MIST, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><NavIcon name="pin" size={24} color={TXT} /></div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT, lineHeight: 1.1 }}>{place.name}</div>
+              <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT, lineHeight: 1.1 }}><span data-notr="1">{place.name}</span></div>
               <div style={{ fontSize: 13, color: TXT2, marginTop: 1 }}>{fmt(place.dist)} da te · {users.length} utenti collegati{placePosts.length > 0 ? ` · ${placePosts.length} foto` : ""}</div>
             </div>
           </div>
@@ -4027,7 +4029,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
             <UserAvatar src={u.ava} size={50} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: TXT }}>{u.name}{u.me && <span style={{ color: TXT2, fontWeight: 500 }}> (tu)</span>}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {place.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> <span data-notr="1">{place.name}</span></div>
             </div>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#3BA776", flexShrink: 0 }} title="online" />
           </div>
@@ -4053,7 +4055,7 @@ function PlaceEventsView({ place, events, onBack, onOpen }) {
               <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                 <div style={{ fontSize: 34 }}>{e.type || (e.cat ? e.cat.split(" ")[0] : "📍")}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: TXT }}>{e.title}</div>
+                  <div data-notr="1" style={{ fontWeight: 600, fontSize: 15, color: TXT }}><span data-notr="1">{e.title}</span></div>
                   {e.cat && <span style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600, color: TXT, background: MIST, borderRadius: 8, padding: "2px 8px" }}>{e.cat}</span>}
                   <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{e.time}</div>
                 </div>
@@ -4182,7 +4184,7 @@ function PermissionsPanel({ onGeoGranted }) {
 }
 
 // ── Storico reel: l'alveare dei mesi ─────────────────────────────────────────
-const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+// 14.84: i nomi dei mesi vengono da Intl (MESI → monthName)
 const DEEP_BLUE_BAND = "#1B4E96";
 function MonthBar({ label, count, onClick }) {
   return (
@@ -4204,7 +4206,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
     Object.keys(groups).forEach(k => { const [yy] = k.split("-"); (y[yy] = y[yy] || []).push(k); });
     return Object.keys(y).sort((a, b) => b - a).map(yy => [yy, y[yy].sort((a, b) => b.localeCompare(a))]);
   }, [groups]);
-  const title = sel ? `${MESI[+sel.split("-")[1] - 1]} ${sel.split("-")[0]}` : who ? `I cieli di ${who}` : "Tutti i cieli";
+  const title = sel ? `${monthName(+sel.split("-")[1] - 1)} ${sel.split("-")[0]}` : who ? `I cieli di ${who}` : "Tutti i cieli";
   return (
     <div style={{ position: "absolute", inset: 0, background: NIGHT3, zIndex: 90, display: "flex", flexDirection: "column" }}>
       <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
@@ -4216,14 +4218,14 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
           : years.map(([yy, keys]) => (
             <div key={yy} style={{ marginBottom: 18 }}>
               <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: TXT, margin: "4px 4px 10px" }}>{yy}</div>
-              {keys.map(k => <MonthBar key={k} label={MESI[+k.split("-")[1] - 1]} count={groups[k].length} onClick={() => setSel(k)} />)}
+              {keys.map(k => <MonthBar key={k} label={monthName(+k.split("-")[1] - 1)} count={groups[k].length} onClick={() => setSel(k)} />)}
             </div>
           ))
         ) : (
           <>
             <div style={{ fontSize: 12.5, color: TXT2, marginBottom: 10 }}>{groups[sel]?.length || 0} cieli</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>{/* 14.46: miniature */}
-              {(groups[sel] || []).map(p => { const d = new Date(p.ts); const when = isNaN(d) ? "" : `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`; return (
+              {(groups[sel] || []).map(p => { const d = new Date(p.ts); const when = isNaN(d) ? "" : `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}`; return (
                 <button key={p.id} onClick={() => onOpenPhoto && onOpenPhoto({ ...p, caption: `${when}${p.city ? " · " + p.city : ""}${p.caption ? " — " + p.caption : ""}` }, groups[sel])} aria-label={`Apri il cielo del ${when}`} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 12, overflow: "hidden", background: NIGHT2, border: "none", padding: 0, width: "100%", cursor: "pointer" }}>
                   <img src={p.thumb || p.img} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   <span style={{ position: "absolute", left: 6, bottom: 6, fontSize: 12, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.45)", padding: "2px 6px", borderRadius: 999 }}>{isNaN(d) ? "" : d.getDate()}</span>
@@ -4909,7 +4911,7 @@ function AppInner() {
       const pDelta = (pNow != null && pOld != null) ? pNow - pOld : null;
       const pressure = pNow != null ? { hpa: Math.round(pNow), delta: pDelta, trend: pDelta == null ? "→" : pDelta >= 1.5 ? "↑" : pDelta <= -1.5 ? "↓" : "→" } : null;
       const feels = j.current.apparent_temperature != null ? Math.round(j.current.apparent_temperature) : null;
-      const DOW = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
+      const DOW = [...Array(7)].map((_, k) => new Date(2023, 0, 1 + k).toLocaleDateString(LOCALE(), { weekday: "short" }).replace(".", ""));   // 14.84: dom/lun… o Sun/Mon…
       const days = (j.daily.time || []).map((d, i) => { const dt = new Date(d + "T12:00:00"); return {
         date: d, dow: i === 0 ? "oggi" : i === 1 ? "domani" : DOW[dt.getDay()], dnum: dt.getDate(),
         e: WMO(j.daily.weather_code?.[i]).e, l: WMO(j.daily.weather_code?.[i]).l,
@@ -5974,7 +5976,7 @@ function AppInner() {
     setTimeout(() => setNotifToast(t => t?.kind === "thanks" ? null : t), 4000);
   };
   const sendMsg = (cid, text) => {
-    const t = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const t = new Date().toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" });
     const tmpId = "tmp_" + Date.now();
     setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: tmpId, me: true, text, time: t, readAt: null }] }));
     if (sb?.isConfigured && cid.startsWith("post_") && cid.includes("-")) {
@@ -6096,7 +6098,7 @@ function AppInner() {
         <div style={{ fontSize: 52, marginBottom: 14 }}>🚫</div>
         <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 21, color: TXT, marginBottom: 10 }}>Account sospeso</div>
         <div style={{ fontSize: 15, color: TXT, lineHeight: 1.5, marginBottom: 8 }}>{banInfo.reason || "Il tuo account è stato temporaneamente sospeso."}</div>
-        <div style={{ fontSize: 13, color: TXT2, marginBottom: 24 }}>Fino al {new Date(banInfo.until).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}</div>
+        <div style={{ fontSize: 13, color: TXT2, marginBottom: 24 }}>Fino al {new Date(banInfo.until).toLocaleDateString(LOCALE(), { day: "2-digit", month: "long", year: "numeric" })}</div>
         <button onClick={() => { if (sb?.isConfigured) sb.logout().catch(() => {}); setUser(null); setBanInfo(null); }} style={{ padding: "12px 28px", borderRadius: 12, border: `1.5px solid ${LINE}`, background: CARD, color: TXT, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Esci</button>
       </div>
     </Frame>
@@ -6104,7 +6106,7 @@ function AppInner() {
 
   // overlay screens (full-screen, hide bottom nav)
   if (overlay === "post") return wrap(<CameraView modelCond={wx?.condition || null} pendingShot={pendingShot} onShotConsumed={() => setPendingShot(null)} onPost={onPost} onBack={() => setOverlay(null)} geoReal={geoReal} geoApprox={geoApprox} geoOff={geoOff} locName={locName} onAskGeo={acceptGeoInvite} onCityOnly={laterGeoInvite} geo={geo} onCloudCheck={sb?.isConfigured && sb.beeEye ? async (img, hints) => { try { return await sb.beeEye(img, hints); } catch (e) { console.warn("bee-eye:", e?.message || e); return null; } } : null} />);
-  const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
+  const tileCap = q => { const d = q.ts ? new Date(q.ts) : null; const when = d && !isNaN(d) ? `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} · ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}` : ""; return `${when}${q.city ? (when ? " · " : "") + q.city : ""}${q.caption ? " — " + q.caption : ""}`; };
   const openPhoto = (p, list) => setOverlay(o => {   // 14.50: con una lista si sfoglia dal basso verso l'alto, come il feed
     const items = Array.isArray(list) && list.length ? list.map(q => ({ id: q.id, src: q.img, video: q.video || null, caption: tileCap(q) })) : [{ id: p.id, src: p.img, video: p.video || null, caption: p.caption }];
     const index = Math.max(0, items.findIndex(q => q.id === p.id));
@@ -6175,8 +6177,8 @@ function AppInner() {
                 : a.type === "broadcast"
                 ? <b style={{ color: TXT }}>Messaggio dall'alveare 📣</b>
                 : <><b style={{ color: TXT }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : "ti ha scritto"}</>}</div>
-              {a.text && <div style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
-              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
+              {a.text && <div data-notr="1" style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
+              <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString(LOCALE(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>
             {!a.read && <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#E5484D", flexShrink: 0 }} />}
             <button onClick={e => { e.stopPropagation(); removeAlert(a); }} title="Elimina avviso" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}><NavIcon name="close" size={15} color={TXT2} sw={2} /></button>

@@ -29,6 +29,16 @@ const DICT = {
   "Cambia": "Change", "Correggi": "Fix", "Elimina": "Delete", "Esci": "Log out", "Logout": "Log out", "Entra": "Sign in", "Accedi": "Sign in",
   "Registrati": "Sign up", "Inizia": "Start", "Attiva": "Turn on", "Consenti": "Allow", "Richiedi": "Request", "Chiedi": "Ask",
   "Più tardi": "Later", "No, grazie": "No, thanks", "Accetto": "I accept", "Gestisci": "Manage", "Sospendi": "Suspend", "Rifai": "Retake",
+  // 14.84: inglese completo — stringhe rimaste in italiano
+  "Messaggio per l'utente:": "Message for the user:", "📣 Messaggio a TUTTE le api dell'alveare:": "📣 Message to ALL the bees of the hive:",
+  "c'è una persona in primo piano": "there is a person in the foreground",
+  "— non vedrai più i suoi cieli e messaggi, e non potrà scriverti.": "— you won't see their skies and messages any more, and they won't be able to write to you.",
+  "Il satellite vede a ~4 km per pixel: con un raggio sotto i 25 km mostra poco. Allarga il raggio per vederlo bene.": "The satellite sees about 4 km per pixel: with a radius under 25 km it shows little. Widen the radius to see it properly.",
+  "Posizione dell'evento non trovata.\nScrivi la città per esteso (es. \"Napoli\") oppure attiva il GPS: userò la posizione attuale.": "Event location not found.\nWrite the city in full (e.g. \"Naples\") or turn on GPS: I'll use the current position.",
+  "🏅 Premiare questa foto? Messaggio facoltativo per l'annuncio (Annulla per non premiare):": "🏅 Award this photo? Optional message for the announcement (Cancel to skip):",
+  ", è utilizzabile una sola volta e funziona solo dal dispositivo da cui lo apri. Controlla anche lo spam.": ", can be used only once and works only from the device you open it on. Check your spam folder too.",
+  "Se ": "If ", " è associata a un account Beeweat, riceverai un'email con un ": " is linked to a Beeweat account, you'll receive an email with a ", "link sicuro": "secure link", " per reimpostare la password.": " to reset your password.",
+  "Il link è valido per ": "The link is valid for ", "per questa zona": "for this area",
   // 14.83: dati veri o niente
   "Previsione oraria non disponibile in questo momento": "Hourly forecast not available right now", "Dato non disponibile": "Data not available",
   "Il modello del mare non risponde: riprova tra poco": "The sea model is not responding: try again shortly",
@@ -412,6 +422,13 @@ const cond = c => trPiece(c);
 
 // ─── REGOLE per i testi con numeri o nomi dentro ───────────────────────────────────────────────
 const RULES = [
+  // 14.84: prefissi degli avvisi con dettaglio tecnico in coda
+  [/^Nome non salvato: ([\s\S]*)$/, m => `Name not saved: ${m[1]}`],
+  [/^Segui non salvato: ([\s\S]*)$/, m => `Follow not saved: ${m[1]}`],
+  [/^Evento non salvato: ([\s\S]*)$/, m => `Event not saved: ${m[1]}`],
+  [/^Posizione non ottenuta: ([\s\S]*)$/, m => `Location not obtained: ${m[1]}`],
+  [/^Fotocamera non avviabile: ([\s\S]*)$/, m => `Camera could not start: ${m[1]}`],
+  [/^Non sono riuscito a registrare la risposta: ([\s\S]*)$/, m => `I couldn't record the answer: ${m[1]}`],
   [/^Ti avvisiamo se le api nel tuo raggio \((\d+) km\) fotografano pioggia o temporale in avvicinamento\.$/, m => `We'll warn you if bees within your radius (${m[1]} km) photograph rain or a storm approaching.`],
   // 14.81: blocco utente
   [/^Blocca anche (.+)$/, m => `Also block ${m[1]}`],
