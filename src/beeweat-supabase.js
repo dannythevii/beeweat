@@ -358,6 +358,7 @@ export async function subscribePlaceChat(place, onNew) {
 
 // ── Amministrazione: eliminazione totale di un utente ────────────────────────
 export async function adminDeleteUser(userId) {
+  try { await purgeUserFiles(userId); } catch (e) { console.warn("pulizia file:", e?.message || e); }   // 14.86: anche i file dell'ape eliminata
   const { error } = await supabase.rpc("admin_delete_user", { target: userId });
   if (error) throw error;
 }
@@ -645,6 +646,8 @@ export async function getCurrentProfile() {
   if (!user) return null;
   const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
   if (error) throw error;
+  // 14.87: genere e motivo della sospensione non stanno più nel profilo pubblico: arrivano dalla funzione riservata
+  try { const { data: pv, error: e2 } = await supabase.rpc("my_private"); if (!e2 && pv) { if (pv.gender != null) data.gender = pv.gender; if (pv.ban_reason != null) data.ban_reason = pv.ban_reason; } } catch (_) {}
   return data;
 }
 
@@ -973,7 +976,28 @@ export async function adminUserStats(userId, days = 30) {
   if (error) throw error; return data || null;
 }
 // 14.74: l'ape elimina da sola il proprio account (richiesto dagli store)
+// 14.86: i file veri (foto, video, avatar) si cancellano dallo storage con la sua API: il database da solo toglie al più i riferimenti.
+// Tutto ciò che sta nella cartella <id>/ dei bucket dell'app; a pagine di 100, finché la cartella è vuota. Restituisce quanti file ha tolto.
+export const USER_BUCKETS = ["posts", "videos", "avatars"];
+export async function purgeUserFiles(userId) {
+  if (!userId) return 0;
+  let removed = 0;
+  for (const bucket of USER_BUCKETS) {
+    for (let round = 0; round < 200; round++) {   // tetto di sicurezza: 20.000 file per bucket
+      const { data, error } = await supabase.storage.from(bucket).list(userId, { limit: 100, offset: 0 });
+      if (error || !data || !data.length) break;                         // bucket assente o cartella vuota
+      const paths = data.filter(f => f && f.name && f.id !== null).map(f => `${userId}/${f.name}`);
+      if (!paths.length) break;
+      const { data: gone, error: e2 } = await supabase.storage.from(bucket).remove(paths);
+      if (e2 || !gone || !gone.length) break;                            // regole che non lo consentono: ci si ferma, senza girare a vuoto
+      removed += gone.length;
+    }
+  }
+  return removed;
+}
 export async function deleteMyAccount() {
+  const { data: { user } } = await authUser();
+  if (user) { try { await purgeUserFiles(user.id); } catch (e) { console.warn("pulizia file:", e?.message || e); } }   // prima i file, finché l'ape è ancora collegata
   const { error } = await supabase.rpc("delete_my_account");
   if (error) throw error;
   try { await supabase.auth.signOut(); } catch (_) {}
