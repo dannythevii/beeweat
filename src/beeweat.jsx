@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.87";
+const APP_VERSION = "14.88";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -330,19 +330,23 @@ const BEE_CLOUD_MAP = { "Sereno": "☀️ Sereno", "Poco nuvoloso": "⛅ Poco nu
 
 // ─── OCCHI AI DELL'ALVEARE: moderazione + classifica del cielo (nel telefono) ──
 let _aiModelsP = null;
-const _breath = ms => new Promise(r => setTimeout(r, ms));   // 14.72: una pausa tra un modello e l'altro: il telefono respira
+const _breath = ms => new Promise(r => setTimeout(r, ms));
+// 14.88: mentre il mirino è dal vivo (video) i modelli AI aspettano: scaricarli e compilarli con la fotocamera accesa bloccava il telefono
+let _camLive = false;
+const _whenCamIdle = async () => { while (_camLive) await _breath(400); };   // 14.72: una pausa tra un modello e l'altro: il telefono respira
 const loadAIModels = (gentle = false) => {
   if (_aiModelsP) return _aiModelsP;
   _aiModelsP = (async () => {
+    if (gentle) await _whenCamIdle();
     const tf = await import("https://esm.sh/@tensorflow/tfjs@4.20.0");
     await tf.ready();
-    if (gentle) {   // in sordina: uno alla volta, con respiro
-      const cocoSsd = await import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"); await _breath(600);
-      const detector = await cocoSsd.load({ base: "lite_mobilenet_v2" }); await _breath(1200);
-      const nsfwjs = await import("https://esm.sh/nsfwjs@4.2.0"); await _breath(600);
-      const nsfw = await nsfwjs.load(); await _breath(1200);
-      const mobilenetMod = await import("https://esm.sh/@tensorflow-models/mobilenet@2.1.1"); await _breath(600);
-      const scenes = await mobilenetMod.load({ version: 2, alpha: 0.5 });
+    if (gentle) {   // in sordina: uno alla volta, con respiro — e mai con il mirino acceso (14.88)
+      await _whenCamIdle(); const cocoSsd = await import("https://esm.sh/@tensorflow-models/coco-ssd@2.2.3"); await _breath(600);
+      await _whenCamIdle(); const detector = await cocoSsd.load({ base: "lite_mobilenet_v2" }); await _breath(1200);
+      await _whenCamIdle(); const nsfwjs = await import("https://esm.sh/nsfwjs@4.2.0"); await _breath(600);
+      await _whenCamIdle(); const nsfw = await nsfwjs.load(); await _breath(1200);
+      await _whenCamIdle(); const mobilenetMod = await import("https://esm.sh/@tensorflow-models/mobilenet@2.1.1"); await _breath(600);
+      await _whenCamIdle(); const scenes = await mobilenetMod.load({ version: 2, alpha: 0.5 });
       return { detector, nsfw, scenes };
     }
     const [cocoSsd, nsfwjs, mobilenetMod] = await Promise.all([
@@ -2915,6 +2919,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
   };
   const onPinchEnd = () => { pinchRef.current = null; };
   // bussola: direzione della fotocamera (gradi 0-360, 0 = Nord)
+  const oriRef = useRef({ h: 0, t: 0 });   // 14.88: ultimo valore di bussola passato allo schermo
   const [heading, setHeading] = useState(40);      // valore demo di partenza
   const [headingReal, setHeadingReal] = useState(false);
   const [shotDir, setShotDir] = useState(null);    // direzione congelata allo scatto
@@ -2928,7 +2933,11 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       let h = null;
       if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;      // iOS
       else if (typeof e.alpha === "number") h = 360 - e.alpha;                          // standard
-      if (h != null && !isNaN(h)) { setHeading(((h % 360) + 360) % 360); setHeadingReal(true); }
+      if (h != null && !isNaN(h)) {   // 14.88: al massimo 8 volte al secondo e solo se cambia di almeno 2°
+        const v = ((h % 360) + 360) % 360, now = Date.now(), last = oriRef.current;
+        const d = Math.abs(v - last.h), diff = Math.min(d, 360 - d);
+        if (!last.t || (now - last.t > 120 && diff >= 2)) { oriRef.current = { h: v, t: now }; setHeading(v); setHeadingReal(true); }
+      }
     };
     window.addEventListener("deviceorientationabsolute", onOri, true);
     window.addEventListener("deviceorientation", onOri, true);
@@ -2957,7 +2966,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
         setErr({ kind: "unsupported", msg: "Questo browser non dà accesso alla fotocamera. Succede nei browser interni di WhatsApp, Instagram o Facebook: apri app.beeweat.com direttamente in Safari o Chrome (tocca ⋯ → \"Apri nel browser\")." });
         return;
       }
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }, audio: false });   // 14.88: 720p a 30 fps — più leggero per la ripresa su iPhone
       try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}   // sì ricevuto: l'invito non serve più
       streamRef.current = s; if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); } setStreaming(true); setErr(null);
       // capacità del sensore: zoom hardware e torcia (dove il dispositivo le espone)
@@ -3004,14 +3013,10 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
     recCoverRef.current = c.toDataURL("image/jpeg", .85);
-    try {   // 14.64/14.76: occhi al lavoro subito, in sordina
-      const key = c.width + "x" + c.height + ":" + Date.now(); c.__bwKey = key;
-      preRef.current = { key, p: new Promise((res, rej) => setTimeout(() => withTimeout(analyzePhoto(c), 12000).then(res, rej), 400)) };
-      preRef.current.p.catch(() => {});
-    } catch (_) { preRef.current = null; }
+    preRef.current = null;   // 14.88: gli occhi dell'alveare guardano la copertina DOPO la ripresa, non durante (bloccava il telefono)
     const mime = pickMime();
     let rec = null;
-    try { rec = new MediaRecorder(s, mime ? { mimeType: mime, videoBitsPerSecond: 4500000 } : { videoBitsPerSecond: 4500000 }); }
+    try { rec = new MediaRecorder(s, mime ? { mimeType: mime, videoBitsPerSecond: 3500000 } : { videoBitsPerSecond: 3500000 }); }
     catch (_) { try { rec = new MediaRecorder(s); } catch (e2) { setErr({ kind: "rec", msg: "Questo telefono non registra video dal browser: scatta una foto." }); setMode("photo"); return; } }
     chunksRef.current = []; recRef.current = rec;
     let t0 = 0;
@@ -3035,10 +3040,22 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
       setVideoBlob(blob); setVideoUrl(URL.createObjectURL(blob));
       setCaptured(recCoverRef.current); setShotDir({ deg: Math.round(heading), label: dirLabel(heading) });
       try { localStorage.setItem("bw_cam_ok", "1"); } catch (_) {}
+      try {   // 14.88: ora che la fotocamera è spenta, gli occhi cominciano a guardare la copertina (in sordina, dopo l'anteprima)
+        const cv = canvasRef.current; const key = cv.width + "x" + cv.height + ":" + Date.now(); cv.__bwKey = key;
+        preRef.current = { key, p: new Promise((res, rej) => setTimeout(() => withTimeout(analyzePhoto(cv), 12000).then(res, rej), 600)) };
+        preRef.current.p.catch(() => {});
+      } catch (_) { preRef.current = null; }
     };
     try { rec.start(); } catch (_) { setErr({ kind: "rec", msg: "Registrazione non avviabile: riprova." }); recRef.current = null; return; }
     setErr(null);
     if (rec.state === "recording") begin();                                   // browser che non emettono «start»
+    setTimeout(() => {   // 14.88: se dopo 2 secondi il registratore non è partito, lo si dice (con i dettagli utili all'assistenza) invece di restare muti
+      if (recRef.current !== rec || t0) return;
+      const tr = s.getVideoTracks()[0];
+      try { rec.stop(); } catch (_) {}
+      recRef.current = null; clearRecTimers();
+      setErr({ kind: "rec", msg: `Il video non parte su questo telefono. Scatta una foto, oppure riprova tra un momento. (registratore: ${rec.state || "?"} · formato: ${mime || "predefinito"} · fotocamera: ${tr ? tr.readyState : "assente"})` });
+    }, 2000);
     recSafetyRef.current = setTimeout(() => { if (recRef.current === rec) stopRec(); }, VIDEO_MS + 2500);   // paracadute: in ogni caso si chiude
   };
   const onShutterVideo = () => {
@@ -3051,6 +3068,7 @@ function CameraView({ onPost, onBack, geoReal, geoApprox, onAskGeo, onCityOnly, 
     return () => { clearRecTimers(); };
   }, [mode, captured, facing]);
   useEffect(() => () => { clearRecTimers(); if (videoUrl) { try { URL.revokeObjectURL(videoUrl); } catch (_) {} } }, []);
+  useEffect(() => { _camLive = !!streaming; return () => { _camLive = false; }; }, [streaming]);   // 14.88
   const capture = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return;
     let rm = false; try { rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
     if (!rm) { setFlash(true); setTimeout(() => setFlash(false), 140); }   // 14.21: niente lampo bianco se l'utente chiede meno movimento
