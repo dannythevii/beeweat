@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.88";
+const APP_VERSION = "14.89";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1602,11 +1602,37 @@ async function shareCard(post, line) {
   const blob = await new Promise(res => c.toBlob(res, "image/jpeg", .9)); if (!blob) throw new Error("card");
   return new File([blob], "beeweat-cielo.jpg", { type: "image/jpeg" });
 }
+// 14.89: i video del feed si scaricano per intero in memoria e solo allora partono: niente scatti mentre la rete rincorre la riproduzione.
+// Piccola dispensa degli ultimi 8 (un video pesa 2–3 MB); il cielo vicino a quello a schermo si prepara in anticipo.
+const _vidCache = new Map();   // url → { p: Promise<objectURL|null>, u: objectURL|null }
+const videoBlobUrl = url => {
+  if (!url) return Promise.resolve(null);
+  if (/^(blob:|data:)/.test(url)) return Promise.resolve(url);
+  let e = _vidCache.get(url);
+  if (e) { _vidCache.delete(url); _vidCache.set(url, e); return e.p; }
+  e = { u: null, p: null };
+  e.p = fetch(url).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.blob(); })
+    .then(b => { e.u = URL.createObjectURL(b); return e.u; })
+    .catch(() => { _vidCache.delete(url); return null; });
+  _vidCache.set(url, e);
+  while (_vidCache.size > 8) { const k = _vidCache.keys().next().value; const o = _vidCache.get(k); _vidCache.delete(k); if (o && o.u) { const u = o.u; setTimeout(() => { try { URL.revokeObjectURL(u); } catch (_) {} }, 30000); } }
+  return e.p;
+};
+function useVideoBlob(url, want) {
+  const [src, setSrc] = useState(() => { const e = url && _vidCache.get(url); return (e && e.u) || null; });
+  useEffect(() => {
+    if (!url || !want) return;
+    let alive = true;
+    videoBlobUrl(url).then(u => { if (alive) setSrc(u || url); });   // se lo scarico non riesce, si torna al collegamento diretto
+    return () => { alive = false; };
+  }, [url, want]);
+  return src;
+}
 // 14.44: la scheda si ridisegna solo se cambiano i dati che mostra (i callback arrivano stabili da FeedScreen)
 const POST_KEYS = ["id", "img", "thumb", "video", "user", "ava", "uid", "city", "time", "ts", "cond", "temp", "stars", "starred", "comments", "views", "caption", "aiClass", "aiScore", "awarded", "awardMsg", "pending", "checking", "sending", "mine", "dist", "precision", "stars_rank"];
 const postEq = (a, b) => a === b || (!!a && !!b && POST_KEYS.every(k => a[k] === b[k]));
-const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active);
-function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active, onRetry }) {
+const PostCard = React.memo(PostCardInner, (p, n) => postEq(p.post, n.post) && p.isFollowing === n.isFollowing && p.reported === n.reported && p.canDelete === n.canDelete && p.focused === n.focused && p.modelCond === n.modelCond && p.raggioOpen === n.raggioOpen && p.km === n.km && p.active === n.active && p.near === n.near);
+function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow, onReport, reported, onView, onOpenPhoto, canDelete, onDelete, onEdit, focused, modelCond, onOpenRaggio, raggioOpen, km, active, near, onRetry }) {
   // 14.39: un cielo per schermata (tavola del 15 ottobre) — colonna delle azioni a destra, didascalia in basso a sinistra
   const [anim, setAnim] = useState(false);
   const cardRef = useRef(null);
@@ -1640,11 +1666,12 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
   const chip = { display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 9px", borderRadius: 999, background: "rgba(0,0,0,.55)", border: "1px solid rgba(255,255,255,.22)", color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" };   // 14.44: niente sfocatura (costa sullo scorrimento)
   // 14.80: cielo in movimento — il video (5 s, muto, a ciclo) parte da solo solo quando la scheda è a schermo; altrove resta la foto
   const vidRef = useRef(null);
+  const vidSrc = useVideoBlob(post.video, active || near);   // 14.89: pronto in memoria prima di partire
   useEffect(() => {
     const v = vidRef.current; if (!v) return;
     if (active && !document.hidden) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
     else { try { v.pause(); } catch (_) {} }
-  }, [active, post.video]);
+  }, [active, post.video, vidSrc]);
   useEffect(() => {   // in secondo piano il video si ferma (batteria e dati)
     if (!post.video) return;
     const onVis = () => { const v = vidRef.current; if (!v) return; if (document.hidden) { try { v.pause(); } catch (_) {} } else if (active) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } };
@@ -1654,7 +1681,7 @@ function PostCardInner({ post, onStar, onChat, onOpenUser, isFollowing, onFollow
   return (
     <div ref={cardRef} id={"post-" + post.id} style={{ position: "relative", height: "100%", minHeight: "100%", width: "100%", overflow: "hidden", background: NIGHT3, contain: "layout paint", boxShadow: focused ? `inset 0 0 0 3px ${HONEY}` : "none", transition: "box-shadow .3s" }}>
       <img src={post.img} alt="" decoding="async" loading={active ? "eager" : "lazy"} fetchPriority={active ? "high" : "low"} onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: onOpenPhoto ? "zoom-in" : "default" }} />
-      {post.video && active && <video ref={vidRef} src={post.video} poster={post.img} muted loop playsInline autoPlay preload="auto" disablePictureInPicture onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", background: "transparent", cursor: onOpenPhoto ? "zoom-in" : "default" }} />}      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
+      {post.video && active && vidSrc && <video ref={vidRef} src={vidSrc} poster={post.img} muted loop playsInline autoPlay preload="auto" disablePictureInPicture onClick={() => onOpenPhoto && onOpenPhoto(post)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", background: "transparent", cursor: onOpenPhoto ? "zoom-in" : "default" }} />}      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 50%, rgba(5,10,30,.92) 100%)" }} />
       {/* in alto: premio, stato, temperatura */}
       <div style={{ position: "absolute", top: "calc(172px + env(safe-area-inset-top, 0px))", left: 14, right: 90, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>{/* 14.41: sotto meteo e pillole */}
         {post.awarded && <span style={{ ...chip, background: HONEY, color: INK, height: 28 }}><NavIcon name="trophy" size={13} color={INK} sw={2.2} />Foto premiata{post.awardMsg ? ` · «${post.awardMsg}»` : ""}</span>}
@@ -1865,7 +1892,7 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
     <div style={{ flex: 1, position: "relative", overflow: "hidden", background: BODY }}>
       {pills}
       <div ref={reelRef} onScroll={onReelScroll} className="scr bw-reel" style={{ position: "absolute", inset: 0, overflowY: "auto" }}>
-        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} onRetry={S.onRetry} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={isFol(following, p)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
+        {visible.map((p, i) => <div key={p.id} style={{ height: "100%", contain: "strict" }}>{Math.abs(i - cur) <= 2 ? <PostCard post={p} km={km} active={i === cur} near={Math.abs(i - cur) === 1} onRetry={S.onRetry} onOpenRaggio={toggleRg} raggioOpen={rg} onStar={S.onStar} onChat={S.onChat} onOpenUser={S.onOpenUser} isFollowing={isFol(following, p)} onFollow={S.onFollow} onReport={S.onReport} reported={!!reported?.includes(p.id)} onView={S.onView} onOpenPhoto={S.onOpenPhoto} canDelete={!!(p.mine || isAdmin)} onDelete={S.onDelete} onEdit={S.onEdit} focused={p.id === focusId} modelCond={modelCond} /> : null}</div>)}
       </div>
       {menu}
     </div>
@@ -4659,6 +4686,7 @@ function AppInner() {
   useEffect(() => { if (user && sb?.isConfigured) { try { localStorage.setItem("bw_profile", JSON.stringify({ name: user.name, city: user.city, avatar: user.avatar, readReceipts: user.readReceipts, gender: user.gender || null })); } catch (_) {} } }, [user, sb]);   // 14.46
   const [tab, setTab] = useState("feed");
   const [overlay, setOverlay] = useState(null); // null | "post" | "profile" | {chat} | "addContact" | "addEvent"
+  const overlayRef = useRef(null); overlayRef.current = overlay;   // 14.89
   // ── Tasto/gesto "indietro" del browser: chiude i sottomenu invece di uscire dal sito ──
   const overlayNavRef = useRef(null); overlayNavRef.current = overlay;
   const prevOverlayRef = useRef(null);
@@ -4826,7 +4854,7 @@ function AppInner() {
           if (au && m.from_user_id === au.id) return; if (blockedRef.current.has(m.from_user_id)) return;   /* 14.81 */
           let who = "Utente";
           try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
-          setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
+          setThreads(th => (th[id] || []).some(x => x.id === m.id) ? th : ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
         });
       } catch (e) { console.warn("chat luogo:", e?.message || e); } })();
       return;
@@ -4846,14 +4874,7 @@ function AppInner() {
   const [geoApprox, setGeoApprox] = useState(false);   // zona ricavata dalla rete: basta per entrare e per pubblicare "con la sola città"
   const [geoOff, setGeoOff] = useState(false);   // 14.65: la posizione precisa è l'unica modalità
   useEffect(() => { try { localStorage.removeItem("bw_geo_off"); } catch (_) {} }, []);
-  useEffect(() => {   // 14.72: gli occhi AI si scaricano in sordina solo DOPO l'ingresso, 40 s dopo, a telefono fermo, uno alla volta
-    if (!user) return;
-    let t = setTimeout(() => {
-      const go = () => { loadAIModels(true).catch(() => {}); };
-      if ("requestIdleCallback" in window) window.requestIdleCallback(go, { timeout: 20000 }); else go();
-    }, 12000);   // 14.76: era 40 s
-    return () => clearTimeout(t);
-  }, [user]);
+  // 14.89: tolta la preparazione degli occhi AI 12 secondi dopo l'ingresso — con il feed a schermo rallentava l'app e faceva andare i video a scatti (soprattutto dopo un aggiornamento, quando i modelli si riscaricano). Ora si preparano solo all'apertura della fotocamera.
   const [geoInvite, setGeoInvite] = useState(false);
   const [geoGo, setGeoGo] = useState(false);          // via libera al GPS (dopo l'invito, o subito se già concesso)
   const [geoTick, setGeoTick] = useState(0);          // per ritentare il GPS dopo una riattivazione
@@ -5234,7 +5255,8 @@ function AppInner() {
         if (ev === "INSERT" && n) {
           setAlerts(a => a.some(x => x.id === n.id) ? a : [n, ...a]);
           if (n.type === "follow" && n.from_user_id) setFollowerIds(ids => ids.includes(n.from_user_id) ? ids : [...ids, n.from_user_id]);
-          setNotifToast({ kind: n.type, from: n.from_user_id || null, text: n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio") });
+          if (n.type === "postChat" && overlayRef.current?.chat?.id === "post_" + n.post_id) { sb.markNotifRead && sb.markNotifRead(n.id).catch(() => {}); return; }   // 14.89: ho quella chat aperta, niente avviso
+          setNotifToast({ kind: n.type, from: n.from_user_id || null, text: n.type === "postChat" ? "Nuovo messaggio nella chat di un cielo" : (n.text || (n.type === "follow" ? "Nuovo follower" : "Nuovo messaggio")) });
           playChime();
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setNotifToast(null), 4500);
@@ -5668,6 +5690,16 @@ function AppInner() {
       })();
       return;
     }
+    if (a.type === "postChat" && a.post_id && sb?.getPostById) {   // 14.89: dritti alla chat pubblica di quel cielo
+      (async () => {
+        try {
+          const r = await sb.getPostById(a.post_id);
+          const { data: { user: au } } = await (sb.authUser ? sb.authUser() : sb.supabase.auth.getUser());
+          openChatFromPost(mapRemoteRow(r, au?.id), null);
+        } catch (_) { setNotifToast({ kind: "thanks", text: "Questo cielo non è più disponibile." }); setTimeout(() => setNotifToast(t => t?.kind === "thanks" ? null : t), 3500); }
+      })();
+      return;
+    }
     if ((a.type === "follow" || a.type === "followPost") && a.from_user_id) { const c = contacts.find(x => x.id === a.from_user_id); setOverlay({ user: c ? { name: c.name, ava: c.ava, city: c.city, uid: c.id } : { name: nameOf(a.from_user_id), ava: null, city: "", uid: a.from_user_id } }); return; }
     if (a.type !== "direct" || !a.from_user_id) return;
     openDirectChat({ id: a.from_user_id, name: nameOf(a.from_user_id), ava: (contacts.find(c => c.id === a.from_user_id) || {}).ava || null });
@@ -5804,6 +5836,12 @@ function AppInner() {
             try { if (document.visibilityState === "hidden" && typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Beeweat 🐝", { body: text }); } catch (_) {}
           }
           if (near || followed) reloadSoon();
+        })
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "scope=eq.post" }, payload => {   // 14.89: il conteggio dei messaggi sul cielo sale dal vivo
+          const m = payload?.new; if (!m || !m.post_id) return;
+          if (myUidRef.current && m.from_user_id === myUidRef.current) return;   // i miei li ho già contati all'invio
+          const f = ps => ps.map(p => p.id === m.post_id ? { ...p, comments: (p.comments || 0) + 1 } : p);
+          setPosts(f); setExtraPosts(f); setWorldFeedPosts(f);
         })
         .subscribe();
     } catch (_) {}
@@ -6038,14 +6076,17 @@ function AppInner() {
     setNotifToast({ kind: "thanks", text: "Grazie per il tuo cielo! L'alveare lo vede già." });   // 14.45
     setTimeout(() => setNotifToast(t => t?.kind === "thanks" ? null : t), 4000);
   };
+  const bumpComments = (pid, d) => { const f = ps => ps.map(p => p.id === pid ? { ...p, comments: Math.max(0, (p.comments || 0) + d) } : p); setPosts(f); setExtraPosts(f); setWorldFeedPosts(f); };
   const sendMsg = (cid, text) => {
     const t = new Date().toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" });
     const tmpId = "tmp_" + Date.now();
     setThreads(th => ({ ...th, [cid]: [...(th[cid] || []), { id: tmpId, me: true, text, time: t, readAt: null }] }));
     if (sb?.isConfigured && cid.startsWith("post_") && cid.includes("-")) {
       const pid = cid.slice(5);
-      setPosts(ps => ps.map(p => p.id === pid ? { ...p, comments: (p.comments || 0) + 1 } : p));
-      sb.sendPostMessage(pid, text).catch(e => console.warn("invio:", e?.message || e));
+      bumpComments(pid, 1);   // 14.89: il conteggio sale ovunque (vicino, lungo raggio, Mondo)
+      sb.sendPostMessage(pid, text)
+        .then(row => { if (row?.id) setThreads(th => ({ ...th, [cid]: (th[cid] || []).map(x => x.id === tmpId ? { ...x, id: row.id } : x) })); })
+        .catch(e => { bumpComments(pid, -1); setThreads(th => ({ ...th, [cid]: (th[cid] || []).filter(x => x.id !== tmpId) })); failAlert("Messaggio non inviato", e); });
     } else if (sb?.isConfigured && cid.startsWith("place_")) {
       sb.sendPlaceMessage(cid.slice(6), text).catch(e => console.warn("invio:", e?.message || e));
     } else if (sb?.isConfigured && cid.startsWith("g_") && cid.slice(2).includes("-")) {
@@ -6073,7 +6114,7 @@ function AppInner() {
           if (au && m.from_user_id === au.id) return; if (blockedRef.current.has(m.from_user_id)) return;   /* 14.81 */ // i miei li aggiungo già all'invio
           let who = "Utente";
           try { const { data: pr } = await sb.supabase.from("profiles").select("name").eq("id", m.from_user_id).single(); who = pr?.name || who; } catch (_) {}
-          setThreads(th => ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
+          setThreads(th => (th[id] || []).some(x => x.id === m.id) ? th : ({ ...th, [id]: [...(th[id] || []), { id: m.id, me: false, who, text: m.text, time: fmtTime(m.created_at) }] }));
         });
       } catch (e) { console.warn("chat:", e?.message || e); } })();
       return;
@@ -6084,6 +6125,33 @@ function AppInner() {
     ] }));
     setOverlay({ back, chat: { id, name: "Chat pubblica", ava: "🌐", sub: `Post di ${post.user} · ${post.city}`, public: true } });
   };
+  // 14.89: con una chat pubblica aperta, ogni 12 secondi (e al rientro nell'app) i messaggi si riallineano al server: se il tempo reale ne perde uno, arriva lo stesso
+  const openPostChatId = overlay?.chat?.public && typeof overlay.chat.id === "string" && overlay.chat.id.startsWith("post_") && overlay.chat.id.includes("-") ? overlay.chat.id : null;
+  useEffect(() => {
+    if (!openPostChatId || !sb?.isConfigured) return;
+    const pid = openPostChatId.slice(5);
+    const sync = async () => {
+      if (document.hidden) return;
+      try {
+        const rows = await sb.getPostMessages(pid);
+        const me = myUidRef.current;
+        const fresh = (rows || []).filter(r => !blockedRef.current.has(r.from_user_id)).map(r => ({ id: r.id, me: !!me && r.from_user_id === me, who: r.profiles?.name || "Utente", text: r.text, time: fmtTime(r.created_at) }));
+        setThreads(th => {
+          const cur = th[openPostChatId] || [];
+          const ids = new Set(fresh.map(x => x.id));
+          const isTmp = x => typeof x.id === "string" && x.id.startsWith("tmp_");
+          const waiting = cur.filter(isTmp);                                                   // i miei ancora in viaggio
+          const older = fresh.length >= 50 ? cur.filter(x => !ids.has(x.id) && !isTmp(x)) : [];   // oltre gli ultimi 50 tengo quelli già a schermo
+          const next = [...older, ...fresh, ...waiting];
+          if (next.length === cur.length && next.every((x, i) => x.id === cur[i].id)) return th;
+          return { ...th, [openPostChatId]: next };
+        });
+      } catch (_) {}
+    };
+    const iv = setInterval(sync, 12000);
+    document.addEventListener("visibilitychange", sync);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", sync); };
+  }, [openPostChatId, sb]);
   // chiusura chat → stop ascolto in tempo reale
   useEffect(() => { if (!overlay?.chat && chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } }, [overlay]);
   const addContact = p => { setContacts(c => [...c, p]); setOverlay(null); };
@@ -6237,7 +6305,7 @@ function AppInner() {
                 ? <b style={{ color: TXT }}>Il cielo ti chiama</b>
                 : a.type === "broadcast"
                 ? <b style={{ color: TXT }}>Messaggio dall'alveare 📣</b>
-                : <><b style={{ color: TXT }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : "ti ha scritto"}</>}</div>
+                : <><b style={{ color: TXT }}>{nameOf(a.from_user_id)}</b> {a.type === "follow" ? "ha iniziato a seguirti" : a.type === "followPost" ? "ha pubblicato un nuovo cielo 📸" : a.type === "followEvent" ? "ha segnalato un evento 📌" : a.type === "postChat" ? "ha scritto nella chat di un cielo" : "ti ha scritto"}</>}</div>
               {a.text && <div data-notr="1" style={{ fontSize: 12.5, color: TXT2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{a.text}</div>}
               <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{new Date(a.created_at).toLocaleString(LOCALE(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
             </div>

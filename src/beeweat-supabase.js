@@ -327,9 +327,9 @@ export async function getPlaceMessages(place, limit = 50) {
   const { data, error } = await supabase.from("messages")
     .select("id, text, from_user_id, created_at")
     .eq("scope", "place").eq("place", place)
-    .order("created_at", { ascending: true }).limit(limit);
+    .order("created_at", { ascending: false }).limit(limit);   // 14.89: gli ULTIMI messaggi (prima prendeva i primi 50: oltre quella soglia i nuovi non comparivano)
   if (error) throw error;
-  const rows = data || [];
+  const rows = (data || []).reverse();
   const ids = [...new Set(rows.map(r => r.from_user_id))];
   if (ids.length) {
     const { data: profs } = await supabase.from("profiles").select("id,name").in("id", ids);
@@ -403,9 +403,9 @@ export async function getGroupMessages(groupId, limit = 50) {
   const { data, error } = await supabase.from("messages")
     .select("id, text, from_user_id, created_at")
     .eq("scope", "group").eq("group_id", groupId)
-    .order("created_at", { ascending: true }).limit(limit);
+    .order("created_at", { ascending: false }).limit(limit);   // 14.89: gli ULTIMI messaggi (prima prendeva i primi 50: oltre quella soglia i nuovi non comparivano)
   if (error) throw error;
-  const rows = data || [];
+  const rows = (data || []).reverse();
   const ids = [...new Set(rows.map(r => r.from_user_id))];
   if (ids.length) {
     const { data: profs } = await supabase.from("profiles").select("id,name").in("id", ids);
@@ -775,9 +775,9 @@ export async function getPostMessages(postId, limit = 50) {
   const { data, error } = await supabase.from("messages")
     .select("id, text, from_user_id, created_at")
     .eq("scope", "post").eq("post_id", postId)
-    .order("created_at", { ascending: true }).limit(limit);
+    .order("created_at", { ascending: false }).limit(limit);   // 14.89: gli ULTIMI messaggi (prima prendeva i primi 50: oltre quella soglia i nuovi non comparivano)
   if (error) throw error;
-  const rows = data || [];
+  const rows = (data || []).reverse();
   // nomi dei mittenti risolti a parte (la join diretta è ambigua: mittente/destinatario)
   const ids = [...new Set(rows.map(r => r.from_user_id))];
   if (ids.length) {

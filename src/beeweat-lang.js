@@ -92,7 +92,7 @@ const DICT = {
   "Email": "Email", "Password": "Password", "Messaggio": "Message", "Evento": "Event", "evento": "event", "eventi": "events", "allerta": "alert",
   "allerte": "alerts", "modello": "model", "modello ok": "model ok", "modello corretto": "model corrected", "controllo": "check",
   "secondo parere": "second opinion", "riprova": "retry", "mappa": "map", "utenti collegati": "users online", "api online adesso": "bees online now",
-  "segnalato da": "reported by", "ti ha scritto": "wrote to you", "ha segnalato un evento 📌": "reported an event 📌", "Un utente": "A user",
+  "segnalato da": "reported by", "ti ha scritto": "wrote to you", "ha scritto nella chat di un cielo": "wrote in a sky's chat", "Nuovo messaggio nella chat di un cielo": "New message in a sky's chat", "Questo cielo non è più disponibile.": "This sky is no longer available.", "Messaggio non inviato": "Message not sent", "ha segnalato un evento 📌": "reported an event 📌", "Un utente": "A user",
   "Utente": "User", "Utente Bee": "Bee User", "Un'ape che segui": "A bee you follow", "nell'alveare": "in the hive", "foto della community": "community photos",
   "modelli meteo e marini": "weather and marine models", "della costa": "of the coast", "puoi pubblicare subito": "you can publish right away",
   "server non collegato": "server not connected", "solo la città (≈)": "city only (≈)", "sono state pubblicate": "were published",
