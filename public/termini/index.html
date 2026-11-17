@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termini di Servizio · Beeweat</title>
+<meta name="description" content="Le regole che valgono per tutte le api dell&#x27;alveare.">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0B1430">
+<style>
+:root{--night:#0B1430;--card:#141F45;--raised:#1C2852;--line:#26304F;--txt:#FFFFFF;--txt2:#9DA7C4;--honey:#F5B82E;--honey2:#FFD166;--ink:#2A1A00}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--night);color:var(--txt);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--honey2)} a:focus-visible,button:focus-visible{outline:2px solid var(--honey);outline-offset:3px;border-radius:6px}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,20,48,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:5}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.06em;color:var(--honey);text-decoration:none;font-size:17px}
+.brand svg{flex-shrink:0}
+.lang{display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px}
+.lang button{appearance:none;border:0;background:none;color:var(--txt2);font:inherit;font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;cursor:pointer;min-height:32px}
+.lang button[aria-pressed="true"]{background:var(--honey);color:var(--ink)}
+main{padding:36px 0 64px}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+.lead{color:var(--txt2);margin:0 0 6px;font-size:17px}
+.upd{color:var(--txt2);font-size:13.5px;margin:0 0 28px}
+nav.toc{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 20px;margin:0 0 34px}
+nav.toc summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center}
+nav.toc summary::-webkit-details-marker{display:none}
+nav.toc summary::after{content:"+";color:var(--honey);font-size:20px;line-height:1}
+nav.toc details[open] summary::after{content:"–"}
+nav.toc ol{margin:12px 0 2px;padding:0;list-style:none;columns:2;column-gap:24px}
+nav.toc li{break-inside:avoid;margin:0 0 7px;font-size:14.5px;line-height:1.35}
+nav.toc a{color:var(--txt);text-decoration:none} nav.toc a:hover{color:var(--honey2);text-decoration:underline}
+section{scroll-margin-top:76px;padding:0 0 6px}
+h2{font-size:20px;line-height:1.3;margin:30px 0 10px;padding-top:22px;border-top:1px solid var(--line);color:var(--honey2)}
+section:first-of-type h2{border-top:0;padding-top:0;margin-top:0}
+p{margin:0 0 12px;color:#E7EBF7}
+ul{margin:0 0 14px;padding-left:22px} li{margin:0 0 7px;color:#E7EBF7} li::marker{color:var(--honey)}
+footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--txt2);font-size:14px}
+footer a{margin-right:18px}
+[data-lang]{display:none} html[lang="it"] [data-lang="it"],html[lang="en"] [data-lang="en"]{display:revert}
+@media (max-width:560px){nav.toc ol{columns:1} main{padding-top:26px}}
+@media print{header,nav.toc,footer,.lang{display:none} body{background:#fff;color:#000} p,li{color:#000} h2{color:#000;border-color:#bbb} a{color:#000}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="brand" href="/" aria-label="Beeweat, pagina iniziale">
+    <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#2457D6"/><polygon points="24,13 33.5,18.5 33.5,29.5 24,35 14.5,29.5 14.5,18.5" fill="#F5B82E"/></svg>
+    BEEWEAT</a>
+  <div class="lang" role="group" aria-label="Lingua / Language">
+    <button type="button" data-set="it" aria-pressed="true">Italiano</button><button type="button" data-set="en" aria-pressed="false">English</button>
+  </div>
+</div></header>
+<main><div class="wrap">
+  <div data-lang="it">
+    <h1>Termini di Servizio</h1>
+    <p class="lead">Le regole che valgono per tutte le api dell&#x27;alveare.</p>
+    <p class="upd">Ultimo aggiornamento: 10 novembre 2026</p>
+    <nav class="toc" aria-label="Indice"><details><summary>Indice</summary><ol>
+<li><a href="#p1">1. Chi siamo e definizioni</a></li>
+<li><a href="#p2">2. Il Servizio</a></li>
+<li><a href="#p3">3. Account ed età minima</a></li>
+<li><a href="#p4">4. Regole di condotta e contenuti vietati</a></li>
+<li><a href="#p5">5. I tuoi contenuti</a></li>
+<li><a href="#p6">6. Fotocamera, posizione e dati meteo</a></li>
+<li><a href="#p7">7. Controllo automatico delle foto e moderazione</a></li>
+<li><a href="#p8">8. Segnalazioni, sospensioni e ricorso</a></li>
+<li><a href="#p9">9. Chat, gruppi e notifiche</a></li>
+<li><a href="#p10">10. Stelle, premi, gradi e statistiche</a></li>
+<li><a href="#p11">11. Eventi e allerte: non sono allerte ufficiali</a></li>
+<li><a href="#p12">12. Servizi di terzi</a></li>
+<li><a href="#p13">13. App scaricata dagli store</a></li>
+<li><a href="#p14">14. Proprietà intellettuale</a></li>
+<li><a href="#p15">15. Garanzie e responsabilità</a></li>
+<li><a href="#p16">16. Durata, recesso e chiusura dell&#x27;account</a></li>
+<li><a href="#p17">17. Modifiche, legge applicabile, foro e contatti</a></li>
+    </ol></details></nav>
+<section id="p1"><h2>1. Chi siamo e definizioni</h2>
+<p>Beeweat («l&#x27;App» o «il Servizio») è offerta da Umberto Natalizio, persona fisica, con domicilio in Capri (NA), via Matermania n. 6, codice fiscale NTLMRT67B04F839F, email legal@beeweat.com («Beeweat», «noi»). Il Servizio è disponibile come applicazione web su beeweat.com e app.beeweat.com e come app per iOS e Android scaricabile dagli store.</p>
+<p>In questi Termini usiamo le parole dell&#x27;App:</p>
+<ul>
+<li>Ape (o utente): la persona registrata.</li>
+<li>Alveare: la comunità di tutte le api.</li>
+<li>Cielo (o post): una foto del cielo — oppure un video di 5 secondi senza audio, accompagnato dalla sua foto — scattati al momento e pubblicati con posizione, condizione meteo, temperatura e, se vuoi, una descrizione.</li>
+<li>Stella: l&#x27;apprezzamento che un&#x27;ape dà a un cielo. Occhi: le visualizzazioni. Foto premiata: un cielo scelto dagli amministratori.</li>
+<li>Occhi dell&#x27;alveare e Bee-Eye: i controlli automatici sulle foto (sul telefono e sul server) descritti al punto 7.</li>
+<li>Raggio: la distanza, da 10 a 100 km o «Mondo», che decide cosa vedi nel feed, nel radar e negli eventi.</li>
+<li>Zaino: la coda sul telefono dove un cielo aspetta la connessione per partire.</li>
+<li>Amministratori: le persone che gestiscono l&#x27;alveare dall&#x27;area riservata.</li>
+</ul>
+<p>Usando l&#x27;App accetti integralmente questi Termini e l&#x27;Informativa sulla privacy, che ne fa parte. Se non li accetti, non usare l&#x27;App.</p>
+</section>
+<section id="p2"><h2>2. Il Servizio</h2>
+<p>Beeweat è un social del meteo fatto dalle persone: ogni ape fotografa il cielo che ha sopra, adesso, e l&#x27;alveare vede il tempo com&#x27;è davvero. Il Servizio è gratuito e comprende:</p>
+<ul>
+<li>Feed: i cieli pubblicati nel tuo Raggio, in tutto il mondo o dalle api che segui, con stelle, commenti pubblici, condivisione e segnalazione.</li>
+<li>Scatta: la pubblicazione di un cielo, foto o video di 5 secondi senza audio, solo con la fotocamera al momento dello scatto. Non è possibile caricare foto dall&#x27;archivio del telefono.</li>
+<li>Radar: la mappa dei cieli e degli eventi intorno a te nelle ultime 6 ore.</li>
+<li>BeeCast: previsioni, stato del mare, sole e luna, qualità dell&#x27;aria, allerte ufficiali di terzi e l&#x27;avviso di maltempo in avvicinamento, calcolato dai cieli pubblicati dalle api.</li>
+<li>Eventi: segnalazioni meteo (temporali, mareggiate, strade chiuse) ed eventi social (feste, concerti, sagre) pubblicati dalle api.</li>
+<li>BeeWorld: le api, i luoghi e i gruppi; chat dirette, chat di gruppo e chat dei luoghi.</li>
+<li>Profilo: i tuoi cieli, archivio mese per mese, stelle, grado, seguiti e follower, impostazioni.</li>
+<li>Zaino: se manca la rete, il cielo resta sul telefono e parte da solo al ritorno della connessione, dopo il controllo del punto 7.</li>
+</ul>
+<p>Possiamo aggiungere, modificare o togliere funzioni in qualsiasi momento, anche per esigenze tecniche o di sicurezza. Le funzioni che dipendono da servizi di terzi (punto 12) possono mancare quando quei servizi non rispondono.</p>
+</section>
+<section id="p3"><h2>3. Account ed età minima</h2>
+<p>Per usare Beeweat serve un account: email, password, nome dell&#x27;ape e città. Il nome dell&#x27;ape è pubblico e dev&#x27;essere unico; puoi cambiarlo dal Profilo. Puoi registrarti anche con Google, Apple o Facebook, se disponibili.</p>
+<p>Devi avere almeno 14 anni. Se hai meno di 14 anni non puoi registrarti; se lo scopriamo, chiudiamo l&#x27;account. Gli store possono imporre un&#x27;età minima diversa: in quel caso vale quella.</p>
+<p>Ti impegni a dare dati veritieri, a tenere riservata la password e a non cedere l&#x27;account ad altri. Sei responsabile di tutto ciò che avviene con il tuo account; se sospetti un accesso non autorizzato, cambia subito la password («Password dimenticata?») e scrivici dal Centro assistenza. Un&#x27;ape può avere un solo account.</p>
+</section>
+<section id="p4"><h2>4. Regole di condotta e contenuti vietati</h2>
+<p>Beeweat è un posto per il cielo, il mare e la natura. Non è consentito pubblicare o inviare:</p>
+<ul>
+<li>foto che non siano cielo, mare, natura o paesaggio scattati al momento: niente interni, schermi, foto di foto, oggetti, selfie;</li>
+<li>persone riconoscibili in primo piano, e in ogni caso minori riconoscibili, senza il loro consenso;</li>
+<li>contenuti illeciti, osceni, violenti, discriminatori, diffamatori, che incitano all&#x27;odio o che violano diritti altrui (privacy, immagine, diritto d&#x27;autore);</li>
+<li>spam, pubblicità non autorizzata, link ingannevoli, informazioni meteo volutamente false o allarmistiche;</li>
+<li>molestie, minacce o insistenze verso altre api, nelle chat o nei commenti;</li>
+<li>tentativi di aggirare i controlli dell&#x27;App (posizione falsa, foto non in tempo reale, più account, automatismi) o di accedere a dati e sistemi non tuoi.</li>
+</ul>
+<p>La descrizione di un cielo, la condizione scelta e la temperatura devono corrispondere a ciò che vedi. Le segnalazioni con il tasto «Segnala» vanno usate per contenuti che violano queste regole, non per disaccordi o antipatie: segnalazioni ripetute in malafede sono esse stesse una violazione.</p>
+</section>
+<section id="p5"><h2>5. I tuoi contenuti</h2>
+<p>Resti titolare di ciò che pubblichi: foto, descrizioni, commenti, messaggi, eventi. Ci concedi una licenza non esclusiva, gratuita, valida in tutto il mondo per ospitare, mostrare, ridimensionare, distribuire e condividere questi contenuti dentro il Servizio, sul sito beeweat.com e nelle sue anteprime, e per ricavarne statistiche aggregate (quanti cieli, dove, a che ora, con quale tempo). La licenza dura finché il contenuto esiste nel Servizio. Non vendiamo i tuoi contenuti a terzi e non li usiamo in pubblicità senza chiedertelo.</p>
+<p>Ciclo di vita di un cielo. Un cielo è un&#x27;osservazione di adesso:</p>
+<ul>
+<li>resta sul Radar per 6 ore;</li>
+<li>resta nei reel pubblici (il feed) per il mese in corso e per quello precedente;</li>
+<li>poi esce dai reel pubblici e passa nel tuo storico personale («Reel precedenti», mese per mese), consultabile dal Profilo, dove resta finché esiste il tuo account o finché non lo elimini tu.</li>
+</ul>
+<p>Stelle, occhi e commenti ricevuti restano acquisiti nel tuo grado anche se elimini il cielo. Puoi eliminare un tuo cielo in qualsiasi momento, con rimozione immediata; gli amministratori possono correggerne condizione, descrizione o posto, premiarlo o rimuoverlo.</p>
+<p>Un contenuto segnalato può essere conservato oltre questi termini fino alla fine della verifica; se la legge lo richiede, lo conserviamo e lo mettiamo a disposizione delle autorità.</p>
+<p>Quando condividi un cielo fuori dall&#x27;App (link beeweat.com), chi riceve il link vede foto, descrizione, nome dell&#x27;ape e posto.</p>
+</section>
+<section id="p6"><h2>6. Fotocamera, posizione e dati meteo</h2>
+<p>Fotocamera. L&#x27;App usa la fotocamera (mai il microfono) solo quando apri Scatta. Foto e video si fanno al momento; l&#x27;App non accede all&#x27;archivio fotografico del telefono. Il permesso lo dà il sistema operativo e puoi revocarlo quando vuoi.</p>
+<p>Posizione. Per pubblicare un cielo serve la posizione del telefono: è il senso stesso di Beeweat (feed, Radar e BeeCast lavorano sul punto in cui sei). Le coordinate vengono arrotondate sul telefono a circa 1 km prima di partire: sul server e sulla mappa arriva solo la zona, mai il punto esatto, mai la tua casa. Il nome del posto (es. «Piano di Sorrento») è ricavato dalle coordinate con servizi di terzi e può essere corretto. Senza posizione non si pubblica; il resto dell&#x27;App resta usabile. Nel Radar la tua posizione è mostrata solo a te.</p>
+<p>Dati meteo. Temperatura allo scatto, previsioni, stato del mare, sole e luna, CO₂ e allerte ufficiali vengono da fonti pubbliche di terzi (punto 12) e sono indicativi: non garantiamo esattezza, completezza o tempestività. Puoi correggere a mano la temperatura di un tuo cielo. L&#x27;avviso di maltempo in avvicinamento di BeeCast nasce dai cieli pubblicati dalle api nel tuo Raggio: è un&#x27;osservazione collaborativa, non una previsione professionale.</p>
+</section>
+<section id="p7"><h2>7. Controllo automatico delle foto e moderazione</h2>
+<p>Ogni cielo, prima di partire, passa un controllo in quattro passi: il modello meteo del posto, la tua descrizione, la condizione che hai scelto e la foto. La foto è analizzata da sistemi automatici («occhi dell&#x27;alveare») che girano sul telefono: riconoscono oggetti, scene, nudità e interni. Nei casi dubbi una miniatura della foto viene inviata a Bee-Eye, un servizio di intelligenza artificiale sul nostro server, che decide se si vede un cielo vero e con quale condizione. Questo trattamento è automatico ed è necessario per il Servizio: senza, Beeweat si riempirebbe di foto che non sono cieli.</p>
+<p>Un cielo può essere rifiutato dal controllo (interni, persone in primo piano, schermi, buio con cielo chiaro, foto non coerenti con l&#x27;ora o il posto). In quel caso vedi il motivo e puoi rifare la foto. Il controllo può sbagliare: se ritieni che un rifiuto sia ingiusto, scrivici dal Centro assistenza.</p>
+<p>I cieli pubblicati e tutti i contenuti possono essere rivisti anche da persone: gli amministratori possono correggere, premiare, rimuovere contenuti e sospendere o chiudere account secondo questi Termini. Le decisioni di moderazione non sono prese solo da un sistema automatico quando comportano la sospensione o la chiusura dell&#x27;account.</p>
+</section>
+<section id="p8"><h2>8. Segnalazioni, sospensioni e ricorso</h2>
+<p>Ogni ape può segnalare un cielo con il tasto «Segnala» indicando il motivo. La segnalazione arriva agli amministratori, che la esaminano di norma entro 7 giorni e possono: archiviarla, rimuovere il cielo, sospendere l&#x27;ape. Chi segnala non viene mostrato all&#x27;ape segnalata.</p>
+<p>Blocco. Puoi bloccare un&#x27;ape dal suo profilo o quando la segnali: non vedrai più i suoi cieli, commenti e messaggi, e nessuno dei due potrà scrivere all&#x27;altro. Puoi sbloccarla quando vuoi dallo stesso profilo.</p>
+<p>In caso di violazione possiamo, a seconda della gravità:</p>
+<ul>
+<li>rimuovere il contenuto;</li>
+<li>sospendere l&#x27;account da 1 giorno a 1 anno: durante la sospensione non puoi pubblicare né scrivere, e vedi il motivo nell&#x27;App;</li>
+<li>chiudere l&#x27;account, con eliminazione di cieli, messaggi e dati collegati.</li>
+</ul>
+<p>Per violazioni gravi o ripetute (minori, contenuti illeciti, molestie, tentativi di aggirare i controlli) possiamo chiudere l&#x27;account subito e senza preavviso.</p>
+<p>Ricorso. Se ritieni ingiusta una rimozione, una sospensione o una chiusura, puoi scriverci dal Centro assistenza («Chat con gli amministratori») o a legal@beeweat.com entro 30 giorni, spiegando le ragioni. Rispondiamo di norma entro 14 giorni. Se risiedi nell&#x27;Unione europea, conservi inoltre i diritti previsti dal Regolamento (UE) 2022/2065 (Digital Services Act), compreso il ricorso a un organismo di risoluzione extragiudiziale delle controversie.</p>
+</section>
+<section id="p9"><h2>9. Chat, gruppi e notifiche</h2>
+<p>L&#x27;App offre chat dirette tra api, chat di gruppo, chat dei luoghi e chat pubbliche sotto ogni cielo. Le chat pubbliche e dei luoghi sono visibili a tutti; le chat dirette e di gruppo solo ai partecipanti. Gli amministratori possono accedere alle chat dirette solo quando una delle due api scrive a un amministratore (Centro assistenza) o nei limiti necessari a verificare una segnalazione o un obbligo di legge.</p>
+<p>La conferma di lettura (doppia spunta) si può disattivare dal Profilo. Puoi cancellare i tuoi messaggi e svuotare una chat diretta; il messaggio sparisce anche per l&#x27;altra ape.</p>
+<p>Le notifiche (stelle, commenti, messaggi, allerte di maltempo, avvisi degli amministratori) richiedono il permesso del sistema; le scegli e le spegni dal Profilo. Il «Megafono» è un avviso che gli amministratori inviano a tutte le api per comunicazioni di servizio: non è pubblicità.</p>
+</section>
+<section id="p10"><h2>10. Stelle, premi, gradi e statistiche</h2>
+<p>Le stelle sono apprezzamenti tra api, uno per cielo. Il grado (da Worker Bee a Regina dell&#x27;alveare) dipende dal numero di cieli pubblicati ed è un riconoscimento simbolico: non dà diritti, non ha valore economico e possiamo cambiarne le soglie. La foto premiata è scelta dagli amministratori a loro discrezione e sale in cima al feed con una coccarda e un messaggio.</p>
+<p>Usiamo i dati dell&#x27;App in forma aggregata per capire come viene usata e migliorarla: quanti cieli, a che ora, con quale tempo, in quali città, quali eventi, quante iscrizioni, come reagisce l&#x27;alveare. Gli amministratori vedono anche, per ogni ape, i numeri della sua attività (cieli, stelle, segnalazioni, ultimo cielo) per gestire la comunità.</p>
+<p>Nel Profilo puoi indicare, se vuoi, se sei donna, uomo o altro: serve solo alle statistiche dell&#x27;alveare, non è mai mostrato alle altre api e puoi toglierlo quando vuoi. Senza questa indicazione, le statistiche sul genere si basano su una stima dal nome, dichiarata come tale e mai riferita alla singola ape.</p>
+</section>
+<section id="p11"><h2>11. Eventi e allerte: non sono allerte ufficiali</h2>
+<p>Gli eventi meteo (temporali, mareggiate, strade chiuse, incidenti, soccorso), gli eventi social e l&#x27;avviso di maltempo in avvicinamento sono creati dalle api o calcolati dai loro cieli, a titolo informativo e collaborativo. Non sono allerte ufficiali e non sostituiscono Protezione Civile, Capitanerie, Comuni o servizi meteorologici. In caso di pericolo chiama il 112 e segui le indicazioni delle autorità. Le allerte ufficiali mostrate in BeeCast sono riportate da fonti di terzi (punto 12) così come arrivano, con possibile ritardo.</p>
+<p>Chi pubblica un evento social (festa, concerto, sagra) è responsabile della correttezza di data, luogo e contatti; Beeweat non organizza gli eventi e non risponde del loro svolgimento.</p>
+</section>
+<section id="p12"><h2>12. Servizi di terzi</h2>
+<p>Per funzionare, l&#x27;App si appoggia a servizi di terzi, ciascuno con le proprie condizioni e informative:</p>
+<ul>
+<li>Supabase — database, autenticazione, archiviazione di foto e video, notifiche in tempo reale — i dati dell&#x27;account e i contenuti</li>
+<li>Vercel — pubblicazione dell&#x27;App (app.beeweat.com) — indirizzo IP e richieste tecniche</li>
+<li>Open-Meteo — temperatura allo scatto, previsioni, stato del mare, copertura nuvolosa — coordinate arrotondate</li>
+<li>Solano (solanometeo.fr) — allerte ufficiali, rischio temporali, modelli a confronto — coordinate arrotondate</li>
+<li>NOAA (Mauna Loa) — CO₂ nell&#x27;aria in BeeCast — nessun dato personale</li>
+<li>OpenStreetMap / Nominatim, Photon, BigDataCloud — nome del posto dalle coordinate — coordinate del punto</li>
+<li>RainViewer — radar pioggia sul globo del sito — nessun dato personale</li>
+<li>Esri — immagini satellitari del globo del sito — richieste di mappa</li>
+<li>Bee-Eye (servizio AI sul nostro server, basato su un fornitore di modelli di intelligenza artificiale: Anthropic) — verifica delle foto dubbie — una miniatura della foto, senza nome né posizione</li>
+<li>Modelli TensorFlow caricati da esm.sh — controlli sulla foto, eseguiti sul telefono — nessun dato personale lascia il telefono</li>
+<li>Apple, Google — store, accesso con Apple/Google, notifiche push — dati di accesso e token di notifica</li>
+</ul>
+<p>Non rispondiamo della disponibilità o dell&#x27;esattezza di questi servizi. Se uno di essi cambia o chiude, la funzione corrispondente può mancare o cambiare.</p>
+</section>
+<section id="p13"><h2>13. App scaricata dagli store</h2>
+<p>Se usi Beeweat scaricata da App Store o Google Play valgono anche le condizioni dello store. In particolare:</p>
+<ul>
+<li>questi Termini sono tra te e Beeweat, non con Apple o Google; Apple e Google non sono responsabili dell&#x27;App, della sua manutenzione o assistenza, né di reclami tuoi o di terzi sull&#x27;App;</li>
+<li>la licenza d&#x27;uso dell&#x27;App è personale, non trasferibile, limitata ai dispositivi che possiedi o controlli e alle regole d&#x27;uso dello store;</li>
+<li>in caso di difetto dell&#x27;App, puoi chiedere allo store il rimborso dell&#x27;eventuale prezzo pagato (Beeweat è gratuita); ogni altra responsabilità è di Beeweat nei limiti del punto 15;</li>
+<li>Apple e Google sono terzi beneficiari di questi Termini e possono farli valere nei tuoi confronti;</li>
+<li>dichiari di non trovarti in un Paese sottoposto a embargo e di non essere in liste di soggetti vietati.</li>
+</ul>
+<p>L&#x27;App può aggiornarsi da sola; alcune versioni vecchie possono smettere di funzionare.</p>
+</section>
+<section id="p14"><h2>14. Proprietà intellettuale</h2>
+<p>Il nome Beeweat, il logo (l&#x27;esagono miele), la grafica, i testi, il software dell&#x27;App, del sito e dell&#x27;area riservata, le parole dell&#x27;alveare e il modo in cui i cieli vengono controllati e presentati sono di Beeweat o dei suoi licenzianti e sono protetti dalle leggi sulla proprietà intellettuale. Non puoi copiarli, modificarli, decompilarli, rivenderli o usarli per un servizio concorrente. I dati meteo, le mappe e le immagini satellitari restano dei rispettivi titolari (punto 12). I contenuti delle api restano delle api (punto 5).</p>
+</section>
+<section id="p15"><h2>15. Garanzie e responsabilità</h2>
+<p>Beeweat è gratuita ed è fornita «così com&#x27;è» e «come disponibile». Non garantiamo che funzioni senza interruzioni o errori, che i cieli, i dati meteo, gli eventi e gli avvisi siano esatti, completi o tempestivi, né che i controlli automatici blocchino ogni contenuto non conforme.</p>
+<p>Nei limiti consentiti dalla legge, Beeweat non risponde di danni indiretti o consequenziali derivanti dall&#x27;uso o dall&#x27;impossibilità di usare il Servizio, dalle decisioni prese sulla base di cieli, previsioni, eventi o avvisi, dai contenuti e dalle condotte di altre api, dalla perdita di cieli nello zaino o di dati per cause tecniche, né dall&#x27;indisponibilità dei servizi di terzi. Nulla in questi Termini esclude o limita la responsabilità per dolo o colpa grave, o i diritti che la legge riconosce ai consumatori e che non possono essere derogati.</p>
+<p>Usi l&#x27;App a tuo rischio quando sei all&#x27;aperto: guarda il cielo vero, non il telefono, se le condizioni sono pericolose.</p>
+</section>
+<section id="p16"><h2>16. Durata, recesso e chiusura dell&#x27;account</h2>
+<p>Questi Termini valgono finché usi l&#x27;App. Puoi uscire quando vuoi con il Logout e chiudere l&#x27;account dal Profilo («Elimina account») o scrivendoci a privacy@beeweat.com: l&#x27;account, i cieli, i messaggi, le stelle e le impostazioni vengono eliminati; restano, in forma anonima e aggregata, le statistiche dell&#x27;alveare, e per il tempo richiesto dalla legge i dati che dobbiamo conservare.</p>
+<p>Possiamo chiudere il Servizio, in tutto o in parte, con un preavviso di almeno 30 giorni nell&#x27;App, salvo cause di forza maggiore o obblighi di legge. Possiamo chiudere il tuo account nei casi del punto 8, o per inattività prolungata (oltre 24 mesi senza accessi) dopo un avviso via email.</p>
+<p>Essendo il Servizio gratuito, non si applicano le norme sul diritto di ripensamento dei contratti a titolo oneroso.</p>
+</section>
+<section id="p17"><h2>17. Modifiche, legge applicabile, foro e contatti</h2>
+<p>Possiamo aggiornare questi Termini quando cambiano l&#x27;App, la legge o i servizi di terzi. Le modifiche rilevanti vengono annunciate nell&#x27;App (Megafono o schermata all&#x27;apertura) almeno 15 giorni prima; se continui a usare Beeweat dopo quella data accetti la versione nuova, altrimenti puoi chiudere l&#x27;account. La versione in vigore è sempre consultabile nel Profilo e su beeweat.com, con la data dell&#x27;ultimo aggiornamento.</p>
+<p>Questi Termini sono regolati dalla legge italiana. Per le controversie con un consumatore residente nell&#x27;Unione europea è competente il giudice del luogo di residenza o domicilio del consumatore, e resta possibile la risoluzione alternativa delle controversie (per l&#x27;Italia, le procedure previste dal Codice del consumo). In ogni altro caso è competente in via esclusiva il Foro di Napoli. Se una clausola fosse invalida, le altre restano in vigore.</p>
+<p>Contatti</p>
+<ul>
+<li>Termini e questioni legali: legal@beeweat.com</li>
+<li>Dati personali: privacy@beeweat.com</li>
+<li>Assistenza: dal Profilo, Centro assistenza, «Chat con gli amministratori»</li>
+<li>Sede: via Matermania n. 6, 80073 Capri (NA)</li>
+</ul>
+<p>Ultimo aggiornamento: 10 novembre 2026. Versione dell&#x27;App di riferimento: 14.82.</p>
+</section>
+  </div>
+  <div data-lang="en">
+    <h1>Terms of Service</h1>
+    <p class="lead">The rules that apply to every bee in the hive.</p>
+    <p class="upd">Last updated: 10 November 2026 · courtesy translation, the Italian version prevails</p>
+    <nav class="toc" aria-label="Contents"><details><summary>Contents</summary><ol>
+<li><a href="#p1">1. Who we are and definitions</a></li>
+<li><a href="#p2">2. The Service</a></li>
+<li><a href="#p3">3. Account and minimum age</a></li>
+<li><a href="#p4">4. Rules of conduct and prohibited content</a></li>
+<li><a href="#p5">5. Your content</a></li>
+<li><a href="#p6">6. Camera, location and weather data</a></li>
+<li><a href="#p7">7. Automatic photo checks and moderation</a></li>
+<li><a href="#p8">8. Reports, suspensions and appeals</a></li>
+<li><a href="#p9">9. Chats, groups and notifications</a></li>
+<li><a href="#p10">10. Stars, awards, ranks and statistics</a></li>
+<li><a href="#p11">11. Events and alerts: they are not official alerts</a></li>
+<li><a href="#p12">12. Third-party services</a></li>
+<li><a href="#p13">13. App downloaded from the stores</a></li>
+<li><a href="#p14">14. Intellectual property</a></li>
+<li><a href="#p15">15. Warranties and liability</a></li>
+<li><a href="#p16">16. Duration, withdrawal and account closure</a></li>
+<li><a href="#p17">17. Changes, applicable law, jurisdiction and contacts</a></li>
+    </ol></details></nav>
+<section id="p1"><h2>1. Who we are and definitions</h2>
+<p>Beeweat (&quot;the App&quot; or &quot;the Service&quot;) is offered by Umberto Natalizio, a natural person, domiciled in Capri (NA), Italy, via Matermania 6, tax code NTLMRT67B04F839F, email legal@beeweat.com (&quot;Beeweat&quot;, &quot;we&quot;). The Service is available as a web application at beeweat.com and app.beeweat.com and as an iOS and Android app downloadable from the stores.</p>
+<p>In these Terms we use the App&#x27;s own words:</p>
+<ul>
+<li>Bee (or user): the registered person.</li>
+<li>Hive: the community of all bees.</li>
+<li>Sky (or post): a photo of the sky — or a 5-second video without sound, together with its photo — taken right now and published with location, weather condition, temperature and, if you wish, a description.</li>
+<li>Star: the appreciation one bee gives to a sky. Eyes: the views. Awarded photo: a sky chosen by the administrators.</li>
+<li>Eyes of the hive and Bee-Eye: the automatic checks on photos (on the phone and on the server) described in point 7.</li>
+<li>Radius: the distance, from 10 to 100 km or &quot;World&quot;, that decides what you see in the feed, on the radar and in events.</li>
+<li>Backpack: the queue on the phone where a sky waits for a connection before leaving.</li>
+<li>Administrators: the people who run the hive from the reserved area.</li>
+</ul>
+<p>By using the App you fully accept these Terms and the Privacy Policy, which is part of them. If you do not accept them, do not use the App.</p>
+<p>This English text is a courtesy translation: in case of doubt the Italian version prevails.</p>
+</section>
+<section id="p2"><h2>2. The Service</h2>
+<p>Beeweat is a weather social network made by people: every bee photographs the sky above them, right now, and the hive sees the weather as it really is. The Service is free and includes:</p>
+<ul>
+<li>Feed: the skies published within your Radius, worldwide or by the bees you follow, with stars, public comments, sharing and reporting.</li>
+<li>Shoot: publishing a sky, photo or 5-second video without sound, only with the camera at the moment of shooting. Uploading photos from the phone&#x27;s library is not possible.</li>
+<li>Radar: the map of skies and events around you in the last 6 hours.</li>
+<li>BeeCast: forecasts, sea state, sun and moon, air quality, official third-party alerts and the warning of approaching bad weather, computed from the skies published by bees.</li>
+<li>Events: weather reports (storms, sea storms, closed roads) and social events (parties, concerts, festivals) published by bees.</li>
+<li>BeeWorld: bees, places and groups; direct chats, group chats and place chats.</li>
+<li>Profile: your skies, month-by-month archive, stars, rank, following and followers, settings.</li>
+<li>Backpack: if there is no network, the sky stays on the phone and leaves by itself when the connection returns, after the check in point 7.</li>
+</ul>
+<p>We may add, change or remove features at any time, also for technical or security reasons. Features that depend on third-party services (point 12) may be missing when those services do not respond.</p>
+</section>
+<section id="p3"><h2>3. Account and minimum age</h2>
+<p>To use Beeweat you need an account: email, password, bee name and city. The bee name is public and must be unique; you can change it from the Profile. You can also sign up with Google, Apple or Facebook, where available.</p>
+<p>You must be at least 14 years old. If you are under 14 you cannot register; if we find out, we close the account. The stores may impose a different minimum age: in that case it applies.</p>
+<p>You undertake to give truthful data, to keep your password confidential and not to hand your account over to others. You are responsible for everything that happens with your account; if you suspect unauthorised access, change your password right away (&quot;Forgot password?&quot;) and write to us from the Help Center. A bee may have only one account.</p>
+</section>
+<section id="p4"><h2>4. Rules of conduct and prohibited content</h2>
+<p>Beeweat is a place for the sky, the sea and nature. It is not allowed to publish or send:</p>
+<ul>
+<li>photos that are not sky, sea, nature or landscape taken right now: no interiors, screens, photos of photos, objects, selfies;</li>
+<li>recognisable people in the foreground, and in any case recognisable minors, without their consent;</li>
+<li>unlawful, obscene, violent, discriminatory or defamatory content, content inciting hatred or violating the rights of others (privacy, image, copyright);</li>
+<li>spam, unauthorised advertising, misleading links, deliberately false or alarmist weather information;</li>
+<li>harassment, threats or persistent unwanted contact towards other bees, in chats or comments;</li>
+<li>attempts to bypass the App&#x27;s checks (fake location, photos not taken in real time, multiple accounts, automation) or to access data and systems that are not yours.</li>
+</ul>
+<p>The description of a sky, the chosen condition and the temperature must match what you see. Reports made with the &quot;Report&quot; button are for content that breaks these rules, not for disagreements or dislikes: repeated bad-faith reports are themselves a violation.</p>
+</section>
+<section id="p5"><h2>5. Your content</h2>
+<p>You remain the owner of what you publish: photos, descriptions, comments, messages, events. You grant us a non-exclusive, free, worldwide licence to host, display, resize, distribute and share this content within the Service, on the beeweat.com website and its previews, and to derive aggregate statistics from it (how many skies, where, at what time, with what weather). The licence lasts as long as the content exists in the Service. We do not sell your content to third parties and we do not use it in advertising without asking you.</p>
+<p>Life cycle of a sky. A sky is an observation of now:</p>
+<ul>
+<li>it stays on the Radar for 6 hours;</li>
+<li>it stays in the public reels (the feed) for the current month and the previous one;</li>
+<li>then it leaves the public reels and moves to your personal archive (&quot;Previous reels&quot;, month by month), available from the Profile, where it remains as long as your account exists or until you delete it.</li>
+</ul>
+<p>Stars, eyes and comments received remain counted in your rank even if you delete the sky. You can delete one of your skies at any time, with immediate removal; administrators can correct its condition, description or place, award it or remove it.</p>
+<p>Reported content may be kept beyond these terms until the review is complete; where the law requires it, we keep it and make it available to the authorities.</p>
+<p>When you share a sky outside the App (beeweat.com link), whoever receives the link sees the photo, description, bee name and place.</p>
+</section>
+<section id="p6"><h2>6. Camera, location and weather data</h2>
+<p>Camera. The App uses the camera (never the microphone) only when you open Shoot. Photos and videos are taken right now; the App does not access the phone&#x27;s photo library. Permission is granted by the operating system and you can revoke it at any time.</p>
+<p>Location. To publish a sky the phone&#x27;s location is needed: it is the very meaning of Beeweat (feed, Radar and BeeCast work on the point where you are). Coordinates are rounded on the phone to about 1 km before leaving: only the area reaches the server and the map, never the exact point, never your home. The place name (e.g. &quot;Piano di Sorrento&quot;) is derived from the coordinates through third-party services and may be corrected. Without location you cannot publish; the rest of the App remains usable. On the Radar your position is shown only to you.</p>
+<p>Weather data. Temperature at shooting time, forecasts, sea state, sun and moon, CO₂ and official alerts come from public third-party sources (point 12) and are indicative: we do not guarantee accuracy, completeness or timeliness. You can manually correct the temperature of one of your skies. BeeCast&#x27;s warning of approaching bad weather comes from the skies published by bees within your Radius: it is a collaborative observation, not a professional forecast.</p>
+</section>
+<section id="p7"><h2>7. Automatic photo checks and moderation</h2>
+<p>Before leaving, every sky passes a four-step check: the weather model of the place, your description, the condition you chose and the photo. The photo is analysed by automatic systems (&quot;eyes of the hive&quot;) running on the phone: they recognise objects, scenes, nudity and interiors. In doubtful cases a thumbnail of the photo is sent to Bee-Eye, an artificial-intelligence service on our server, which decides whether a real sky is visible and with what condition. This processing is automatic and necessary for the Service: without it, Beeweat would fill up with photos that are not skies.</p>
+<p>A sky may be rejected by the check (interiors, people in the foreground, screens, darkness with a bright sky, photos inconsistent with the time or place). In that case you see the reason and can retake the photo. The check can make mistakes: if you believe a rejection is unfair, write to us from the Help Center.</p>
+<p>Published skies and all content may also be reviewed by people: administrators can correct, award, remove content and suspend or close accounts under these Terms. Moderation decisions are not taken solely by an automatic system when they involve suspending or closing the account.</p>
+</section>
+<section id="p8"><h2>8. Reports, suspensions and appeals</h2>
+<p>Every bee can report a sky with the &quot;Report&quot; button, stating the reason. The report reaches the administrators, who normally review it within 7 days and may: dismiss it, remove the sky, suspend the bee. The reporter is not shown to the reported bee.</p>
+<p>Blocking. You can block a bee from their profile or when you report them: you will no longer see their skies, comments and messages, and neither of you will be able to write to the other. You can unblock them at any time from the same profile.</p>
+<p>In case of violation we may, depending on severity:</p>
+<ul>
+<li>remove the content;</li>
+<li>suspend the account from 1 day to 1 year: during the suspension you cannot publish or write, and you see the reason in the App;</li>
+<li>close the account, deleting skies, messages and related data.</li>
+</ul>
+<p>For serious or repeated violations (minors, unlawful content, harassment, attempts to bypass the checks) we may close the account immediately and without notice.</p>
+<p>Appeal. If you believe a removal, suspension or closure is unfair, you can write to us from the Help Center (&quot;Chat with the administrators&quot;) or at legal@beeweat.com within 30 days, explaining your reasons. We normally reply within 14 days. If you reside in the European Union, you also retain the rights provided by Regulation (EU) 2022/2065 (Digital Services Act), including recourse to an out-of-court dispute settlement body.</p>
+</section>
+<section id="p9"><h2>9. Chats, groups and notifications</h2>
+<p>The App offers direct chats between bees, group chats, place chats and public chats under every sky. Public and place chats are visible to everyone; direct and group chats only to the participants. Administrators may access direct chats only when one of the two bees writes to an administrator (Help Center) or to the extent necessary to verify a report or a legal obligation.</p>
+<p>Read receipts (double tick) can be turned off from the Profile. You can delete your messages and empty a direct chat; the message disappears for the other bee too.</p>
+<p>Notifications (stars, comments, messages, bad-weather alerts, administrators&#x27; notices) require the system&#x27;s permission; you choose and turn them off from the Profile. The &quot;Megaphone&quot; is a notice the administrators send to all bees for service communications: it is not advertising.</p>
+</section>
+<section id="p10"><h2>10. Stars, awards, ranks and statistics</h2>
+<p>Stars are appreciations between bees, one per sky. The rank (from Worker Bee to Queen of the hive) depends on the number of skies published and is a symbolic recognition: it grants no rights, has no economic value and we may change its thresholds. The awarded photo is chosen by the administrators at their discretion and rises to the top of the feed with a rosette and a message.</p>
+<p>We use the App&#x27;s data in aggregate form to understand how it is used and improve it: how many skies, at what time, with what weather, in which cities, which events, how many sign-ups, how the hive reacts. Administrators also see, for each bee, the figures of their activity (skies, stars, reports, last sky) in order to manage the community.</p>
+<p>In the Profile you may indicate, if you wish, whether you are a woman, a man or other: it is used only for the hive&#x27;s statistics, is never shown to other bees and can be removed at any time. Without this indication, gender statistics are based on an estimate from the name, declared as such and never attributed to the individual bee.</p>
+</section>
+<section id="p11"><h2>11. Events and alerts: they are not official alerts</h2>
+<p>Weather events (storms, sea storms, closed roads, accidents, rescue), social events and the warning of approaching bad weather are created by bees or computed from their skies, for informational and collaborative purposes. They are not official alerts and do not replace Civil Protection, harbour authorities, municipalities or weather services. In case of danger call 112 and follow the authorities&#x27; instructions. The official alerts shown in BeeCast are reported from third-party sources (point 12) as they arrive, possibly with delay.</p>
+<p>Whoever publishes a social event (party, concert, festival) is responsible for the correctness of date, place and contacts; Beeweat does not organise the events and is not liable for how they take place.</p>
+</section>
+<section id="p12"><h2>12. Third-party services</h2>
+<p>To work, the App relies on third-party services, each with its own terms and policies:</p>
+<ul>
+<li>Supabase — database, authentication, storage of photos and videos, real-time notifications — receives account data and content</li>
+<li>Vercel — publishing of the App (app.beeweat.com) — receives IP address and technical requests</li>
+<li>Open-Meteo — temperature at shooting time, forecasts, sea state, cloud cover — receives rounded coordinates</li>
+<li>Solano (solanometeo.fr) — official alerts, storm risk, model comparison — receives rounded coordinates</li>
+<li>NOAA (Mauna Loa) — CO₂ in the air in BeeCast — no personal data</li>
+<li>OpenStreetMap / Nominatim, Photon, BigDataCloud — place name from coordinates — receive the point&#x27;s coordinates</li>
+<li>RainViewer — rain radar on the website globe — no personal data</li>
+<li>Esri — satellite imagery of the website globe — receives map requests</li>
+<li>Bee-Eye (AI service on our server, based on an artificial-intelligence model provider: Anthropic) — verification of doubtful photos — receives a thumbnail of the photo, without name or location</li>
+<li>TensorFlow models loaded from esm.sh — checks on the photo, run on the phone — no personal data leaves the phone</li>
+<li>Apple, Google — stores, sign-in with Apple/Google, push notifications — receive sign-in data and notification tokens</li>
+</ul>
+<p>We are not responsible for the availability or accuracy of these services. If one of them changes or closes, the corresponding feature may be missing or change.</p>
+</section>
+<section id="p13"><h2>13. App downloaded from the stores</h2>
+<p>If you use Beeweat downloaded from the App Store or Google Play, the store&#x27;s terms also apply. In particular:</p>
+<ul>
+<li>these Terms are between you and Beeweat, not with Apple or Google; Apple and Google are not responsible for the App, its maintenance or support, nor for claims by you or third parties about the App;</li>
+<li>the licence to use the App is personal, non-transferable, limited to the devices you own or control and to the store&#x27;s usage rules;</li>
+<li>in case of a defect in the App, you may ask the store to refund any price paid (Beeweat is free); any other liability lies with Beeweat within the limits of point 15;</li>
+<li>Apple and Google are third-party beneficiaries of these Terms and may enforce them against you;</li>
+<li>you declare that you are not located in a country under embargo and are not on any list of prohibited parties.</li>
+</ul>
+<p>The App may update itself; some old versions may stop working.</p>
+</section>
+<section id="p14"><h2>14. Intellectual property</h2>
+<p>The Beeweat name, the logo (the honey hexagon), the graphics, texts, software of the App, the website and the reserved area, the words of the hive and the way skies are checked and presented belong to Beeweat or its licensors and are protected by intellectual-property laws. You may not copy, modify, decompile, resell them or use them for a competing service. Weather data, maps and satellite images remain the property of their respective owners (point 12). Bees&#x27; content remains the bees&#x27; (point 5).</p>
+</section>
+<section id="p15"><h2>15. Warranties and liability</h2>
+<p>Beeweat is free and is provided &quot;as is&quot; and &quot;as available&quot;. We do not guarantee that it works without interruptions or errors, that skies, weather data, events and warnings are accurate, complete or timely, nor that the automatic checks block every non-compliant content.</p>
+<p>To the extent permitted by law, Beeweat is not liable for indirect or consequential damages arising from the use of or inability to use the Service, from decisions taken on the basis of skies, forecasts, events or warnings, from the content and conduct of other bees, from the loss of skies in the backpack or of data for technical reasons, nor from the unavailability of third-party services. Nothing in these Terms excludes or limits liability for wilful misconduct or gross negligence, or the rights the law grants to consumers that cannot be waived.</p>
+<p>You use the App at your own risk when outdoors: look at the real sky, not the phone, if conditions are dangerous.</p>
+</section>
+<section id="p16"><h2>16. Duration, withdrawal and account closure</h2>
+<p>These Terms apply as long as you use the App. You can leave at any time with Logout and close your account from the Profile (&quot;Delete account&quot;) or by writing to privacy@beeweat.com: the account, skies, messages, stars and settings are deleted; the hive&#x27;s statistics remain in anonymous, aggregate form, and the data we must keep remain for the time required by law.</p>
+<p>We may close the Service, in whole or in part, with at least 30 days&#x27; notice in the App, except in cases of force majeure or legal obligations. We may close your account in the cases of point 8, or for prolonged inactivity (more than 24 months without access) after an email notice.</p>
+<p>Since the Service is free, the rules on the right of withdrawal for paid contracts do not apply.</p>
+</section>
+<section id="p17"><h2>17. Changes, applicable law, jurisdiction and contacts</h2>
+<p>We may update these Terms when the App, the law or third-party services change. Significant changes are announced in the App (Megaphone or opening screen) at least 15 days in advance; if you keep using Beeweat after that date you accept the new version, otherwise you can close your account. The version in force can always be consulted in the Profile and on beeweat.com, with the date of the last update.</p>
+<p>These Terms are governed by Italian law. For disputes with a consumer residing in the European Union, the court of the consumer&#x27;s place of residence or domicile has jurisdiction, and alternative dispute resolution remains possible (for Italy, the procedures provided by the Consumer Code). In any other case the Court of Naples has exclusive jurisdiction. If a clause were invalid, the others remain in force.</p>
+<p>Contacts</p>
+<ul>
+<li>Terms and legal matters: legal@beeweat.com</li>
+<li>Personal data: privacy@beeweat.com</li>
+<li>Support: from the Profile, Help Center, &quot;Chat with the administrators&quot;</li>
+<li>Registered address: via Matermania 6, 80073 Capri (NA), Italy</li>
+</ul>
+<p>Last updated: 10 November 2026. Reference App version: 14.82.</p>
+</section>
+  </div>
+</div></main>
+<footer><div class="wrap">
+  <span data-lang="it"><a href="/privacy/">Informativa sulla privacy</a><a href="https://app.beeweat.com">Apri Beeweat</a><a href="mailto:legal@beeweat.com">legal@beeweat.com</a></span>
+  <span data-lang="en"><a href="/privacy/?lang=en">Privacy Policy</a><a href="https://app.beeweat.com">Open Beeweat</a><a href="mailto:legal@beeweat.com">legal@beeweat.com</a></span>
+</div></footer>
+<script>
+(function(){
+  var q=(location.search.match(/[?&]lang=(it|en)/)||[])[1],s=null;try{s=localStorage.getItem("bw_lang")}catch(e){}
+  var l=q||(s==="it"||s==="en"?s:null)||((navigator.language||"it").toLowerCase().indexOf("it")===0?"it":"en");
+  function set(x,keep){document.documentElement.lang=x;[].forEach.call(document.querySelectorAll(".lang button"),function(b){b.setAttribute("aria-pressed",b.getAttribute("data-set")===x?"true":"false")});
+    document.title=(x==="it"?"Termini di Servizio":"Terms of Service")+" · Beeweat";if(keep){try{localStorage.setItem("bw_lang",x)}catch(e){}}}
+  set(l,false);
+  [].forEach.call(document.querySelectorAll(".lang button"),function(b){b.addEventListener("click",function(){set(b.getAttribute("data-set"),true)})});
+})();
+</script>
+</body>
+</html>

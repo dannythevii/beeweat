@@ -1,0 +1,35 @@
+BEEWEAT — pagine per il sito beeweat.com (17 novembre 2026)
+
+COSA C'È (ogni pagina è in italiano + inglese, senza script esterni, senza cookie, stampabile)
+  termini/index.html          → Termini di Servizio definitivi, gli stessi dell'app
+  privacy/index.html          → Informativa sulla privacy APPROVATA dal legale, la stessa dell'app 14.91
+  elimina-account/index.html  → come cancellare l'account e i dati (Google Play chiede questo indirizzo)
+  assistenza/index.html       → come ricevere aiuto e contatti (App Store chiede un «URL di supporto»)
+
+DOVE METTERLE (Serverplan, cPanel → File Manager → public_html)
+  Carica le quattro CARTELLE così come sono dentro public_html:
+     public_html/termini/index.html
+     public_html/privacy/index.html
+     public_html/elimina-account/index.html
+     public_html/assistenza/index.html
+  Indirizzi che ne risultano:
+     https://beeweat.com/termini/            https://beeweat.com/privacy/
+     https://beeweat.com/elimina-account/    https://beeweat.com/assistenza/
+  In inglese: aggiungi ?lang=en (es. https://beeweat.com/privacy/?lang=en); senza, la pagina segue la lingua del telefono.
+
+IMPORTANTE: PUBBLICA SITO E APP INSIEME
+  La pagina privacy e l'app 14.91 portano lo stesso testo e la stessa data (17 novembre 2026).
+  Caricale lo stesso giorno, così non circolano due versioni diverse.
+
+PRIMA DI CARICARE
+  La pagina «assistenza» indica la casella support@beeweat.com: deve esistere ed essere letta
+  (pannello Serverplan → Email). Se preferisci un altro indirizzo dimmelo e rigenero la pagina.
+
+VERIFICA
+  Apri i quattro indirizzi da un telefono senza aver fatto l'accesso a Beeweat: devono aprirsi subito.
+  Se compare il sito con il globo al posto della pagina, il file .htaccess sta deviando tutto verso la home:
+  dimmelo e ti do la riga da aggiungere.
+
+DOVE SERVONO QUESTI INDIRIZZI
+  App Store Connect:   Privacy Policy URL → /privacy/      Support URL → /assistenza/
+  Google Play Console: Norme sulla privacy → /privacy/     Eliminazione account (Sicurezza dei dati) → /elimina-account/
