@@ -203,8 +203,7 @@ const DICT = {
   // beeworld / beepaper
   "BeeWorld": "BeeWorld", "BeePaper": "BeePaper", "BeeCast": "BeeCast", "Cerca api, luoghi e città": "Search bees, places and cities",
   "Cerca api, luoghi, città": "Search bees, places, cities", "Cerca persone, luoghi, eventi…": "Search people, places, events…", "Cerca tra le api…": "Search among bees…",
-  "Cerca in tutto il mondo…": "Search the whole world…", "Cancella la ricerca": "Clear the search", "Persone in primo piano": "Featured people",
-  "Luoghi vicino a te": "Places near you", "Altri luoghi": "Other places", "La tua zona": "Your area", "Segui questo luogo": "Follow this place",
+  "Cerca in tutto il mondo…": "Search the whole world…", "Cancella la ricerca": "Clear the search", "Luoghi vicino a te": "Places near you", "Altri luoghi": "Other places", "La tua zona": "Your area", "Segui questo luogo": "Follow this place",
   "Api che segui (": "Bees you follow (", "Luoghi che segui (": "Places you follow (", "Eventi (": "Events (", "I tuoi gruppi (": "Your groups (",
   "Api a": "Bees at", "Non segui ancora nessuna ape — trovale nella lista sotto.": "You don't follow any bee yet — find them in the list below.",
   "Non segui ancora nessuno.": "You don't follow anyone yet.", "Nessun luogo seguito — tocca la stella sui luoghi in BeePaper.": "No place followed — tap the star on places in BeePaper.",

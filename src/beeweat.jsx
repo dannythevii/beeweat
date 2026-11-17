@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.91";
+const APP_VERSION = "14.92";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -933,7 +933,7 @@ function LegalDoc({ title, intro, sections, onClose, onAccept }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: CARD, zIndex: 80, display: "flex", flexDirection: "column" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
+        <button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>
         <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18 }}>{title}</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 8px" }}>
@@ -1040,7 +1040,7 @@ function AuthScreen({ onLogin, sb }) {
   // ── RECUPERO PASSWORD ──
   if (view === "recover") return (
     <div style={{ height: "100%", width: "100%", background: `linear-gradient(160deg, ${BODY}, #B8E0F7)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", padding: "20px 0" }}>
-      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={TXT} /></button>
+      <button onClick={() => { setView("email"); setMode("login"); setRecoverSent(false); }} style={{ position: "absolute", top: 20, left: 20, background: CARD, border: `1.5px solid ${LINE}`, borderRadius: 12, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><NavIcon name="back" size={23} color={TXT} /></button>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-block" }}><BeeweatLogo size={84} /></span><div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 26, color: HONEY2, marginTop: 8 }}>BEEWEAT</div></div>
       <div className="fade-up" style={{ background: CARD, borderRadius: 24, padding: "26px 28px", width: 340, boxShadow: `0 20px 60px ${HBLUE}22`, animationDelay: ".05s" }}>
         {!recoverSent ? (
@@ -4122,7 +4122,7 @@ function PlaceView({ place, people, events, posts, onBack, onChat, onPostChat, o
     : (people || []).filter(c => authorIds.has(c.id) || authorNames.has(c.name) || (c.city || "").toLowerCase() === place.name.toLowerCase());
   return (
     <>
-      <Header title={place.name} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title={place.name} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {/* riepilogo luogo */}
         <div style={{ background: CARD, padding: "14px 16px", borderBottom: `1px solid ${LINE}` }}>
@@ -4171,7 +4171,7 @@ function PlaceEventsView({ place, events, onBack, onOpen }) {
   const list = events.filter(e => e.place === place.name);
   return (
     <>
-      <Header title={`Eventi · ${place.name}`} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title={`Eventi · ${place.name}`} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY, padding: "14px 14px" }}>
         <div style={{ fontSize: 12, color: TXT2, marginBottom: 12, fontWeight: 500 }}>{list.length} eventi a {place.name}</div>
         {list.length === 0
@@ -4201,7 +4201,7 @@ function EventMapView({ event, onBack, onOpenPhoto }) {
   const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
   return (
     <>
-      <Header title={event.kind === "social" ? "Evento" : "Posizione evento"} left={<button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title={event.kind === "social" ? "Evento" : "Posizione evento"} left={<button onClick={onBack} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", background: BODY }}>
         {event.img && (   /* 14.54: la foto dell'evento, prima mancava qui */
           <button onClick={() => onOpenPhoto && onOpenPhoto({ img: event.img, caption: `${event.title}${event.place ? " · " + event.place : ""}` })} aria-label="Apri la foto a schermo intero" style={{ display: "block", width: "calc(100% - 28px)", margin: "14px 14px 0", aspectRatio: "4 / 3", borderRadius: 18, overflow: "hidden", border: "none", padding: 0, background: NIGHT3, cursor: "pointer" }}>
@@ -4335,7 +4335,7 @@ function ArchiveView({ posts, loading, onBack, onStar, onChat, onOpenUser, onOpe
   const title = sel ? `${monthName(+sel.split("-")[1] - 1)} ${sel.split("-")[0]}` : who ? `I cieli di ${who}` : "Tutti i cieli";
   return (
     <div style={{ position: "absolute", inset: 0, background: NIGHT3, zIndex: 90, display: "flex", flexDirection: "column" }}>
-      <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title={title} left={<button onClick={() => sel ? setSel(null) : onBack()} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ background: DEEP_BLUE_BAND, color: "#fff", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textAlign: "center", padding: "6px 10px", textTransform: "uppercase" }}>{who ? `${who}, mese per mese` : "I tuoi cieli, mese per mese"}</div>
       <div className="scr" style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         {loading ? <div style={{ textAlign: "center", color: TXT2, padding: 40 }}>Apro l'archivio dell'alveare…</div>
@@ -4380,7 +4380,7 @@ function HelpView({ onClose }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
-      <Header title="Come possiamo aiutarti" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title="Come possiamo aiutarti" left={<button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         <div style={{ fontSize: 13, color: TXT2, lineHeight: 1.5, marginBottom: 12 }}>Le domande più frequenti dell'alveare. Non trovi la tua? Scrivi agli amministratori dal Centro assistenza 🐝</div>
         {HELP_FAQ.map((f, i) => (
@@ -4432,7 +4432,7 @@ function IntroVideo() {
 function IntroView({ onClose }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
-      <Header title="Come funziona Beeweat" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title="Come funziona Beeweat" left={<button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         <IntroVideo />
         <div style={{ background: `linear-gradient(160deg,${PANEL_A},${PANEL_B})`, color: "#fff", borderRadius: 16, padding: "16px 16px 14px", marginBottom: 14 }}>
@@ -4457,7 +4457,7 @@ function IntroView({ onClose }) {
 function SupportView({ admins, onPick, onClose }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 90, display: "flex", flexDirection: "column" }}>
-      <Header title="Chat con gli amministratori" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} />
+      <Header title="Chat con gli amministratori" left={<button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} />
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
         <div style={{ fontSize: 13.5, color: TXT, lineHeight: 1.5, marginBottom: 12, background: CARD, borderRadius: 14, padding: 14, border: `1px solid ${LINE}` }}>Un problema, un'idea, una foto respinta ingiustamente? Scrivi a chi tiene in piedi l'alveare: ti risponde in chat 🐝</div>
         {admins === null ? <div style={{ textAlign: "center", color: TXT2, padding: 30 }}>Cerco gli amministratori…</div>
@@ -4501,7 +4501,7 @@ function NotifSettingsView({ settings, onChange, onClose, pushState, onEnablePus
   const permLabel = { granted: "Permesso concesso", denied: "Permesso negato dal browser", default: "Permesso non ancora richiesto", unsupported: "Non supportato in questo contesto" }[perm] || "";
   return (
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
-      <Header title="Configurazione" left={<button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", color: "#fff" }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
+      <Header title="Configurazione" left={<button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>} right={<span style={{ width: 24 }} />} />
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ padding: "16px 16px 6px", fontSize: 12, fontWeight: 700, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em" }}>Notifiche</div>
         <div style={{ background: CARD }}>
@@ -4618,7 +4618,7 @@ function SearchView({ people, events, places, km, setKm, onClose, onPerson, onPl
     <div style={{ position: "absolute", inset: 0, background: BODY, zIndex: 80, display: "flex", flexDirection: "column" }}>
       {/* barra di ricerca */}
       <div style={{ background: HBLUE, padding: "12px 14px", paddingTop: "calc(12px + env(safe-area-inset-top, 0px))", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex" }}><NavIcon name="back" size={26} color="#fff" /></button>
+        <button onClick={onClose} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" /></button>
         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: CARD, borderRadius: 12, padding: "9px 12px" }}>
           <NavIcon name="search" size={18} color={TXT2} />
           <input ref={ref} value={q} onChange={e => setQ(e.target.value)} placeholder={worldOn ? "Cerca in tutto il mondo…" : "Cerca persone, luoghi, eventi…"} style={{ flex: 1, border: "none", outline: "none", background: "none", fontSize: 14, color: TXT, fontFamily: "'Inter',sans-serif" }} />
@@ -6333,7 +6333,7 @@ function AppInner() {
   if (overlay === "alerts") return wrap(
     <div className="scr" style={{ background: BODY, minHeight: "100%", height: "100%", overflowY: "auto" }}>
       <div style={{ background: HBLUE, color: "#fff", padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 5 }}>
-        <button onClick={() => setOverlay(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><NavIcon name="back" size={26} color="#fff" sw={2} /></button>
+        <button onClick={() => setOverlay(null)} aria-label="Torna indietro" title="Indietro" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, margin: "-9px", padding: 0, flexShrink: 0 }}><NavIcon name="back" size={26} color="#fff" sw={2} /></button>
         <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, flex: 1 }}>Avvisi</span>
         {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "rgba(255,255,255,.16)", border: "none", color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "6px 12px", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}>Segna tutti letti</button>}
       </div>
