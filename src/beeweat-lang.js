@@ -196,7 +196,7 @@ const DICT = {
   "Modifica evento social 🎉": "Edit social event 🎉", "Modifica o elimina l'evento": "Edit or delete the event", "Elimina evento": "Delete event",
   "Elimina avviso": "Delete notice", "Cancella elemento": "Delete item", "📞 Contatto": "📞 Contact", "🔗 Info": "🔗 Info", "🗺️ Vedi sulla mappa": "🗺️ See on the map",
   "Apri in Google Maps": "Open in Google Maps", "Copia il testo dell'evento:": "Copy the event text:", "Testo dell'evento copiato: incollalo dove vuoi 📋": "Event text copied: paste it wherever you like 📋",
-  "🍸 Aperitivo": "🍸 Aperitif", "🍽️ Cena / Food": "🍽️ Dinner / Food", "🎀 Inaugurazione": "🎀 Opening", "🎉 Party": "🎉 Party", "🎪 Festa / Sagra": "🎪 Fair / Festival",
+  "🍸 Aperitivo": "🍸 Aperitif", "🍽️ Cena / Food": "🍽️ Dinner / Food", "🛎️ Servizi / Noleggio": "🛎️ Services / Rentals", "Fino al (facoltativo)": "Until (optional)", "Un evento social resta visibile al massimo una settimana dall'inizio.": "A social event stays visible for one week at most from its start.", "Noleggi e servizi: indica fino a quando vale l'offerta. Al massimo una settimana dall'inizio, poi si può ripubblicare.": "Rentals and services: say until when the offer is valid. One week at most from the start, then you can publish it again.", "Es. Noleggio gommoni a Marina Piccola": "E.g. Dinghy rental at Marina Piccola", "🎀 Inaugurazione": "🎀 Opening", "🎉 Party": "🎉 Party", "🎪 Festa / Sagra": "🎪 Fair / Festival",
   "🎭 Spettacolo": "🎭 Show", "🎶 Concerto": "🎶 Concert", "🏟️ Evento sportivo": "🏟️ Sports event",
   "Mareggiata": "Sea storm", "allerta meteo": "weather alert",
 

@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.89";
+const APP_VERSION = "14.90";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -775,7 +775,25 @@ const INITIAL_EVENTS = [
 const BASE_COORDS = { lat: 40.6263, lng: 14.3757 };
 
 const EVENT_TYPES = ["— Nessun evento —", "⛈️ Temporale", "🌊 Mareggiata", "🌬️ Vento forte", "🌨️ Neve", "🔥 Caldo estremo", "🌫️ Nebbia fitta", "⚠️ Attenzione", "🚨 Incidente", "🚑 Soccorso"];
-const EVENT_CATEGORIES = ["— Nessuna categoria —", "🎉 Party", "🪩 Disco dance", "🎀 Inaugurazione", "🎶 Concerto", "🍸 Aperitivo", "🎭 Spettacolo", "🎪 Festa / Sagra", "🏟️ Evento sportivo", "🍽️ Cena / Food"];
+const EVENT_CATEGORIES = ["— Nessuna categoria —", "🎉 Party", "🪩 Disco dance", "🎀 Inaugurazione", "🎶 Concerto", "🍸 Aperitivo", "🎭 Spettacolo", "🎪 Festa / Sagra", "🏟️ Evento sportivo", "🍽️ Cena / Food", "🛎️ Servizi / Noleggio"];
+// 14.90: un evento social dura al massimo una settimana. Senza «Fino al» vale come prima (il giorno dell'evento e la notte dopo).
+const SOCIAL_MAX_DAYS = 7;
+const _ymd = d => { const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const socialMaxDate = startsAt => { const d = new Date(startsAt); return isNaN(d) ? "" : _ymd(new Date(d.getTime() + SOCIAL_MAX_DAYS * 86400000)); };
+const socialMinDate = startsAt => { const d = new Date(startsAt); return isNaN(d) ? "" : _ymd(d); };
+const socialEnds = (startsAt, until) => {
+  const d = new Date(startsAt); if (isNaN(d)) return null;
+  const def = new Date(d.getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10);
+  if (!until || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return def;
+  const min = socialMinDate(startsAt), max = socialMaxDate(startsAt);
+  return until < min ? def : until > max ? max : until;
+};
+const socialUntilLabel = e => {   // «fino al 24/11» solo se l'evento dura oltre il suo giorno
+  if (!e || !e.startsAt || !e.ends) return "";
+  const end = String(e.ends).slice(0, 10), d = new Date(e.startsAt); if (isNaN(d) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return "";
+  if (end <= _ymd(new Date(d.getTime() + 86400000))) return "";
+  const [, m, g] = end.split("-"); return ` · fino al ${g}/${m}`;
+};
 // luoghi vicini mostrati in Contatti (chat pubbliche + eventi per luogo)
 const NEARBY_PLACES = [
   { id: 1, name: "Sorrento", dist: 0.2, chats: 194, events: 0 },
@@ -1443,6 +1461,7 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
   const [description, setDescription] = useState(ev.description || "");
   const toLocal = iso => { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const [startsAt, setStartsAt] = useState(toLocal(ev.startsAt));
+  const [until, setUntil] = useState(isSocial && ev.startsAt && socialUntilLabel(ev) ? String(ev.ends).slice(0, 10) : "");   // 14.90
   const [link, setLink] = useState(ev.link || "");
   const [contact, setContact] = useState(ev.contact || "");
   const initialAddr = useMemo(() => { const a = parseAddress(ev.address || ""); if (!a.city) a.city = ev.place || ""; return a; }, []);
@@ -1468,7 +1487,7 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
     if (!c && addrChanged) c = await find();
     setSaving(false);
     const patch = { title: title.trim(), place: addr.city.trim() || ev.place || "", address: addressString(addr), ends };
-    if (isSocial) Object.assign(patch, { cat, description: description.trim(), startsAt: new Date(startsAt).toISOString(), link: link.trim(), contact: contact.trim(), ends: new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) });
+    if (isSocial) Object.assign(patch, { cat, description: description.trim(), startsAt: new Date(startsAt).toISOString(), link: link.trim(), contact: contact.trim(), ends: socialEnds(startsAt, until) });
     else Object.assign(patch, { type: type.split(" ")[0], sev });
     if (c) { patch.lat = c.lat; patch.lng = c.lng; }
     onSave(patch);
@@ -1490,6 +1509,9 @@ function EditEventModal({ ev, onSave, onDelete, onClose, geo, onGeocode }) {
             <textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} style={{ ...F, resize: "vertical", lineHeight: 1.5 }} />
             <div style={L}>Data e ora</div>
             <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={F} />
+            <div style={L}>Fino al (facoltativo)</div>
+            <input type="date" value={until} min={startsAt ? socialMinDate(startsAt) : undefined} max={startsAt ? socialMaxDate(startsAt) : undefined} onChange={e => setUntil(e.target.value)} style={F} />
+            <div style={{ fontSize: 12, color: TXT2, marginTop: 5, lineHeight: 1.4 }}>Un evento social resta visibile al massimo una settimana dall'inizio.</div>
           </>
         ) : (
           <>
@@ -3805,7 +3827,7 @@ function SocialEventCard({ e, onOpen, focused, canEdit, onEdit }) {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
           {e.cat && <div style={{ fontSize: 12, fontWeight: 700, color: TXT, letterSpacing: ".06em", textTransform: "uppercase" }}>{e.cat}</div>}
           <div data-notr="1" style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: TXT, lineHeight: 1.2 }}><span data-notr="1">{e.title}</span></div>
-          {e.startsAt && <div style={{ fontSize: 12.5, color: TXT2 }}>ore {new Date(e.startsAt).toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}{(e.address || e.place) ? ` · ${e.address || e.place}` : ""}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
+          {e.startsAt && <div style={{ fontSize: 12.5, color: TXT2 }}>ore {new Date(e.startsAt).toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}{socialUntilLabel(e)}{(e.address || e.place) ? ` · ${e.address || e.place}` : ""}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
           {!e.startsAt && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: TXT2 }}><NavIcon name="pin" size={13} color={TXT2} /> {e.address || e.place}{e.dist != null && e.dist < 999 ? ` · ${e.dist} km` : ""}</div>}
         </div>
         {e.img && <img src={e.img} alt="" onClick={() => onOpen(e)} style={{ width: 64, height: 84, borderRadius: 14, objectFit: "cover", flexShrink: 0, cursor: "pointer" }} />}
@@ -3940,6 +3962,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
   const [ends, setEnds] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [until, setUntil] = useState("");   // 14.90: «Fino al», al massimo una settimana
   const [addr, setAddr] = useState({ stype: "Via", street: "", num: "", city: locName || user.city || "" });
   const city = addr.city;
   const [link, setLink] = useState("");
@@ -3975,7 +3998,7 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
     setSending(false);
     if (!c) { alert("Posizione dell'evento non trovata.\nScrivi la città per esteso (es. \"Napoli\") oppure attiva il GPS: userò la posizione attuale."); return; }
     const isSocial = kind === "social";
-    const endsFinal = isSocial ? (startsAt ? new Date(new Date(startsAt).getTime() + 36 * 3600 * 1000).toISOString().slice(0, 10) : ends) : ends;
+    const endsFinal = isSocial ? (startsAt ? socialEnds(startsAt, until) : ends) : ends;
     onAdd({
       kind, type: isSocial ? "" : type.split(" ")[0], cat: isSocial ? cat : "",
       title: title.trim(), place: city.trim() || locName || user.city, sev: isSocial ? "Bassa" : sev,
@@ -4008,12 +4031,14 @@ function AddEventModal({ onAdd, onClose, user, geo, locName, onGeocode, initialK
             </>
           ) : (
             <>
-              <div><div style={labelStyle}>Titolo</div><input placeholder="Es. Aperitivo al tramonto" value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Titolo</div><input placeholder={cat === "🛎️ Servizi / Noleggio" ? "Es. Noleggio gommoni a Marina Piccola" : "Es. Aperitivo al tramonto"} value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></div>
               <div><div style={labelStyle}>Categoria</div>
                 <select value={cat} onChange={e => setCat(e.target.value)} style={inputStyle}>{EVENT_CATEGORIES.slice(1).map(c => <option key={c}>{c}</option>)}</select></div>
               <div><div style={labelStyle}>Descrizione dell'evento</div>
-                <textarea rows={5} placeholder={"Racconta l'evento: programma, ospiti, cosa aspettarsi…\nVai a capo per i paragrafi."} value={description} onChange={e => setDescription(e.target.value)} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} /></div>
+                <textarea rows={5} placeholder={cat === "🛎️ Servizi / Noleggio" ? "Descrivi il servizio: cosa offri, orari, prezzi, come prenotare…\nVai a capo per i paragrafi." : "Racconta l'evento: programma, ospiti, cosa aspettarsi…\nVai a capo per i paragrafi."} value={description} onChange={e => setDescription(e.target.value)} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} /></div>
               <div><div style={labelStyle}>Data e ora</div><input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Fino al (facoltativo)</div><input type="date" value={until} min={startsAt ? socialMinDate(startsAt) : undefined} max={startsAt ? socialMaxDate(startsAt) : undefined} onChange={e => setUntil(e.target.value)} style={inputStyle} />
+                <div style={{ fontSize: 12, color: TXT2, marginTop: 5, lineHeight: 1.4 }}>{cat === "🛎️ Servizi / Noleggio" ? "Noleggi e servizi: indica fino a quando vale l'offerta. Al massimo una settimana dall'inizio, poi si può ripubblicare." : "Un evento social resta visibile al massimo una settimana dall'inizio."}</div></div>
               <div>{addressBlock}</div>
               <div><div style={labelStyle}>Link di info (facoltativo)</div><input placeholder="https://…" inputMode="url" value={link} onChange={e => setLink(e.target.value)} style={inputStyle} /></div>
               <div><div style={labelStyle}>Contatto dell'organizzatore</div><input placeholder="Telefono, WhatsApp o email" value={contact} onChange={e => setContact(e.target.value)} style={inputStyle} /></div>
@@ -4181,7 +4206,7 @@ function EventMapView({ event, onBack, onOpenPhoto }) {
         </div>
         {event.kind === "social" && (event.description || event.startsAt || event.address || event.link || event.contact) && (
           <div style={{ background: CARD, margin: 14, borderRadius: 14, padding: 14, boxShadow: `0 2px 10px ${HBLUE}0D`, fontSize: 13.5, color: TXT, lineHeight: 1.5 }}>
-            {event.startsAt && <div style={{ fontWeight: 700, marginBottom: 6 }}>🗓️ {fmtWhen(event.startsAt)}</div>}
+            {event.startsAt && <div style={{ fontWeight: 700, marginBottom: 6 }}>🗓️ {fmtWhen(event.startsAt)}{socialUntilLabel(event)}</div>}
             {event.address && <div style={{ color: TXT2, marginBottom: 6 }}>📍 {event.address}</div>}
             {event.description && <div style={{ whiteSpace: "pre-wrap", marginBottom: 8 }}>{event.description}</div>}
             {event.link && <div>🔗 <a href={/^https?:/i.test(event.link) ? event.link : "https://" + event.link} target="_blank" rel="noopener" style={{ color: TXT }}>{event.link}</a></div>}
