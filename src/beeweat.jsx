@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.92";
+const APP_VERSION = "14.93";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -3752,13 +3752,16 @@ function AddContactModal({ people, contacts, onAdd, onClose }) {
 
 // ─── ADD EVENT MODAL ──────────────────────────────────────────────────────────
 // ── Mappa (OpenStreetMap via Leaflet, caricato al bisogno) per gli eventi social ──
+// 14.93 (sicurezza): la mappa degli eventi scrive titolo e categoria come HTML — vanno resi innocui prima, altrimenti un titolo
+// costruito apposta eseguirebbe codice nel telefono di chi guarda la mappa.
+const escHtml = v => String(v ?? "").replace(/[&<>"'`]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;" }[c]));
 let _leafletP = null;
 const ensureLeaflet = () => {
   if (window.L) return Promise.resolve(window.L);
   if (_leafletP) return _leafletP;
   _leafletP = new Promise((res, rej) => {
-    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
-    const sc = document.createElement("script"); sc.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; sc.onload = () => res(window.L); sc.onerror = rej; document.head.appendChild(sc);
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; css.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="; css.crossOrigin = "anonymous"; document.head.appendChild(css);   // 14.93: impronta del file, se cambia non si carica
+    const sc = document.createElement("script"); sc.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; sc.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="; sc.crossOrigin = "anonymous"; sc.onload = () => res(window.L); sc.onerror = rej; document.head.appendChild(sc);
   });
   return _leafletP;
 };
@@ -3779,8 +3782,8 @@ function SocialMap({ events, me, onPick }) {
       const pts = [];
       events.forEach(e => {
         if (e.lat == null) return;
-        const icon = L.divIcon({ className: "", html: `<div style="width:42px;height:42px;border-radius:50%;background:#fff;border:3px solid #123C6B;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 4px 10px rgba(0,0,0,.22)">${(e.cat || "🎉").split(" ")[0]}</div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
-        L.marker([e.lat, e.lng], { icon }).addTo(layer).on("click", () => onPick && onPick(e)).bindTooltip(e.title);
+        const icon = L.divIcon({ className: "", html: `<div style="width:42px;height:42px;border-radius:50%;background:#fff;border:3px solid #123C6B;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 4px 10px rgba(0,0,0,.22)">${escHtml(Array.from((e.cat || "🎉").split(" ")[0]).slice(0, 4).join(""))}</div>`, iconSize: [42, 42], iconAnchor: [21, 21] });
+        L.marker([e.lat, e.lng], { icon }).addTo(layer).on("click", () => onPick && onPick(e)).bindTooltip(escHtml(e.title));
         pts.push([e.lat, e.lng]);
       });
       if (me) pts.push([me.lat, me.lng]);
