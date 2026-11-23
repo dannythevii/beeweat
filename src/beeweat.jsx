@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.93";
+const APP_VERSION = "14.94";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -1941,6 +1941,34 @@ function FeedScreen({ onRetry, posts, km, setKm, onStar, onChat, onOpenUser, fol
 }
 
 // ─── BEECAST (previsione collaborativa 12h) ───────────────────────────────────
+// 14.94: allerte ufficiali della TUA zona. Il servizio risponde con tutte le regioni che toccano il riquadro (da Capri: Campania,
+// ma anche Lazio, Molise, Puglia): se una delle allerte regionali è della tua regione, restano solo quelle; le scadute spariscono.
+const _normReg = v => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+const reverseRegion = async (lat, lng) => {   // la regione (es. «Campania») dalla zona di ~1 km; in memoria per zona
+  const key = "bw_reg_" + (+lat).toFixed(1) + "," + (+lng).toFixed(1);
+  try { const c = localStorage.getItem(key); if (c) return c; } catch (_) {}
+  try {
+    const r = await _fetchT(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${(+lat).toFixed(2)}&longitude=${(+lng).toFixed(2)}&localityLanguage=it`);
+    const j = await r.json(); const reg = j?.principalSubdivision || "";
+    if (reg) { try { localStorage.setItem(key, reg); } catch (_) {} }
+    return reg || null;
+  } catch (_) { return null; }
+};
+const officialAlerts = (solano, region) => {
+  const now = Date.now();
+  let list = (solano?.alerts || []).filter(a => a && a.title && !(a.expires && new Date(a.expires).getTime() < now));
+  const reg = _normReg(region);
+  if (reg) {
+    const mine = a => { const z = _normReg(a.zone); return !!z && (z === reg || z.includes(reg) || reg.includes(z)); };
+    if (list.some(a => a.source === "MeteoAlarm" && mine(a))) list = list.filter(a => a.source !== "MeteoAlarm" || mine(a));
+  }
+  return list.slice().sort((a, b) => (b.level || 0) - (a.level || 0));
+};
+const officialLine = a => {   // «Allerta gialla · Vento · Campania · fino alle 12:59»
+  if (!a) return "";
+  const until = a.expires && !isNaN(new Date(a.expires)) ? ` · fino alle ${new Date(a.expires).toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}` : "";
+  return `${a.title}${a.zone ? " · " + a.zone : (a.text && a.source !== "MeteoAlarm" ? " · " + a.text : "")}${until}`;
+};
 // 14.25: allerte ufficiali, rischio temporali e modelli a confronto — dati Solano (solanometeo.fr)
 function SolanoCard({ solano }) {
   const fmtWhen = iso => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.toLocaleDateString(LOCALE(), { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString(LOCALE(), { hour: "2-digit", minute: "2-digit" })}`; };
@@ -1995,12 +2023,14 @@ function SolanoCard({ solano }) {
     </div>
   );
 }
-function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano, wxDays, co2 }) {
+function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmAlert, alertArmed, solano, wxDays, co2, official }) {
   const RAW = sense && sense.raw ? sense.raw : null;   // 14.11
   const S = sense || { text: "In ascolto del cielo…", conf: "In attesa di foto", photos: 0, why: `Nessuna foto della community nelle ultime 3 ore entro ${km} km. Appena qualcuno pubblica, BeeCast confronta le osservazioni reali con i modelli e corregge la previsione.` };
+  const OFF = (official || [])[0] || null;   // 14.94: l'allerta ufficiale più alta in vigore per la zona
+  const offAL = OFF ? { icon: "⚠️", title: officialLine(OFF), dir: `${OFF.source === "MeteoAlarm" ? "Protezione Civile · MeteoAlarm" : OFF.source || "fonte ufficiale"}${official.length > 1 ? ` · altre ${official.length - 1} qui sotto` : ""}`, photos: 0, speed: null, conf: "—", official: true } : null;
   const AL = sense
-    ? (sense.alert || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
-    : { icon: "🐝", title: "Allerte di prossimità", dir: "si attivano con le foto della community", photos: 0, speed: null, conf: "—" };
+    ? (sense.alert || offAL || { icon: "🌤️", title: "Nessun maltempo osservato in avvicinamento", dir: "osservazioni nel raggio", photos: sense.photos, speed: null, conf: sense.conf.replace("Affidabilità ", "") })
+    : (offAL || { icon: "🐝", title: "Allerte di prossimità", dir: "si attivano con le foto della community", photos: 0, speed: null, conf: "—" });
   const [alertOn, setAlertOn] = useState(!!alertArmed);
   useEffect(() => { setAlertOn(!!alertArmed); }, [alertArmed]);
   const [toast, setToast] = useState(false);
@@ -2101,7 +2131,9 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
           <div style={{ width: 58, height: 58, borderRadius: 16, background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{AL.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {sense && sense.alert && <div style={{ fontSize: 12, fontWeight: 700, color: "#D9482B", letterSpacing: ".06em", textTransform: "uppercase" }}>{sense.raw?.incoming?.observed ? "Maltempo nei dintorni" : "Maltempo in avvicinamento"}</div>}
-            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
+            {AL.official && <div style={{ fontSize: 12, fontWeight: 700, color: "#E8700A", letterSpacing: ".06em", textTransform: "uppercase" }}>Allerta ufficiale in corso</div>}
+            {sense && sense.alert && OFF && <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>In più, allerta ufficiale: <span data-notr="1">{officialLine(OFF)}</span></div>}
+            <div data-notr={AL.official ? "1" : undefined} style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: TXT, lineHeight: 1.2, marginTop: 2 }}>{AL.title}</div>
             <div style={{ fontSize: 12, color: TXT2, marginTop: 2 }}>{AL.dir}{AL.photos ? ` · ${AL.photos} foto` : ""}{AL.conf !== "—" ? ` · affidabilità ${AL.conf}` : ""}</div>
           </div>
         </div>
@@ -2142,7 +2174,7 @@ function BeeCastScreen({ km, wxHours, wxSea, wxSky, sense, onArmAlert, onDisarmA
 
       {/* 14.25: allerte ufficiali e rischio temporali (Solano) */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Allerte ufficiali · rischio temporali</div>
-      <SolanoCard solano={solano} />
+      <SolanoCard solano={solano && official ? { ...solano, alerts: official } : solano} />
 
       {/* prossime 12 ore */}
       <div style={{ fontSize: 12, fontWeight: 600, color: TXT2, textTransform: "uppercase", letterSpacing: ".06em", margin: "16px 2px 8px" }}>Prossime 12 ore</div>
@@ -5015,6 +5047,23 @@ function AppInner() {
     const iv = setInterval(load, 30 * 60000);
     return () => { stop = true; clearInterval(iv); };
   }, [solanoKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // 14.94: allerte ufficiali della zona — elenco ripulito e un avviso in alto, una volta per allerta
+  const [region, setRegion] = useState(null);
+  useEffect(() => { if (!geo) return; let stop = false; reverseRegion(geo.lat, geo.lng).then(r => { if (!stop) setRegion(r); }); return () => { stop = true; }; }, [solanoKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const official = useMemo(() => officialAlerts(solano, region), [solano, region]);
+  useEffect(() => {
+    if (!user || !official.length) return;
+    const a = official[0]; const id = [a.source, a.title, a.zone || a.text || "", a.expires || new Date().toISOString().slice(0, 10)].join("|");
+    let seen = []; try { seen = JSON.parse(localStorage.getItem("bw_off_seen") || "[]"); } catch (_) {}
+    if (seen.includes(id)) return;
+    const t = setTimeout(() => {
+      try { localStorage.setItem("bw_off_seen", JSON.stringify([...seen, id].slice(-30))); } catch (_) {}
+      setNotifToast(cur => cur || { kind: "official", text: "Allerta ufficiale: " + officialLine(a) });
+      try { playChime(); } catch (_) {}
+      setTimeout(() => setNotifToast(cur => cur?.kind === "official" ? null : cur), 9000);
+    }, 2500);   // aspetta la regione: così non annuncia l'allerta di una regione vicina
+    return () => clearTimeout(t);
+  }, [official, user]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!geo) return;
     let stop = false;
@@ -5277,6 +5326,7 @@ function AppInner() {
   const routeNotifTap = (kind, from) => {
     if (!user) { pendingNotifRef.current = { kind, from }; return; }
     if (kind === "thanks") return;                                  // 14.45: il grazie non porta da nessuna parte
+    if (kind === "official") { setOverlay(null); setTab("beecast"); return; }   // 14.94: l'allerta ufficiale porta a BeeCast
     if (kind === "nudge") { setOverlay("post"); return; }        // il verso del poeta apre la fotocamera
     if (kind === "followPost" && from?.uid) { setOverlay({ user: { name: from.name, ava: from.ava, city: from.city, uid: from.uid } }); return; }
     if (kind === "direct" && from) {
@@ -6476,8 +6526,8 @@ function AppInner() {
       <Header overlay={tab === "feed"} title={titles[tab]} left={<button onClick={() => setOverlay("profile")} aria-label="Apri il tuo profilo" title="Profilo" style={{ padding: 0, width: 44, height: 44, borderRadius: "50%", background: MIST, border: `1.5px solid ${LINE}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}><UserAvatar src={user.avatar} size={41} ring={false} /></button>} right={rightBtn} />
       {notifToast && (
         <div onClick={() => { const k = notifToast; setNotifToast(null); routeNotifTap(k.kind, k.from); }} style={{ position: "fixed", top: 12, left: 12, right: 12, margin: "0 auto", zIndex: 400, background: "#1E2B3D", color: "#fff", borderRadius: 14, padding: "10px 16px", boxShadow: "0 8px 26px rgba(0,0,0,.38)", display: "flex", gap: 10, alignItems: "center", maxWidth: 380, width: "fit-content", cursor: "pointer" }} className="fade-up">
-          <span style={{ fontSize: 18, flexShrink: 0, display: "flex" }}>{notifToast.kind === "thanks" ? <span style={{ width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={14} color={INK} sw={3} /></span> : notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
-          <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{notifToast.text}</span>
+          <span style={{ fontSize: 18, flexShrink: 0, display: "flex" }}>{notifToast.kind === "thanks" ? <span style={{ width: 24, height: 24, borderRadius: "50%", background: HONEY, display: "flex", alignItems: "center", justifyContent: "center" }}><NavIcon name="check" size={14} color={INK} sw={3} /></span> : notifToast.kind === "alert" ? "⛈️" : notifToast.kind === "official" ? "⚠️" : notifToast.kind === "broadcast" ? "📣" : notifToast.kind === "followPost" ? "📸" : notifToast.kind === "follow" ? "🐝" : "💬"}</span>
+          <span style={{ fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: notifToast.kind === "official" ? "normal" : "nowrap", lineHeight: 1.3 }}>{notifToast.text}</span>
         </div>
       )}
       {showWeather && <WeatherPanel commentCount={totalComments} wx={wx} onOpenChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} />}
@@ -6485,7 +6535,7 @@ function AppInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
         {tab === "feed" && <FeedScreen onRetry={() => flushRef.current && flushRef.current()} homeKey={feedHome} modelCond={wx?.condition} posts={withRank(feedShown)} km={km} worldOn={feedWorld} worldCount={worldCount} focusId={focusPostId} onToggleWorld={() => { setFeedWorld(v => !v); setFeedFollowed(false); }} onStar={onStar} onChat={openChatFromPost} onOpenUser={openUser} following={following} onFollow={toggleFollow} onReport={p => setReportTarget(p)} reported={reported} onView={onView} onOpenPhoto={openPhoto} isAdmin={isAdmin} onDelete={deletePost} onEdit={p => setEditTarget(p)} loading={!feedReady && posts.length === 0} onWiden={v => setKm(v)} onShoot={openCamera} rain6={wx?.rain6} onOpenCast={() => setTab("beecast")} onOpenPost={goToPost} setKm={setKm} onOpenRadar={() => setTab("vicini")} followedOn={feedFollowed} onToggleFollowed={() => { setFeedFollowed(v => !v); setFeedWorld(false); }} onlineCount={onlineCount} placeName={locName || user.city || "Beeweat"} placeExact={!!locName} onOpenPlaceChat={() => openPlaceChat({ name: locName || user.city || "Beeweat" }, null)} wx={wx} />}
         {tab === "vicini" && <ViciniScreen geo={geo} wx={wx} onOpenCast={() => setTab("beecast")} posts={posts} events={events} km={km} setKm={setKm} onOpenPost={goToPost} onChat={openChatFromPost} onEvent={e => setOverlay({ eventMap: e })} onOpenUser={openUser} following={following} onFollow={toggleFollow} />}
-        {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
+        {tab === "beecast" && <BeeCastScreen co2={co2} solano={solano} official={official} wxDays={wx?.days} km={km} wxHours={wx?.hours} wxSea={wx?.sea} wxSky={wx && { sunrise: wx.sunrise, sunset: wx.sunset, moon: wx.moon }} sense={senseCard} alertArmed={!!(notif?.enabled && notif?.allerte)} onArmAlert={() => { saveNotif({ ...notif, enabled: true, allerte: true }); enablePush(); }} onDisarmAlert={() => saveNotif({ ...notif, allerte: false })} />}
         {tab === "eventi" && <EventiScreen events={events} km={km} setKm={setKm} onOpenRadar={() => setTab("vicini")} focusId={focusEventId} onOpenPhoto={openPhoto} me={geo} view={evView} onView={setEvView} onOpen={e => setOverlay({ eventMap: e })} userName={user.name} myUid={myUid} isAdmin={isAdmin} onEditEnds={e => setEditEventTarget(e)} />}
         {tab === "contatti" && <ContattiScreen setKm={setKm} onOpenRadar={() => setTab("vicini")} onlineCount={onlineCount} onOpenSelf={() => setOverlay("profile")} onOpenUser={c => setOverlay({ user: { name: c.name, ava: c.ava, city: c.city, uid: c.id } })} nearPlaces={realPlaces} contacts={contacts} groups={groups} km={km} onChat={openDirectChat} onOpenGroup={openGroupChat} onOpenPlace={p => setOverlay({ place: p })} onOpenPlaceEvents={p => setOverlay({ placeEvents: p })} people={contacts.filter(c => !c.me)} favs={favs} toggleFav={toggleFav} contactDist={contactDist} isAdminG={isAdmin} following={following} onFollowUser={toggleFollow} placeFavs={placeFavs} onTogglePlaceFav={togglePlaceFav}
           onEditGroup={async g => {
