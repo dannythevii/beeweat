@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.94";
+const APP_VERSION = "14.95";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2425,6 +2425,7 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
   const allEvents = (events || []).filter(e => e.dist <= km && eventAlive(e));   // 14.83: stessa regola di scadenza di Eventi
   const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
   const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
+  const nSocialEv = allEvents.filter(e => e.kind === "social").length, nMeteoEv = allEvents.length - nSocialEv;   // 14.95: la scheda mostra TUTTI gli eventi (meteo e social): prima si chiamava «Social» e contava tutto come «allerte»
   const R = 150, cx = 160, cy = 160;
   const [lay, setLay] = useState(() => { try { return { rain: true, clouds: false, sat: false, ...JSON.parse(localStorage.getItem("bw_radar_layers") || "{}") }; } catch (_) { return { rain: true, clouds: false, sat: false }; } });   // 14.78
   const toggleLay = k => setLay(v => { const n = { ...v, [k]: !v[k] }; try { localStorage.setItem("bw_radar_layers", JSON.stringify(n)); } catch (_) {} return n; });
@@ -2459,13 +2460,13 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
       <div style={{ margin: "0 -16px 14px", padding: "4px 16px 12px", background: NIGHT, color: "#fff", display: "flex", flexDirection: "column", gap: 10 }}>{/* 14.38 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, color: TXT }}>
-            <span style={{ width: 7, height: 7, borderRadius: 4, background: allWeather.length + allEvents.length ? "#4ADE80" : TXT2, boxShadow: allWeather.length + allEvents.length ? "0 0 0 3px rgba(74,222,128,.25)" : "none" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {allEvents.length} {allEvents.length === 1 ? "allerta" : "allerte"}</span><span style={{ color: TXT2, fontWeight: 600 }}>· ultime 6 ore</span>
+            <span style={{ width: 7, height: 7, borderRadius: 4, background: allWeather.length + allEvents.length ? "#4ADE80" : TXT2, boxShadow: allWeather.length + allEvents.length ? "0 0 0 3px rgba(74,222,128,.25)" : "none" }} /><span>{allWeather.length} {allWeather.length === 1 ? "cielo" : "cieli"} · {nMeteoEv} {nMeteoEv === 1 ? "allerta" : "allerte"}{nSocialEv > 0 ? <> · {nSocialEv} {nSocialEv === 1 ? "evento" : "eventi"}</> : null}</span><span style={{ color: TXT2, fontWeight: 600 }}>· ultime 6 ore</span>
           </div>
           <RaggioPill km={km} open={rg} onClick={() => setRg(v => !v)} />{/* 14.39 */}
         </div>
         {rg && <RaggioMenu km={km} setKm={setKm} count={allWeather.length} onOpenCast={onOpenCast} rain6={wx?.rain6} onClose={() => setRg(false)} />}
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: NIGHT2, border: `1px solid ${LINE}` }}>
-          {[["meteo", `Cieli · ${allWeather.length}`, "cloud"], ["eventi", `Social · ${allEvents.length}`, "bee"]].map(([id, label, ic]) => (
+          {[["meteo", `Cieli · ${allWeather.length}`, "cloud"], ["eventi", `Eventi · ${allEvents.length}`, "calendar"]].map(([id, label, ic]) => (
             <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? INK : TXT2} sw={2} />{label}</button>
           ))}
         </div>
@@ -2538,6 +2539,7 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
         <div style={{ position: "absolute", left: 18, bottom: 18, display: "flex", gap: 6 }}>
           <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: MIST, color: "#fff", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: "#fff" }} />cielo</span>
           <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: MIST, color: "#fff", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: ELEC }} />allerta</span>
+          {nSocialEv > 0 && <span style={{ height: 24, padding: "0 9px", borderRadius: 12, background: MIST, color: "#fff", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 5, background: HONEY }} />evento</span>}
         </div>
         <button onClick={zoomed ? () => setVb({ x: 0, y: 0, w: 320, h: 320 }) : zoomIn} title={zoomed ? "Vista intera" : "Zoom"} aria-label={zoomed ? "Torna alla vista intera" : "Ingrandisci il radar"} style={{ position: "absolute", right: 14, bottom: 14, width: 44, height: 44, borderRadius: 22, border: `1px solid ${LINE}`, background: MIST, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, fontWeight: 600, lineHeight: 1, fontFamily: "'Inter',sans-serif" }}>{zoomed ? "−" : "+"}</button>
       </div>
