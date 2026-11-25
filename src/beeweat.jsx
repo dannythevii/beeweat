@@ -6,7 +6,7 @@ const monthName = i => { const n = new Date(2000, i, 1).toLocaleDateString(LOCAL
 installTranslator();
 
 // ─── PALETTE (dai mockup) ─────────────────────────────────────────────────────
-const APP_VERSION = "14.95";
+const APP_VERSION = "14.96";
 const urlB64ToU8 = b64 => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -2424,8 +2424,8 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
   const allWeather = posts.filter(p => p.dist <= km && (nowMs - new Date(p.ts).getTime()) <= SIX_H);   // solo le ultime 6 ore: il radar dice il tempo di ADESSO
   const allEvents = (events || []).filter(e => e.dist <= km && eventAlive(e));   // 14.83: stessa regola di scadenza di Eventi
   const [view, setView] = useState("meteo");   // 14.7: Meteo | Eventi
-  const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(() => view === "eventi");
-  const nSocialEv = allEvents.filter(e => e.kind === "social").length, nMeteoEv = allEvents.length - nSocialEv;   // 14.95: la scheda mostra TUTTI gli eventi (meteo e social): prima si chiamava «Social» e contava tutto come «allerte»
+  const showWx = allWeather.filter(() => view === "meteo"), showEv = allEvents.filter(e => (e.kind === "social") === (view === "eventi"));   // 14.96: le allerte meteo (temporali, mareggiate…) stanno con i Cieli; in «Social» solo gli eventi social
+  const nSocialEv = allEvents.filter(e => e.kind === "social").length, nMeteoEv = allEvents.length - nSocialEv;   // 14.95: allerte (eventi meteo) ed eventi social si contano separati
   const R = 150, cx = 160, cy = 160;
   const [lay, setLay] = useState(() => { try { return { rain: true, clouds: false, sat: false, ...JSON.parse(localStorage.getItem("bw_radar_layers") || "{}") }; } catch (_) { return { rain: true, clouds: false, sat: false }; } });   // 14.78
   const toggleLay = k => setLay(v => { const n = { ...v, [k]: !v[k] }; try { localStorage.setItem("bw_radar_layers", JSON.stringify(n)); } catch (_) {} return n; });
@@ -2466,7 +2466,7 @@ function ViciniScreen({ geo, posts, events, km, setKm, onChat, onEvent, onOpenUs
         </div>
         {rg && <RaggioMenu km={km} setKm={setKm} count={allWeather.length} onOpenCast={onOpenCast} rain6={wx?.rain6} onClose={() => setRg(false)} />}
         <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 16, background: NIGHT2, border: `1px solid ${LINE}` }}>
-          {[["meteo", `Cieli · ${allWeather.length}`, "cloud"], ["eventi", `Eventi · ${allEvents.length}`, "calendar"]].map(([id, label, ic]) => (
+          {[["meteo", `Cieli · ${allWeather.length + nMeteoEv}`, "cloud"], ["eventi", `Social · ${nSocialEv}`, "bee"]].map(([id, label, ic]) => (
             <button key={id} onClick={() => { setView(id); setSel(null); }} aria-pressed={view === id} style={{ flex: 1, height: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, border: "none", background: view === id ? HONEY : "transparent", color: view === id ? INK : TXT2, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Inter',sans-serif" }}><NavIcon name={ic} size={16} color={view === id ? INK : TXT2} sw={2} />{label}</button>
           ))}
         </div>
